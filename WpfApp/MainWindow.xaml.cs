@@ -22,6 +22,7 @@ namespace WpfApp
     /// </summary>
     public partial class MainWindow : Window
     {
+        //测试
         private NavigationViewItem? _TestMenuItem;
         private NavigationViewItem? _HomeMenuItem;
         List<ControlInfoDataItem> _NavigationInfo = new List<ControlInfoDataItem>();
