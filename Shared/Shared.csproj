@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Autofac" Version="9.1.0" />
+    <PackageReference Include="HPSocket.Net" Version="6.0.7.1" />
+    <PackageReference Include="NLua" Version="1.7.8" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+    <PackageReference Include="RestSharp" Version="114.0.0" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.214" />
+    <PackageReference Include="System.CodeDom" Version="10.0.5" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.5" />
+  </ItemGroup>
+
+</Project>

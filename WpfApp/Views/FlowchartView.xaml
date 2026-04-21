@@ -1,0 +1,89 @@
+<UserControl x:Class="WpfApp.Views.FlowchartView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:WpfApp.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="1100">
+    <UserControl.Resources>
+        <Style x:Key="PaletteButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#DADADA" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0"
+                Padding="14"
+                Background="#FAFAFA"
+                BorderBrush="#DDDDDD"
+                BorderThickness="1"
+                CornerRadius="10">
+            <StackPanel>
+                <TextBlock FontSize="18" FontWeight="SemiBold" Text="流程图组件" />
+                <TextBlock Margin="0,8,0,18"
+                           Foreground="#666666"
+                           Text="按住左键拖动按钮到右侧画布，创建新的流程节点。" 
+                           TextWrapping="Wrap" />
+
+                <Button Style="{StaticResource PaletteButtonStyle}"
+                        Content="开始"
+                        Tag="开始"
+                        PreviewMouseLeftButtonDown="PaletteItem_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="PaletteItem_PreviewMouseLeftButtonUp"
+                        PreviewMouseMove="PaletteItem_PreviewMouseMove" />
+                <Button Style="{StaticResource PaletteButtonStyle}"
+                        Content="处理"
+                        Tag="处理"
+                        PreviewMouseLeftButtonDown="PaletteItem_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="PaletteItem_PreviewMouseLeftButtonUp"
+                        PreviewMouseMove="PaletteItem_PreviewMouseMove" />
+                <Button Style="{StaticResource PaletteButtonStyle}"
+                        Content="判断"
+                        Tag="判断"
+                        PreviewMouseLeftButtonDown="PaletteItem_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="PaletteItem_PreviewMouseLeftButtonUp"
+                        PreviewMouseMove="PaletteItem_PreviewMouseMove" />
+                <Button Style="{StaticResource PaletteButtonStyle}"
+                        Content="结束"
+                        Tag="结束"
+                        PreviewMouseLeftButtonDown="PaletteItem_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="PaletteItem_PreviewMouseLeftButtonUp"
+                        PreviewMouseMove="PaletteItem_PreviewMouseMove" />
+
+                <Separator Margin="0,12,0,12" />
+
+                <TextBlock Foreground="#666666" Text="操作说明" FontWeight="SemiBold" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="#666666"
+                           Text="1. 左键拖按钮到画布创建节点"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="#666666"
+                           Text="2. 拖节点四边连接点创建箭头线"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="#666666"
+                           Text="3. 左键拖空白区域平移，滚轮缩放，Delete 删除选中项"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <controls:FlowchartEditorControl x:Name="Editor" Grid.Column="2" />
+    </Grid>
+</UserControl>
