@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,7 +16,7 @@ namespace Shared.Infrastructure.CSharp
         public static List<string> ErrorMessage = new List<string>();
         public static bool Compile(string source, string outputfile)
         {
-            string[] references = Directory.GetFiles("./").Where(r => System.IO.Path.GetExtension(r).Equals(".dll") && !Path.GetFileName(r).Contains("HPSocket4C") && !Path.GetFileName(r).Contains("lua")).ToArray();
+            string[] references = Directory.GetFiles("./").Where(IsManagedReferenceCandidate).ToArray();
             CompilerParameters compilerParam = new CompilerParameters(references, outputfile, true);
             //获取当前进程
             Process currentProcess = Process.GetCurrentProcess();
@@ -43,6 +44,25 @@ namespace Shared.Infrastructure.CSharp
                 ErrorMessage.Add($"{error.ErrorNumber} {error.ErrorText} {error.Line} {error.Column}");
             }
             return false;
+        }
+
+        private static bool IsManagedReferenceCandidate(string path)
+        {
+            if (!Path.GetExtension(path).Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
+                Path.GetFileName(path).Contains("lua", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                AssemblyName.GetAssemblyName(path);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -14,7 +14,8 @@ namespace ControlLibrary.Converts
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return string.Equals(value, parameter) ? Visibility.Visible : Visibility.Collapsed;
+            if (value == null || parameter == null) return Visibility.Collapsed;
+            return parameter.ToString().ToUpper().Contains(value?.ToString().ToUpper()) ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

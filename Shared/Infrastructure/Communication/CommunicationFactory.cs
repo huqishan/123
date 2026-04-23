@@ -1,74 +1,57 @@
-﻿using HPSocket.Tcp;
-using HPSocket.Udp;
-using Shared.Abstractions.Enum;
 using Shared.Abstractions;
+using Shared.Abstractions.Enum;
+using Shared.Models.Communication;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Shared.Models.Communication;
 
 namespace Shared.Infrastructure.Communication
 {
     public class CommunicationFactory
     {
-        private static Dictionary<string, ICommunication> keyValuePairs = new Dictionary<string, ICommunication>();
+        private static readonly Dictionary<string, ICommunication> keyValuePairs = new Dictionary<string, ICommunication>();
+
         public static ICommunication CreateCommuniactionProtocol(CommuniactionConfigModel config)
         {
-            ICommunication communiaction = null;
-            switch (config.Type)
+            ICommunication communiaction = config.Type switch
             {
-                case CommuniactionType.TCPClient:
-                    communiaction = new TCPClient(config);
-                    break;
-                case CommuniactionType.TCPServer:
-                    communiaction = new TCPServer(config);
-                    break;
-                case CommuniactionType.UDP:
-                    communiaction = new UDPClient(config);
-                    break;
-                case CommuniactionType.UDPServer:
-                    communiaction = new UDPServer(config);
-                    break;
-                case CommuniactionType.COM:
-                    communiaction = new SerialPortComm(config);
-                    break;
-                case CommuniactionType.RabbitMQRPCServer:
-                    communiaction = new RabbitMQRPCServer(config);
-                    break;
-                case CommuniactionType.RabbitMQRPCClient:
-                    communiaction = new RabbitMQRPCClient(config);
-                    break;
-                default:
-                    break;
-            }
+                CommuniactionType.TCPClient => new TCPClient(config),
+                CommuniactionType.TCPServer => new TCPServer(config),
+                CommuniactionType.UDP => new UDPClient(config),
+                CommuniactionType.UDPServer => new UDPServer(config),
+                CommuniactionType.COM => new SerialPortComm(config),
+                CommuniactionType.RabbitMQRPCServer => new RabbitMQRPCServer(config),
+                CommuniactionType.RabbitMQRPCClient => new RabbitMQRPCClient(config),
+                _ => throw new NotSupportedException($"Unsupported communication type: {config.Type}")
+            };
+
             if (keyValuePairs.ContainsKey(config.LocalName))
             {
                 keyValuePairs[config.LocalName].Close();
                 keyValuePairs[config.LocalName] = communiaction;
             }
             else
+            {
                 keyValuePairs.Add(config.LocalName, communiaction);
-            return communiaction;
+            }
 
+            return communiaction;
         }
+
         public static ICommunication Get(string name)
         {
-            ICommunication communication = null;
-            if (keyValuePairs.ContainsKey(name))
-            {
-                communication = keyValuePairs[name];
-            }
-            return communication;
+            return keyValuePairs.TryGetValue(name, out ICommunication? communication)
+                ? communication
+                : null!;
         }
+
         public static bool Remove(string name)
         {
-            if (keyValuePairs.ContainsKey(name))
+            if (keyValuePairs.TryGetValue(name, out ICommunication? communication))
             {
-                keyValuePairs[name].Close();
+                communication.Close();
                 keyValuePairs.Remove(name);
             }
+
             return true;
         }
     }

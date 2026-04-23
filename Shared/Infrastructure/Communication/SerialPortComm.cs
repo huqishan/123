@@ -57,7 +57,7 @@ namespace Shared.Infrastructure.Communication
         public bool Close()
         {
             IsWhile.Set();
-            if (!_SerialPort.IsOpen)
+            if (_SerialPort.IsOpen)
             {
                 _SerialPort.Close();
                 _SerialPort.Dispose();

@@ -1,410 +1,453 @@
-﻿using Shared.Abstractions.Enum;
 using Shared.Abstractions;
+using Shared.Abstractions.Enum;
+using Shared.Infrastructure.Extensions;
+using Shared.Models.Communication;
+using Shared.Models.Log;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using HPSocket;
-using Shared.Infrastructure.Extensions;
-using Shared.Models.Communication;
-using Shared.Models.Log;
 
 namespace Shared.Infrastructure.Communication
 {
     public class TCPClient : ICommunication
     {
-        #region Propertys
+        private const int BufferSize = 8192;
+        private const int ReconnectIntervalMilliseconds = 1000;
+        private const int ConnectRetryCount = 10;
+
+        private readonly object _connectionLock = new object();
+        private readonly object _writeLock = new object();
+        private readonly BlockingCollection<string> _responseQueue = new BlockingCollection<string>();
+        private readonly string _localAddress;
+        private readonly int _localPort;
+
+        private System.Net.Sockets.TcpClient? _tcpClient;
+        private NetworkStream? _networkStream;
+        private CancellationTokenSource? _lifetimeCts;
+        private Task? _receiveTask;
+        private Task? _reconnectTask;
+        private bool _lastSendIsHex;
+        private ConnectState _isConnected = ConnectState.DisConnected;
+
         /// <summary>
-        /// 远程服务器IP 地址
+        /// 远程服务器 IP 地址。
         /// </summary>
         public string RemoteAddress { get; private set; } = "127.0.0.1";
 
         /// <summary>
-        /// 远程服务器端口
+        /// 远程服务器端口。
         /// </summary>
         public ushort RemotePort { get; private set; } = 5555;
 
         /// <summary>
-        /// TCP 客户端
-        /// </summary>
-        public ITcpClient TcpClient { get; private set; } = new HPSocket.Tcp.TcpClient();
-
-        /// <summary>
-        /// TCP 客户端名字
+        /// TCP 客户端名称。
         /// </summary>
         public string LocalClientName { get; private set; } = string.Empty;
-        private Thread _ReconnectionThread;
-        private AutoResetEvent IsWhile = new AutoResetEvent(false);
-        private BlockingCollection<string> _RespQueue = new BlockingCollection<string>();
-        private ConnectState _IsConnected = ConnectState.DisConnected;
-        bool isHex = false;
-        /// <summary>
-        /// TCP 客户端连接状态
-        /// </summary>  
+
         public ConnectState IsConnected
         {
-            get
-            {
-                if (TcpClient == null)
-                    return ConnectState.DisConnected;
-                else
-                    return _IsConnected;
-            }
+            get => _isConnected;
             private set
             {
-                if (_IsConnected != value)
+                if (_isConnected == value)
                 {
-                    _IsConnected = value;
-                    SendState(value);
+                    return;
                 }
+
+                _isConnected = value;
+                SendState(value);
             }
         }
 
         public string LocalName { get; }
-        object _Locker = new object();
-        #endregion
 
-        #region 构造
+        public event Action<LogMessageModel> OnLog = delegate { };
+
+        public event ReceiveData OnReceive = (_, _) => string.Empty;
+
+        public event StateChanged StateChange = delegate { };
+
         public TCPClient(CommuniactionConfigModel config)
         {
             LocalName = config.LocalName;
-            if (!string.IsNullOrEmpty(config.LocalIPAddress))
-                TcpClient.BindAddress = config.LocalIPAddress;
-            if (config.LocalPort > 0)
-                TcpClient.BindPort = Convert.ToUInt16(config.LocalPort);
+            LocalClientName = config.LocalName;
             RemoteAddress = config.RemoteIPAddress;
             RemotePort = Convert.ToUInt16(config.RemotePort);
-            LocalClientName = config.LocalName;
-            EventInitial();
+            _localAddress = config.LocalIPAddress;
+            _localPort = config.LocalPort;
         }
-        #endregion
 
-        #region 方法
         /// <summary>
-        /// 连接服务器
+        /// 连接服务器；后台会持续重连，避免设备短暂断线后必须手动重启连接。
         /// </summary>
-        /// <returns></returns>
         public bool Start()
         {
+            if (!CheckIpAddressAndPort(RemoteAddress, RemotePort.ToString()))
+            {
+                WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Address or Port Error({RemoteAddress}:{RemotePort})", Type = LogType.ERROR });
+                return false;
+            }
 
-            bool result = false;
-            try
-            {
-                TcpClient.KeepAliveInterval = 500;
-                TcpClient.KeepAliveTime = 500;
-                TcpClient.SocketBufferSize = 1024 * 1024 * 5;
-                
-                if (CheckIpAddressAndPort(RemoteAddress, RemotePort.ToString()))//Check IP 及Port是否正确
-                {
-                    IsWhile.Reset();
-                    result = TcpClient.Connect(RemoteAddress, RemotePort);
-                    _ReconnectionThread?.Abort();
-                    _ReconnectionThread = new Thread(() =>
-                    {
-                        while (true)
-                        {
-                            if (!TcpClient.IsConnected) TcpClient.Connect(RemoteAddress, RemotePort);
-                            if (IsWhile.WaitOne(500))
-                                break;
-                        }
-                    })
-                    { IsBackground = true };
-                    _ReconnectionThread.Start();
-                }
-                else
-                {
-                    WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Address or Port Error({RemoteAddress}:{RemotePort})", Type = LogType.ERROR });
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Connect Exception:{ex.Message}", Type = LogType.ERROR });
-                result = false;
-            }
-            return result;
+            Close();
+            _lifetimeCts = new CancellationTokenSource();
+            bool connected = TryConnectOnce(_lifetimeCts.Token);
+            _reconnectTask = Task.Run(() => ReconnectLoopAsync(_lifetimeCts.Token));
+            return connected;
         }
-        /// <summary>
-        /// 断开服务器
-        /// </summary>
-        /// <returns></returns>
+
         public bool Close()
         {
-            bool result = false;
             try
             {
-                if (TcpClient != null)
-                {
-                    IsWhile.Set();
-                    if (_IsConnected == ConnectState.Connected)
-                    {
-                        result = TcpClient.Stop();
-                        TcpClient.Dispose();
-                        GC.Collect();
-                    }
-                }
+                _lifetimeCts?.Cancel();
+                CloseCurrentSocket();
+                IsConnected = ConnectState.DisConnected;
+                return true;
             }
             catch (Exception ex)
             {
                 WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Stop Exception:{ex.Message}", Type = LogType.ERROR });
+                return false;
             }
-            return result;
         }
-        /// <summary>
-        /// 发送数据
-        /// </summary>
-        /// <param name="message">信息</param>
-        /// <param name="ReceiveId">接收方对象</param>
-        /// <returns></returns>
+
         public bool Write(ref ReadWriteModel readWriteModel, bool isWait = false)
         {
-            int count = -1;
-        Connect:
-            if (!TcpClient.IsConnected)
+            if (string.IsNullOrEmpty(readWriteModel.Message))
             {
-                bool connect = TcpClient.Connect();
-                count++;
-                if (!connect && count < 10)
-                {
-                    Thread.Sleep(1000);
-                    goto Connect;
-                }
+                string result = $"{LocalClientName} TCP Command is empty.";
+                readWriteModel.Result = result;
+                WriteLog(new LogMessageModel { Message = result, Type = LogType.ERROR });
+                return false;
             }
-            bool result = true;
-            if (!string.IsNullOrEmpty(readWriteModel.Message) && TcpClient != null && TcpClient.IsConnected)
-            {
-                lock (_Locker)
-                {
-                    ClearQueue();
-                    byte[] data = new byte[1];
-                    if (readWriteModel.Message.Contains("0x"))
-                    {
-                        isHex = true;
-                        data = readWriteModel.Message.Replace("0x", "").HexStringToByteArray();
-                    }
-                    else
-                    {
-                        isHex = false;
-                        data = Encoding.UTF8.GetBytes(readWriteModel.Message);
-                    }
 
-                    result = TcpClient.Send(data, 0, data.Length);
-                    if (isWait)
-                    {
-                        for (int i = 0; i < 50; i++)
-                        {
-                            Thread.Sleep(100);
-                            if (_RespQueue.Count > 0)
-                            {
-                                readWriteModel.Result = _RespQueue.Take();
-                                return result;
-                            }
-                        }
-                        readWriteModel.Result = $"{LocalClientName},TcpClientIsConnect:{TcpClient.IsConnected} 接受数据超时！！！";
-                        WriteLog(new LogMessageModel { Message = $"{LocalClientName},TcpClientIsConnect:{TcpClient.IsConnected} 接受数据超时！！！", Type = LogType.INFO });
-                        result = false;
-                    }
-                }
-            }
-            else
+            if (!EnsureConnected())
             {
-                readWriteModel.Result = $"{LocalClientName} TCP Connect Exception Command:{readWriteModel.Message},TcpClient:{TcpClient == null},TcpClientIsConnect:{TcpClient.IsConnected} ";
-                WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Connect Exception Command:{readWriteModel.Message},TcpClient:{TcpClient == null},TcpClientIsConnect:{TcpClient.IsConnected} ", Type = LogType.ERROR });
-                result = false;
-                //发送失败
+                string result = $"{LocalClientName} TCP Connect Exception Command:{readWriteModel.Message},TcpClientIsConnect:false";
+                readWriteModel.Result = result;
+                WriteLog(new LogMessageModel { Message = result, Type = LogType.ERROR });
+                return false;
             }
-            return result;
-        }
-        /// <summary>
-        /// 发送数据
-        /// </summary>
-        /// <param name="message">信息</param>
-        /// <param name="ReceiveId">接收方对象</param>
-        public Task<bool> WriteAsync(ReadWriteModel readWriteModel)
-        {
-            return Task.Run(() => { return Write(ref readWriteModel); });
-        }
-        public bool Read(ref ReadWriteModel readWriteModel)
-        {
-            return true;
-        }
-        /// <summary>
-        /// Check IP 及Port是否正确
-        /// </summary>
-        /// <param name="ip"></param>
-        /// <param name="port"></param>
-        /// <returns></returns>
-        public static bool CheckIpAddressAndPort(string ip, string port)
-        {
-            bool result = false;
+
             try
             {
-                result = true;
-                //if (Regex.IsMatch(ip + ":" + port, @"^((2[0-4]\d|25[0-5]|[1]?\d\d?)\.){3}(2[0-4]\d|25[0-5]|[1]?\d\d?)\:([1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-6][0-5][0-5][0-3][0-5])$"))
-                //{
-
-                //}
-            }
-            catch (Exception)
-            {
-                result = false;
-            }
-            return result;
-        }
-        private void ClearQueue()
-        {
-            int count = _RespQueue.Count;
-            for (int i = 0; i < count; i++)
-            {
-                _RespQueue.Take();
-            }
-        }
-        #endregion
-
-        #region 事件
-        public event Action<LogMessageModel> OnLog;
-        public event ReceiveData OnReceive;
-        public event StateChanged StateChange;
-
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => { OnLog?.Invoke(message); });
-        }
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => { StateChange?.Invoke(connectState, LocalName); });
-        }
-        /// <summary>
-        /// 事件初始化
-        /// </summary>
-        private void EventInitial()
-        {
-            TcpClient.OnClose -= TcpClient_OnClose;//客户端断开事件
-            TcpClient.OnClose += TcpClient_OnClose;//客户端断开事件
-            TcpClient.OnConnect -= TcpClient_OnConnect;//客户端已连接事件
-            TcpClient.OnConnect += TcpClient_OnConnect;//客户端已连接事件
-            TcpClient.OnPrepareConnect -= TcpClient_OnPrepareConnect;//客户端正在连接事件
-            TcpClient.OnPrepareConnect += TcpClient_OnPrepareConnect;//客户端正在连接事件
-            TcpClient.OnReceive -= TcpClient_OnReceive;//接收服务器发送的数据事件
-            TcpClient.OnReceive += TcpClient_OnReceive;//接收服务器发送的数据事件
-            TcpClient.OnSend -= TcpClient_OnSend;//客户端发送数据事件
-            TcpClient.OnSend += TcpClient_OnSend;//客户端发送数据事件
-        }
-
-        #region 与服务器断开连接事件
-        /// <summary>
-        /// 与服务器断开连接事件
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="socketOperation"></param>
-        /// <param name="errorCode"></param>
-        /// <returns></returns>
-        private HandleResult TcpClient_OnClose(HPSocket.IClient sender, SocketOperation socketOperation, int errorCode)
-        {
-            WriteLog(new LogMessageModel { Message = $"{LocalClientName} 与服务器({RemoteAddress}:{RemotePort}) 断开连接！", Type = LogType.WARN });
-            IsConnected = ConnectState.DisConnected;
-            return HandleResult.Ok;
-        }
-        #endregion
-
-        #region 已经连接服务器事件
-        /// <summary>
-        /// 已经连接服务器事件
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <returns></returns>
-        private HandleResult TcpClient_OnConnect(HPSocket.IClient sender)
-        {
-            WriteLog(new LogMessageModel { Message = $"{LocalClientName} 连接服务器({RemoteAddress}:{RemotePort}) 成功！", Type = LogType.INFO });
-            IsConnected = ConnectState.Connected;
-            return HandleResult.Ok;
-        }
-        #endregion
-
-        #region 正在连接服务器事件
-        /// <summary>
-        ///正在连接服务器事件
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="socket"></param>
-        /// <returns></returns>
-        private HandleResult TcpClient_OnPrepareConnect(IClient sender, IntPtr socket)
-        {
-            IsConnected = ConnectState.DisConnected;
-            WriteLog(new LogMessageModel { Message = $"{LocalClientName} 正在连接服务器({RemoteAddress}:{RemotePort})........", Type = LogType.INFO });
-            return HandleResult.Ok;
-        }
-        #endregion
-
-        #region  接收数据
-        /// <summary>
-        /// 接收数据
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        private HandleResult TcpClient_OnReceive(HPSocket.IClient sender, byte[] data)
-        {
-            string[] Commands = OnReceiveHandler(data);
-
-            foreach (var item in Commands)
-            {
-                WriteLog(new LogMessageModel { Message = $"服务器{RemoteAddress}:{RemotePort}-->{LocalClientName}:{item}", Type = LogType.INFO });
-                _RespQueue.Add(item);
-                Task.Run(() =>
+                lock (_writeLock)
                 {
-                    OnReceive?.Invoke(item, sender.ConnectionId, RemoteAddress, RemotePort);
-                });
+                    ClearQueue();
+                    byte[] data = BuildSendBytes(readWriteModel.Message);
+                    NetworkStream? stream = _networkStream;
+                    if (stream is null || _tcpClient?.Connected != true)
+                    {
+                        string result = $"{LocalClientName} TCP Connect Exception Command:{readWriteModel.Message},TcpClientIsConnect:false";
+                        readWriteModel.Result = result;
+                        WriteLog(new LogMessageModel { Message = result, Type = LogType.ERROR });
+                        return false;
+                    }
+
+                    stream.Write(data, 0, data.Length);
+                    WriteLog(new LogMessageModel { Message = $"{LocalClientName}-->服务器({RemoteAddress}:{RemotePort}) : {OnSendHandler(data)}", Type = LogType.INFO });
+
+                    if (isWait)
+                    {
+                        int waitTime = readWriteModel.WaitTime > 0 ? readWriteModel.WaitTime : 10000;
+                        if (_responseQueue.TryTake(out string? response, waitTime))
+                        {
+                            readWriteModel.Result = response ?? string.Empty;
+                            return true;
+                        }
+
+                        string result = $"{LocalClientName},TcpClientIsConnect:{_tcpClient?.Connected == true} 接受数据超时！！！";
+                        readWriteModel.Result = result;
+                        WriteLog(new LogMessageModel { Message = result, Type = LogType.INFO });
+                        return false;
+                    }
+                }
+
+                return true;
             }
-            return HandleResult.Ok;
+            catch (Exception ex)
+            {
+                IsConnected = ConnectState.DisConnected;
+                string result = $"{LocalClientName} TCP Send Exception:{ex.Message}";
+                readWriteModel.Result = result;
+                WriteLog(new LogMessageModel { Message = result, Type = LogType.ERROR });
+                return false;
+            }
+        }
+
+        public Task<bool> WriteAsync(ReadWriteModel readWriteModel)
+        {
+            return Task.Run(() => Write(ref readWriteModel));
+        }
+
+        public bool Read(ref ReadWriteModel readWriteModel)
+        {
+            int waitTime = readWriteModel.WaitTime > 0 ? readWriteModel.WaitTime : 10000;
+            if (_responseQueue.TryTake(out string? response, waitTime))
+            {
+                readWriteModel.Result = response ?? string.Empty;
+                return true;
+            }
+
+            readWriteModel.Result = $"{LocalClientName} TCP Read Timeout.";
+            return false;
+        }
+
+        public static bool CheckIpAddressAndPort(string ip, string port)
+        {
+            return !string.IsNullOrWhiteSpace(ip) &&
+                   int.TryParse(port, out int portNumber) &&
+                   portNumber > 0 &&
+                   portNumber <= ushort.MaxValue;
         }
 
         public virtual string[] OnReceiveHandler(byte[] data)
         {
-            if (isHex)
+            if (_lastSendIsHex)
             {
-                return new string[] { BitConverter.ToString(data).Replace("-", "") };
+                return new[] { BitConverter.ToString(data).Replace("-", string.Empty) };
             }
-            return new string[] { Encoding.UTF8.GetString(data) };
-        }
-        #endregion
 
-        #region  发送数据
-        /// <summary>
-        /// 发送数据
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        private HandleResult TcpClient_OnSend(HPSocket.IClient sender, byte[] data)
-        {
-            string command = OnSendHandler(data);
-            WriteLog(new LogMessageModel { Message = $"{LocalClientName}-->服务器({RemoteAddress}:{RemotePort}) : {command}", Type = LogType.INFO });
-            return HandleResult.Ok;
+            return new[] { Encoding.UTF8.GetString(data) };
         }
 
-
-        /// <summary>
-        /// 发送数据处理
-        /// </summary>
-        /// <param name="data"></param>
-        /// <returns></returns>
         public virtual string OnSendHandler(byte[] data)
         {
-            string result = "";
             try
             {
-                result = Encoding.Default.GetString(data);
+                return _lastSendIsHex
+                    ? BitConverter.ToString(data).Replace("-", string.Empty)
+                    : Encoding.UTF8.GetString(data);
             }
-            catch (Exception)
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private bool EnsureConnected()
+        {
+            if (IsSocketConnected())
+            {
+                return true;
+            }
+
+            CancellationToken token = _lifetimeCts?.Token ?? CancellationToken.None;
+            for (int index = 0; index < ConnectRetryCount && !token.IsCancellationRequested; index++)
+            {
+                if (TryConnectOnce(token))
+                {
+                    return true;
+                }
+
+                Thread.Sleep(ReconnectIntervalMilliseconds);
+            }
+
+            return false;
+        }
+
+        private async Task ReconnectLoopAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                if (!IsSocketConnected())
+                {
+                    TryConnectOnce(token);
+                }
+
+                try
+                {
+                    await Task.Delay(ReconnectIntervalMilliseconds, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+
+        private bool TryConnectOnce(CancellationToken token)
+        {
+            if (token.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            lock (_connectionLock)
+            {
+                if (IsSocketConnected())
+                {
+                    return true;
+                }
+
+                try
+                {
+                    WriteLog(new LogMessageModel { Message = $"{LocalClientName} 正在连接服务器({RemoteAddress}:{RemotePort})........", Type = LogType.INFO });
+                    CloseCurrentSocket();
+
+                    System.Net.Sockets.TcpClient tcpClient = CreateTcpClient();
+                    tcpClient.NoDelay = true;
+                    tcpClient.ReceiveBufferSize = 1024 * 1024;
+                    tcpClient.SendBufferSize = 1024 * 1024;
+                    tcpClient.Connect(RemoteAddress, RemotePort);
+
+                    _tcpClient = tcpClient;
+                    _networkStream = tcpClient.GetStream();
+                    IsConnected = ConnectState.Connected;
+                    WriteLog(new LogMessageModel { Message = $"{LocalClientName} 连接服务器({RemoteAddress}:{RemotePort}) 成功！", Type = LogType.INFO });
+                    _receiveTask = Task.Run(() => ReceiveLoopAsync(tcpClient, _networkStream, token), token);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    CloseCurrentSocket();
+                    IsConnected = ConnectState.DisConnected;
+                    WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Connect Exception:{ex.Message}", Type = LogType.ERROR });
+                    return false;
+                }
+            }
+        }
+
+        private System.Net.Sockets.TcpClient CreateTcpClient()
+        {
+            System.Net.Sockets.TcpClient tcpClient = new System.Net.Sockets.TcpClient(AddressFamily.InterNetwork);
+            if (!string.IsNullOrWhiteSpace(_localAddress) || _localPort > 0)
+            {
+                IPAddress address = IPAddress.TryParse(_localAddress, out IPAddress? parsedAddress)
+                    ? parsedAddress
+                    : IPAddress.Any;
+                tcpClient.Client.Bind(new IPEndPoint(address, Math.Max(0, _localPort)));
+            }
+
+            return tcpClient;
+        }
+
+        private async Task ReceiveLoopAsync(System.Net.Sockets.TcpClient tcpClient, NetworkStream stream, CancellationToken token)
+        {
+            byte[] buffer = new byte[BufferSize];
+            try
+            {
+                while (!token.IsCancellationRequested && tcpClient.Connected)
+                {
+                    int length = await stream.ReadAsync(buffer, token).ConfigureAwait(false);
+                    if (length == 0)
+                    {
+                        break;
+                    }
+
+                    byte[] data = buffer[..length];
+                    foreach (string item in OnReceiveHandler(data))
+                    {
+                        WriteLog(new LogMessageModel { Message = $"服务器{RemoteAddress}:{RemotePort}-->{LocalClientName}:{item}", Type = LogType.INFO });
+                        _responseQueue.Add(item);
+                        _ = Task.Run(() => OnReceive(item, RemoteAddress, RemoteAddress, RemotePort), token);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
             {
             }
-            return result;
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (Exception ex)
+            {
+                WriteLog(new LogMessageModel { Message = $"{LocalClientName} TCP Receive Exception:{ex.Message}", Type = LogType.ERROR });
+            }
+            finally
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    CloseSocketIfCurrent(tcpClient);
+                    IsConnected = ConnectState.DisConnected;
+                    WriteLog(new LogMessageModel { Message = $"{LocalClientName} 与服务器({RemoteAddress}:{RemotePort}) 断开连接！", Type = LogType.WARN });
+                }
+            }
         }
-        #endregion
-        #endregion
+
+        private byte[] BuildSendBytes(string message)
+        {
+            if (message.Contains("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                _lastSendIsHex = true;
+                return message.Replace("0x", string.Empty, StringComparison.OrdinalIgnoreCase).HexStringToByteArray();
+            }
+
+            _lastSendIsHex = false;
+            return Encoding.UTF8.GetBytes(message);
+        }
+
+        private bool IsSocketConnected()
+        {
+            return IsConnected == ConnectState.Connected &&
+                   _tcpClient?.Connected == true &&
+                   _networkStream is not null;
+        }
+
+        private void CloseCurrentSocket()
+        {
+            try
+            {
+                _networkStream?.Close();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                _tcpClient?.Close();
+                _tcpClient?.Dispose();
+            }
+            catch
+            {
+            }
+
+            _networkStream = null;
+            _tcpClient = null;
+        }
+
+        private void CloseSocketIfCurrent(System.Net.Sockets.TcpClient tcpClient)
+        {
+            lock (_connectionLock)
+            {
+                if (ReferenceEquals(_tcpClient, tcpClient))
+                {
+                    CloseCurrentSocket();
+                }
+                else
+                {
+                    try
+                    {
+                        tcpClient.Close();
+                        tcpClient.Dispose();
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        private void ClearQueue()
+        {
+            while (_responseQueue.TryTake(out _))
+            {
+            }
+        }
+
+        private void WriteLog(LogMessageModel message)
+        {
+            Task.Run(() => OnLog(message));
+        }
+
+        private void SendState(ConnectState connectState)
+        {
+            Task.Run(() => StateChange(connectState, LocalName));
+        }
     }
 }

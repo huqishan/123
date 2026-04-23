@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <PackageReference Include="Autofac" Version="9.1.0" />
-    <PackageReference Include="HPSocket.Net" Version="6.0.7.1" />
     <PackageReference Include="NLua" Version="1.7.8" />
     <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     <PackageReference Include="RestSharp" Version="114.0.0" />

@@ -16,7 +16,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{DynamicResource TabCardBackgroundBrush}">
+    <Grid>
         <Border MaxWidth="520"
                 Padding="28"
                 HorizontalAlignment="Left"

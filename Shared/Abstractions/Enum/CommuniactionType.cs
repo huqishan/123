@@ -15,6 +15,7 @@ namespace Shared.Abstractions.Enum
         UDPServer,
         COM,
         RabbitMQRPCServer,
-        RabbitMQRPCClient
+        RabbitMQRPCClient,
+        Hsl
     }
 }

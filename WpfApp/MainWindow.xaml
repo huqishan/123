@@ -80,8 +80,9 @@
 
             <!-- Right content area still uses tabs opened by navigation clicks. -->
             <TabControl x:Name="tabControl" Grid.Column="2"
-             Style="{StaticResource MinimalTabControlStyle}"
-             HorizontalAlignment="Stretch" />
+              Style="{StaticResource MinimalTabControlStyle}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch" />
         </Grid>
     </Grid>
    

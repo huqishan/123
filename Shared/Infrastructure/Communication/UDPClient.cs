@@ -1,293 +1,264 @@
-﻿using HPSocket;
-using Shared.Abstractions.Enum;
 using Shared.Abstractions;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using HPSocket.Udp;
+using Shared.Abstractions.Enum;
 using Shared.Models.Communication;
 using Shared.Models.Log;
+using System;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Shared.Infrastructure.Communication
 {
     public class UDPClient : ICommunication
     {
-        #region Propertys
+        private readonly BlockingCollection<byte[]> _responseQueue = new BlockingCollection<byte[]>();
+        private readonly object _clientLock = new object();
+        private readonly string _localAddress;
+        private readonly int _localPort;
+
+        private UdpClient? _udpClient;
+        private CancellationTokenSource? _lifetimeCts;
+        private Task? _receiveTask;
+        private ConnectState _isConnected = ConnectState.DisConnected;
+
         /// <summary>
-        /// 远程连接IP
+        /// 远程连接 IP。
         /// </summary>
         public string RemoteAddress { get; private set; } = "127.0.0.1";
+
         /// <summary>
-        /// 远程端口
+        /// 远程端口。
         /// </summary>
         public ushort RemotePort { get; private set; } = 5555;
-        /// <summary>
-        /// 本地名称
-        /// </summary>
-        public string LocalName { get; private set; } = string.Empty;
-        public IUdpClient UdpClient { get; private set; } = new UdpClient();
 
-        Thread ClientThread = null;
-        private BlockingCollection<byte[]> _RespQueue = new BlockingCollection<byte[]>();
-        private ConnectState _IsConnected = ConnectState.DisConnected;
+        public string LocalName { get; private set; } = string.Empty;
+
         public ConnectState IsConnected
         {
-            get
-            {
-                if (UdpClient == null)
-                    return ConnectState.DisConnected;
-                else
-                    return _IsConnected;
-            }
+            get => _isConnected;
             private set
             {
-                if (_IsConnected != value)
+                if (_isConnected == value)
                 {
-                    _IsConnected = value;
-                    SendState(value);
+                    return;
                 }
+
+                _isConnected = value;
+                SendState(value);
             }
         }
-        #endregion
 
-        #region 构造
+        public event ReceiveData OnReceive = (_, _) => string.Empty;
+
+        public event Action<LogMessageModel> OnLog = delegate { };
+
+        public event StateChanged StateChange = delegate { };
+
         public UDPClient(CommuniactionConfigModel config)
         {
-            if (!string.IsNullOrEmpty(config.LocalIPAddress))
-                UdpClient.BindAddress = config.LocalIPAddress;
-            if (config.LocalPort > 0)
-                UdpClient.BindPort =Convert.ToUInt16(config.LocalPort);
+            _localAddress = config.LocalIPAddress;
+            _localPort = config.LocalPort;
             RemoteAddress = config.RemoteIPAddress;
             RemotePort = Convert.ToUInt16(config.RemotePort);
             LocalName = config.LocalName;
-            EventInitial();
-        }
-        #endregion
-
-        #region 事件
-        public event ReceiveData OnReceive;
-        public event Action<LogMessageModel> OnLog;
-        public event StateChanged StateChange;
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => { StateChange?.Invoke(connectState, LocalName); });
-        }
-        /// <summary>
-        /// 事件初始化
-        /// </summary>
-        private void EventInitial()
-        {
-            UdpClient.OnClose -= Udp_OnClose;//断开事件
-            UdpClient.OnClose += Udp_OnClose;//断开事件
-            UdpClient.OnConnect -= UdpClient_OnConnect;//客户端已连接事件
-            UdpClient.OnConnect += UdpClient_OnConnect;//客户端已连接事件
-            UdpClient.OnPrepareConnect -= UdpClient_OnPrepareConnect;//客户端正在连接事件
-            UdpClient.OnPrepareConnect += UdpClient_OnPrepareConnect;//客户端正在连接事件
-            UdpClient.OnReceive -= UdpClient_OnReceive;//接收服务器发送的数据事件
-            UdpClient.OnReceive += UdpClient_OnReceive;//接收服务器发送的数据事件
-            UdpClient.OnSend -= UdpClient_OnSend;//客户端发送数据事件
-            UdpClient.OnSend += UdpClient_OnSend;//客户端发送数据事件
-        }
-        #region 与服务器断开连接事件
-        /// <summary>
-        /// 与服务器断开连接事件
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="socketOperation"></param>
-        /// <param name="errorCode"></param>
-        /// <returns></returns>
-        private HandleResult Udp_OnClose(HPSocket.IClient sender, SocketOperation socketOperation, int errorCode)
-        {
-            OnLog?.BeginInvoke(new LogMessageModel { Message = $"与服务器({RemoteAddress}:{RemotePort}) 断开连接！", Type = LogType.WARN }, null, null);
-            IsConnected = ConnectState.DisConnected;
-            return HandleResult.Ok;
-        }
-        #endregion
-
-        #region 已经连接服务器事件
-        /// <summary>
-        /// 已经连接服务器事件
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <returns></returns>
-        private HandleResult UdpClient_OnConnect(HPSocket.IClient sender)
-        {
-            OnLog?.BeginInvoke(new LogMessageModel { Message = $"连接服务器({RemoteAddress}:{RemotePort}) 成功！", Type = LogType.INFO }, null, null);
-            IsConnected = ConnectState.Connected;
-            return HandleResult.Ok;
-        }
-        #endregion
-
-        #region 正在连接服务器事件
-        /// <summary>
-        ///正在连接服务器事件
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="socket"></param>
-        /// <returns></returns>
-        private HandleResult UdpClient_OnPrepareConnect(IClient sender, IntPtr socket)
-        {
-            IsConnected = ConnectState.DisConnected;
-            OnLog?.BeginInvoke(new LogMessageModel { Message = $"正在连接服务器({RemoteAddress}:{RemotePort})........", Type = LogType.INFO }, null, null);
-            return HandleResult.Ok;
-        }
-        #endregion
-
-        #region  接收数据
-        /// <summary>
-        /// 接收数据
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        private HandleResult UdpClient_OnReceive(HPSocket.IClient sender, byte[] data)
-        {
-            OnLog?.BeginInvoke(new LogMessageModel { Message = $"服务器({RemoteAddress}:{RemotePort})-->{LocalName}:{BitConverter.ToString(data)}", Type = LogType.INFO }, null, null);
-            OnReceive?.Invoke(BitConverter.ToString(data), sender.ConnectionId, RemoteAddress, RemotePort);
-            _RespQueue.TakeWhile(x => x != null);
-            _RespQueue.Add(data);
-            return HandleResult.Ok;
-        }
-
-        public virtual string[] OnReceiveHandler(byte[] data)
-        {
-            return new string[] { Encoding.Default.GetString(data) };
-        }
-        #endregion
-
-        #region  发送数据
-        /// <summary>
-        /// 发送数据
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        private HandleResult UdpClient_OnSend(HPSocket.IClient sender, byte[] data)
-        {
-            string Command = OnSendHandler(data);
-            OnLog?.BeginInvoke(new LogMessageModel { Message = $"{LocalName}-->服务器({RemoteAddress}:{RemotePort}) : {Command}", Type = LogType.INFO }, null, null);
-            return HandleResult.Ok;
-        }
-
-
-        /// <summary>
-        /// 发送数据处理
-        /// </summary>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        public virtual string OnSendHandler(byte[] data)
-        {
-            string result = "";
-            try
-            {
-                result = Encoding.Default.GetString(data);
-            }
-            catch (Exception)
-            {
-            }
-            return result;
-        }
-        #endregion
-        #endregion
-
-        #region 方法
-        public bool Close()
-        {
-            bool result = false;
-            try
-            {
-                if (UdpClient != null)
-                {
-                    ClientThread.Abort();
-                    result = UdpClient.Stop();
-                }
-            }
-            catch (Exception ex)
-            {
-                OnLog?.BeginInvoke(new LogMessageModel { Message = $"{LocalName} UDP Stop Exception:{ex.Message}", Type = LogType.ERROR }, null, null);
-            }
-            return result;
-        }
-        public bool Read(ref ReadWriteModel readWriteModel)
-        {
-            throw new NotImplementedException();
         }
 
         public bool Start()
         {
-            bool result = false;
+            if (!CheckIpAddressAndPort(RemoteAddress, RemotePort.ToString()))
+            {
+                WriteLog(new LogMessageModel { Message = $"{LocalName} UDP Address or Port Error({RemoteAddress}:{RemotePort})", Type = LogType.ERROR });
+                return false;
+            }
+
+            lock (_clientLock)
+            {
+                Close();
+
+                try
+                {
+                    _udpClient = CreateUdpClient();
+                    _udpClient.Connect(RemoteAddress, RemotePort);
+                    _lifetimeCts = new CancellationTokenSource();
+                    IsConnected = ConnectState.Connected;
+                    WriteLog(new LogMessageModel { Message = $"{LocalName} 连接服务器({RemoteAddress}:{RemotePort}) 成功！", Type = LogType.INFO });
+                    _receiveTask = Task.Run(() => ReceiveLoopAsync(_lifetimeCts.Token));
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    IsConnected = ConnectState.DisConnected;
+                    WriteLog(new LogMessageModel { Message = $"{LocalName} UDP Connect Exception:{ex.Message}", Type = LogType.ERROR });
+                    return false;
+                }
+            }
+        }
+
+        public bool Close()
+        {
             try
             {
-                if (CheckIpAddressAndPort(RemoteAddress, RemotePort.ToString()))//Check IP 及Port是否正确
-                {
-
-                    result = this.UdpClient.Connect(RemoteAddress, RemotePort);
-                    ClientThread = new Thread(() =>
-                    {
-                        while (true)
-                        {
-                            if (!UdpClient.IsConnected)
-                                UdpClient.Connect();
-                            Thread.Sleep(2000);
-                        }
-                    })
-                    { IsBackground = true };
-                    ClientThread.Start();
-                }
-                else
-                {
-                    OnLog?.BeginInvoke(new LogMessageModel { Message = $"{LocalName} UDP Address or Port Error({RemoteAddress}:{RemotePort})", Type = LogType.ERROR }, null, null);
-                }
+                _lifetimeCts?.Cancel();
+                _udpClient?.Close();
+                _udpClient?.Dispose();
+                _udpClient = null;
+                IsConnected = ConnectState.DisConnected;
+                return true;
             }
             catch (Exception ex)
             {
-                OnLog?.BeginInvoke(new LogMessageModel { Message = $"{LocalName} UDP Connect Exception:{ex.Message}", Type = LogType.ERROR }, null, null);
-                result = false;
+                WriteLog(new LogMessageModel { Message = $"{LocalName} UDP Stop Exception:{ex.Message}", Type = LogType.ERROR });
+                IsConnected = ConnectState.DisConnected;
+                return false;
             }
-            return result;
+        }
+
+        public bool Read(ref ReadWriteModel readWriteModel)
+        {
+            int waitTime = readWriteModel.WaitTime > 0 ? readWriteModel.WaitTime : 10000;
+            if (_responseQueue.TryTake(out byte[]? data, waitTime))
+            {
+                readWriteModel.Result = data is null ? string.Empty : Encoding.UTF8.GetString(data);
+                return true;
+            }
+
+            readWriteModel.Result = $"{LocalName} UDP Read Timeout.";
+            return false;
         }
 
         public bool Write(ref ReadWriteModel readWriteModel, bool isWait = false)
         {
-            byte[] data = Encoding.UTF8.GetBytes(readWriteModel.Message);
-            var t = this.UdpClient.Send(data, data.Length);
-            if (isWait)
-                readWriteModel.Result = Encoding.UTF8.GetString(_RespQueue.Take());
-            return true;
+            if (_udpClient is null || IsConnected != ConnectState.Connected)
+            {
+                string result = $"{LocalName} UDP 未连接。";
+                readWriteModel.Result = result;
+                WriteLog(new LogMessageModel { Message = result, Type = LogType.ERROR });
+                return false;
+            }
+
+            try
+            {
+                byte[] data = Encoding.UTF8.GetBytes(readWriteModel.Message);
+                _udpClient.Send(data, data.Length);
+                WriteLog(new LogMessageModel { Message = $"{LocalName}-->服务器({RemoteAddress}:{RemotePort}) : {OnSendHandler(data)}", Type = LogType.INFO });
+
+                if (isWait)
+                {
+                    int waitTime = readWriteModel.WaitTime > 0 ? readWriteModel.WaitTime : 10000;
+                    if (_responseQueue.TryTake(out byte[]? response, waitTime))
+                    {
+                        readWriteModel.Result = response is null ? string.Empty : Encoding.UTF8.GetString(response);
+                        return true;
+                    }
+
+                    string result = $"{LocalName} UDP 接受数据超时！！！";
+                    readWriteModel.Result = result;
+                    WriteLog(new LogMessageModel { Message = result, Type = LogType.INFO });
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                string result = $"{LocalName} UDP Send Exception:{ex.Message}";
+                readWriteModel.Result = result;
+                WriteLog(new LogMessageModel { Message = result, Type = LogType.ERROR });
+                return false;
+            }
         }
 
         public Task<bool> WriteAsync(ReadWriteModel readWriteModel)
         {
-            return Task<bool>.Run(() => { return Write(ref readWriteModel); });
+            return Task.Run(() => Write(ref readWriteModel));
         }
 
-        /// <summary>
-        /// Check IP 及Port是否正确
-        /// </summary>
-        /// <param name="ip"></param>
-        /// <param name="port"></param>
-        /// <returns></returns>
-        public static bool CheckIpAddressAndPort(string ip, string port)
+        public virtual string[] OnReceiveHandler(byte[] data)
         {
-            bool result = false;
+            return new[] { Encoding.UTF8.GetString(data) };
+        }
+
+        public virtual string OnSendHandler(byte[] data)
+        {
             try
             {
-                if (Regex.IsMatch(ip + ":" + port, @"^((2[0-4]\d|25[0-5]|[1]?\d\d?)\.){3}(2[0-4]\d|25[0-5]|[1]?\d\d?)\:([1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-6][0-5][0-5][0-3][0-5])$"))
+                return Encoding.UTF8.GetString(data);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        public static bool CheckIpAddressAndPort(string ip, string port)
+        {
+            return !string.IsNullOrWhiteSpace(ip) &&
+                   int.TryParse(port, out int portNumber) &&
+                   portNumber > 0 &&
+                   portNumber <= ushort.MaxValue;
+        }
+
+        private UdpClient CreateUdpClient()
+        {
+            if (string.IsNullOrWhiteSpace(_localAddress) && _localPort <= 0)
+            {
+                return new UdpClient(AddressFamily.InterNetwork);
+            }
+
+            IPAddress address = IPAddress.TryParse(_localAddress, out IPAddress? parsedAddress)
+                ? parsedAddress
+                : IPAddress.Any;
+            UdpClient udpClient = new UdpClient(AddressFamily.InterNetwork);
+            udpClient.Client.Bind(new IPEndPoint(address, Math.Max(0, _localPort)));
+            return udpClient;
+        }
+
+        private async Task ReceiveLoopAsync(CancellationToken token)
+        {
+            try
+            {
+                while (!token.IsCancellationRequested && _udpClient is not null)
                 {
-                    result = true;
+                    UdpReceiveResult result = await _udpClient.ReceiveAsync(token).ConfigureAwait(false);
+                    byte[] data = result.Buffer;
+                    string[] commands = OnReceiveHandler(data);
+                    string endpointText = $"{result.RemoteEndPoint.Address}:{result.RemoteEndPoint.Port}";
+
+                    foreach (string command in commands)
+                    {
+                        WriteLog(new LogMessageModel { Message = $"服务器({endpointText})-->{LocalName}:{command}", Type = LogType.INFO });
+                        _responseQueue.Add(data);
+                        _ = Task.Run(() => OnReceive(command, endpointText, result.RemoteEndPoint.Address.ToString(), result.RemoteEndPoint.Port), token);
+                    }
                 }
             }
-            catch (Exception)
+            catch (OperationCanceledException)
             {
-                result = false;
             }
-            return result;
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (Exception ex)
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    IsConnected = ConnectState.DisConnected;
+                    WriteLog(new LogMessageModel { Message = $"{LocalName} UDP Receive Exception:{ex.Message}", Type = LogType.ERROR });
+                }
+            }
         }
-        #endregion
+
+        private void WriteLog(LogMessageModel message)
+        {
+            Task.Run(() => OnLog(message));
+        }
+
+        private void SendState(ConnectState connectState)
+        {
+            Task.Run(() => StateChange(connectState, LocalName));
+        }
     }
 }

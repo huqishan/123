@@ -43,13 +43,104 @@ namespace ControlLibrary.ControlViews.Communication.Models
     }
 
     /// <summary>
+    /// TCP Server 当前已连接客户端的界面绑定对象。
+    /// </summary>
+    public sealed class ConnectedClientOption
+    {
+        public ConnectedClientOption(string clientId, string displayName, string address, int port)
+        {
+            ClientId = clientId;
+            DisplayName = displayName;
+            Address = address;
+            Port = port;
+        }
+
+        public string ClientId { get; }
+
+        public string DisplayName { get; }
+
+        public string Address { get; }
+
+        public int Port { get; }
+    }
+
+    /// <summary>
+    /// 一个通信配置对应一个 JSON 文件；这里使用独立 DTO，避免直接序列化只读绑定属性。
+    /// </summary>
+    internal sealed class DeviceCommunicationProfileDocument
+    {
+        public int Version { get; set; } = 1;
+
+        public string? LocalName { get; set; }
+
+        public CommuniactionType Type { get; set; } = CommuniactionType.TCPClient;
+
+        public string? LocalIPAddress { get; set; }
+
+        public string? LocalPort { get; set; }
+
+        public string? RemoteIPAddress { get; set; }
+
+        public string? RemotePort { get; set; }
+
+        public string? PortName { get; set; }
+
+        public string? BaudRate { get; set; }
+
+        public string? Parity { get; set; }
+
+        public string? DataBits { get; set; }
+
+        public string? StopBits { get; set; }
+
+        public static DeviceCommunicationProfileDocument FromProfile(DeviceCommunicationProfile profile)
+        {
+            return new DeviceCommunicationProfileDocument
+            {
+                LocalName = profile.LocalName,
+                Type = profile.Type,
+                LocalIPAddress = profile.LocalIPAddress,
+                LocalPort = profile.LocalPort,
+                RemoteIPAddress = profile.RemoteIPAddress,
+                RemotePort = profile.RemotePort,
+                PortName = profile.PortName,
+                BaudRate = profile.BaudRate,
+                Parity = profile.Parity,
+                DataBits = profile.DataBits,
+                StopBits = profile.StopBits
+            };
+        }
+
+        public DeviceCommunicationProfile ToProfile()
+        {
+            DeviceCommunicationProfile profile = new DeviceCommunicationProfile
+            {
+                LocalName = string.IsNullOrWhiteSpace(LocalName) ? "Communication" : LocalName.Trim(),
+                Type = Type
+            };
+            profile.ResetToCurrentTypeDefaults();
+
+            profile.LocalIPAddress = string.IsNullOrWhiteSpace(LocalIPAddress) ? profile.LocalIPAddress : LocalIPAddress.Trim();
+            profile.LocalPort = string.IsNullOrWhiteSpace(LocalPort) ? profile.LocalPort : LocalPort.Trim();
+            profile.RemoteIPAddress = string.IsNullOrWhiteSpace(RemoteIPAddress) ? profile.RemoteIPAddress : RemoteIPAddress.Trim();
+            profile.RemotePort = string.IsNullOrWhiteSpace(RemotePort) ? profile.RemotePort : RemotePort.Trim();
+            profile.PortName = string.IsNullOrWhiteSpace(PortName) ? profile.PortName : PortName.Trim();
+            profile.BaudRate = string.IsNullOrWhiteSpace(BaudRate) ? profile.BaudRate : BaudRate.Trim();
+            profile.Parity = string.IsNullOrWhiteSpace(Parity) ? profile.Parity : Parity.Trim();
+            profile.DataBits = string.IsNullOrWhiteSpace(DataBits) ? profile.DataBits : DataBits.Trim();
+            profile.StopBits = string.IsNullOrWhiteSpace(StopBits) ? profile.StopBits : StopBits.Trim();
+            return profile;
+        }
+    }
+
+    /// <summary>
     /// Editable communication profile used by the configuration page.
     /// </summary>
     public sealed class DeviceCommunicationProfile : INotifyPropertyChanged
     {
         private string _localName = "TCP Client 1";
         private CommuniactionType _type = CommuniactionType.TCPClient;
-        private string _localIpAddress = "0.0.0.0";
+        private string _localIpAddress = "127.0.0.1";
         private string _localPort = "0";
         private string _remoteIpAddress = "127.0.0.1";
         private string _remotePort = "502";
@@ -191,17 +282,17 @@ namespace ControlLibrary.ControlViews.Communication.Models
             switch (Type)
             {
                 case CommuniactionType.TCPClient:
-                    LocalIPAddress = "0.0.0.0";
+                    LocalIPAddress = "127.0.0.1";
                     LocalPort = "0";
                     RemoteIPAddress = "127.0.0.1";
                     RemotePort = "502";
                     break;
                 case CommuniactionType.TCPServer:
-                    LocalIPAddress = "0.0.0.0";
+                    LocalIPAddress = "127.0.0.1";
                     LocalPort = "6000";
                     break;
                 case CommuniactionType.UDP:
-                    LocalIPAddress = "0.0.0.0";
+                    LocalIPAddress = "127.0.0.1";
                     LocalPort = "7001";
                     RemoteIPAddress = "127.0.0.1";
                     RemotePort = "7000";

@@ -93,11 +93,17 @@ namespace WpfApp
                 }
             }
 
+            SettingsView settingsView = new SettingsView
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+
             TabItem tabItem = new TabItem
             {
                 Header = settingsHeader,
                 Tag = SettingsTabKey,
-                Content = new SettingsView()
+                Content = settingsView
             };
 
             tabControl.Items.Add(tabItem);
@@ -125,11 +131,15 @@ namespace WpfApp
                 return;
             }
 
+            FrameworkElement content = (FrameworkElement)Activator.CreateInstance(targetType)!;
+            content.HorizontalAlignment = HorizontalAlignment.Stretch;
+            content.VerticalAlignment = VerticalAlignment.Stretch;
+
             TabItem tabItem = new TabItem
             {
                 Header = controlItem.Title,
                 Tag = controlItem,
-                Content = (FrameworkElement)Activator.CreateInstance(targetType)!
+                Content = content
             };
 
             tabControl.Items.Add(tabItem);

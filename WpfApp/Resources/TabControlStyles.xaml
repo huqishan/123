@@ -63,11 +63,12 @@
         <Setter Property="Foreground" Value="{DynamicResource TabItemForegroundBrush}" />
         <Setter Property="Background" Value="{DynamicResource TabItemBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource TabItemBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Width" Value="Auto" />
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
         <Setter Property="Margin" Value="0,0,10,0" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HeaderTemplate" Value="{StaticResource ClosableTabHeaderTemplate}" />
@@ -122,7 +123,7 @@
     </Style>
 
     <Style x:Key="MinimalTabControlStyle" TargetType="{x:Type TabControl}">
-        <Setter Property="Padding" Value="24" />
+        <Setter Property="Padding" Value="0" />
         <Setter Property="Background" Value="{DynamicResource TabStripBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource TabItemBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -152,13 +153,13 @@
                         <Border Grid.Row="1"
                                 Margin="16,12,16,16"
                                 Padding="{TemplateBinding Padding}"
-                                Background="{DynamicResource TabCardBackgroundBrush}"
-                                BorderBrush="{DynamicResource TabContentBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="18">
+                                Background="{DynamicResource AppBackgroundBrush}"
+                                BorderThickness="0">
                             <ContentPresenter x:Name="PART_SelectedContentHost"
-                                              ContentSource="SelectedContent"
-                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                               ContentSource="SelectedContent"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Stretch"
+                                               SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                         </Border>
                     </Grid>
                 </ControlTemplate>
