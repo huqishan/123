@@ -99,4 +99,13 @@
     <SolidColorBrush x:Key="TabCloseButtonForegroundBrush" Color="#A9BAD0" />
     <SolidColorBrush x:Key="TabCloseButtonHoverForegroundBrush" Color="#F4FBFF" />
     <SolidColorBrush x:Key="FlowchartNodeTextBrush" Color="#333333" />
+    <SolidColorBrush x:Key="LuaEditorCaretBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="LuaEditorSelectionBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="LuaEditorSelectionTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="LuaEditorPlainTextBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="LuaEditorKeywordBrush" Color="#38BDF8" />
+    <SolidColorBrush x:Key="LuaEditorCommentBrush" Color="#86EFAC" />
+    <SolidColorBrush x:Key="LuaEditorStringBrush" Color="#FBBF24" />
+    <SolidColorBrush x:Key="LuaEditorNumberBrush" Color="#C084FC" />
+    <SolidColorBrush x:Key="LuaEditorFunctionBrush" Color="#22D3EE" />
 </ResourceDictionary>

@@ -4,77 +4,75 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:ControlLibrary.Controls.Navigation.Control"
+             xmlns:searchBox="clr-namespace:ControlLibrary.Controls.SearchBox.Control"
              mc:Ignorable="d" d:DesignHeight="760"
              d:DesignWidth="320">
     <UserControl.Resources>
-        <Style TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource NavButtonForegroundBrush}" />
-        </Style>
+        <ResourceDictionary>
+            <Style TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{DynamicResource NavButtonForegroundBrush}" />
+            </Style>
 
-        <Style x:Key="NavPaneTitleTextBlockStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource NavTitleTextBrush}" />
-            <Setter Property="FontSize" Value="24" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
+            <Style x:Key="NavPaneTitleTextBlockStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{DynamicResource NavTitleTextBrush}" />
+                <Setter Property="FontSize" Value="24" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
 
-        <Style x:Key="NavSubtitleTextBlockStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource NavSubtitleTextBrush}" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
+            <Style x:Key="NavSubtitleTextBlockStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{DynamicResource NavSubtitleTextBrush}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
 
-        <Style x:Key="NavFlyoutTitleTextBlockStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource NavTitleTextBrush}" />
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
+            <Style x:Key="NavFlyoutTitleTextBlockStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{DynamicResource NavTitleTextBrush}" />
+                <Setter Property="FontSize" Value="18" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
 
-        <Style x:Key="NavDescriptionTextBlockStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource NavDescriptionTextBrush}" />
-            <Setter Property="FontSize" Value="11" />
-        </Style>
+            <Style x:Key="NavDescriptionTextBlockStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{DynamicResource NavDescriptionTextBrush}" />
+                <Setter Property="FontSize" Value="11" />
+            </Style>
 
-        <Style x:Key="NavSearchPlaceholderTextBlockStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource NavSearchPlaceholderBrush}" />
-            <Setter Property="FontSize" Value="14" />
-        </Style>
-
-        <Style x:Key="NavButtonStyle" TargetType="Button">
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Foreground" Value="{DynamicResource NavButtonForegroundBrush}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="14,12" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="16"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter Margin="{TemplateBinding Padding}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource NavButtonHoverBorderBrush}" />
-                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource NavButtonHoverBackgroundBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Chrome" Property="Opacity" Value="0.85" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Chrome" Property="Opacity" Value="0.45" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style x:Key="NavButtonStyle" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Foreground" Value="{DynamicResource NavButtonForegroundBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="14,12" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="16"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource NavButtonHoverBorderBrush}" />
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource NavButtonHoverBackgroundBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Chrome" Property="Opacity" Value="0.85" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Chrome" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Border x:Name="PaneRoot"
@@ -126,43 +124,10 @@
             </Grid>
 
             <!-- Search box that filters items by title and description. -->
-            <Border x:Name="SearchBorder"
-                    Grid.Row="1"
-                    Margin="0,22,0,18"
-                    Padding="14,0"
-                    Height="46"
-                    Background="{DynamicResource NavSearchBackgroundBrush}"
-                    BorderBrush="{DynamicResource NavSearchBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="16">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <ContentControl x:Name="SearchIconHost"
-                                    Width="14"
-                                    Height="14"
-                                    VerticalAlignment="Center" />
-
-                    <Grid Grid.Column="1" Margin="12,0,0,0">
-                        <TextBox x:Name="SearchTextBox"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Foreground="{DynamicResource NavSearchTextBrush}"
-                                 CaretBrush="{DynamicResource NavSearchTextBrush}"
-                                 VerticalContentAlignment="Center"
-                                 FontSize="14"
-                                 TextChanged="SearchTextBox_TextChanged" />
-                        <TextBlock x:Name="SearchPlaceholderText"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource NavSearchPlaceholderTextBlockStyle}"
-                                   IsHitTestVisible="False"
-                                   Text="Search" />
-                    </Grid>
-                </Grid>
-            </Border>
+            <searchBox:SearchBox x:Name="SearchBox"
+                                 Grid.Row="1"
+                                 Margin="0,22,0,18"
+                                 TextChanged="SearchBox_TextChanged" />
 
             <!-- Dynamic item host rebuilt from the current filter result. -->
             <ScrollViewer Grid.Row="2"

@@ -13,8 +13,11 @@ namespace Shared.Models.MES
         public string ResultCheck { get; set; }
         public string DataStruct { get; set; }
         public bool isEnabledAPI { get; set; }
+        public bool IsCommunicationQueryVisible { get; set; } = true;
         public string Remarks { get; set; }
         public string Lua { get; set; }
+        public string SampleRequestBody { get; set; }
+        public string SampleResponseBody { get; set; }
         #region TCP
         /// <summary>
         /// 数据结尾是否回车

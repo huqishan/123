@@ -29,7 +29,6 @@ namespace ControlLibrary.Controls.Navigation.Control
         private const string NavSelectedBorderBrushKey = "NavSelectedBorderBrush";
         private const string NavDescriptionTextBlockStyleKey = "NavDescriptionTextBlockStyle";
         private const string NavIconBrushKey = "NavIconBrush";
-        private const string NavMutedIconBrushKey = "NavMutedIconBrush";
         private const string NavSeparatorBrushKey = "NavSeparatorBrush";
         private const string NavChevronExpandedBackgroundBrushKey = "NavChevronExpandedBackgroundBrush";
         private const string NavChevronCollapsedBackgroundBrushKey = "NavChevronCollapsedBackgroundBrush";
@@ -62,7 +61,6 @@ namespace ControlLibrary.Controls.Navigation.Control
             InitializeComponent();
             InitializeStaticIcons();
             UpdatePaneTitle();
-            UpdateSearchPlaceholder();
             ApplyPaneState(animate: false);
             UpdateSettingsVisual();
         }
@@ -127,8 +125,6 @@ namespace ControlLibrary.Controls.Navigation.Control
 
         private void InitializeStaticIcons()
         {
-            SearchIconHost.Content = CreateThemedIcon(IconFactory.Search, NavMutedIconBrushKey, 14);
-
             SettingsIconHost.Content = CreateThemedIcon(IconFactory.Settings, NavIconBrushKey, 18);
 
             UpdatePaneToggleIcon();
@@ -147,11 +143,10 @@ namespace ControlLibrary.Controls.Navigation.Control
             IsPaneOpen = !IsPaneOpen;
         }
 
-        private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             // Search updates the visible item list immediately while typing.
-            _searchText = SearchTextBox.Text.Trim();
-            UpdateSearchPlaceholder();
+            _searchText = SearchBox.Text.Trim();
             RebuildNavigation();
         }
 
@@ -242,7 +237,7 @@ namespace ControlLibrary.Controls.Navigation.Control
                 : new Thickness(14, 22, 14, 22);
 
             HeaderTextStack.Visibility = IsPaneOpen ? Visibility.Visible : Visibility.Collapsed;
-            SearchBorder.Visibility = IsPaneOpen ? Visibility.Visible : Visibility.Collapsed;
+            SearchBox.Visibility = IsPaneOpen ? Visibility.Visible : Visibility.Collapsed;
             PaneToggleButton.ToolTip = IsPaneOpen ? "Collapse navigation pane" : "Expand navigation pane";
             UpdatePaneToggleIcon();
 
@@ -257,16 +252,6 @@ namespace ControlLibrary.Controls.Navigation.Control
             SettingsButton.ToolTip = IsPaneOpen ? null : "Settings";
 
             RebuildNavigation();
-        }
-
-        private void UpdateSearchPlaceholder()
-        {
-            if (SearchPlaceholderText is not null)
-            {
-                SearchPlaceholderText.Visibility = string.IsNullOrWhiteSpace(SearchTextBox.Text)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-            }
         }
 
         private void RebuildNavigation()

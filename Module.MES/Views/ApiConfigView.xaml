@@ -1,20 +1,809 @@
 ﻿<UserControl x:Class="Module.MES.Views.ApiConfigView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:Module.MES.Views"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
-    <Grid>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="0.2*"/>
-                <ColumnDefinition/>
-            </Grid.ColumnDefinitions>
-            <Border>
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:views="clr-namespace:Module.MES.Views"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             xmlns:searchBox="clr-namespace:ControlLibrary.Controls.SearchBox.Control;assembly=ControlLibrary"
+             xmlns:converts="clr-namespace:ControlLibrary.Converts;assembly=ControlLibrary"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             d:DesignHeight="900"
+             d:DesignWidth="1800">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <converts:ComparisonToVisibilityConvert x:Key="Comp2Vis" />
+            <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <Style x:Key="StrongDataGridHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource TabItemSelectedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TabItemSelectedBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Foreground" Value="{DynamicResource AppContentTextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+
+        <Style x:Key="CenteredDataGridTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+
+        <Style x:Key="HeaderDataGridRowStyle" TargetType="{x:Type DataGridRow}">
+            <Setter Property="Background" Value="{DynamicResource TabCardBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppContentTextBrush}" />
+            <Style.Triggers>
+                <Trigger Property="AlternationIndex" Value="1">
+                    <Setter Property="Background" Value="{DynamicResource TabItemBackgroundBrush}" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource TabItemSelectedBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource TabItemSelectedForegroundBrush}" />
+                    <Setter Property="FontWeight" Value="Bold" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="HeaderDataGridCellStyle" TargetType="{x:Type DataGridCell}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridCell}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CenteredDataGridTextBoxStyle" TargetType="TextBox">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource AppContentTextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource TabItemSelectedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TabItemSelectedBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource PrimaryButtonBrush}" />
+            <Setter Property="SelectionTextBrush" Value="{DynamicResource PrimaryButtonForegroundBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource AppContentTextBrush}" />
+        </Style>
+            
+        <Style x:Key="ConfigListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TabItemBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource TabCardBackgroundBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Chrome"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource TabItemHoverBorderBrush}" />
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource TabItemHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource TabItemSelectedBorderBrush}" />
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource TabItemSelectedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MethodTypeListBoxStyle" TargetType="ListBox">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        </Style>
+
+        <Style x:Key="MethodTypeListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Padding" Value="16,9" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TabItemBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource TabCardBackgroundBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Chrome"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="999">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PrimaryButtonBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonForegroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HeaderDrawerBorderStyle" TargetType="Border">
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="{DynamicResource TabItemBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TabItemSelectedBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="26"
+                                      ShadowDepth="0"
+                                      Opacity="0.18"
+                                      Color="#000000" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DrawerIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="{DynamicResource TabCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TabItemBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource AppContentTextBrush}" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource TabItemSelectedBorderBrush}" />
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource TabItemSelectedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LuaToolButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Margin" Value="0,0,10,10" />
+        </Style>
+
+        <Style x:Key="LuaSnippetButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="18">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="接口配置" />
+                    <TextBlock Margin="0,6,0,0"
+                               Style="{StaticResource AppMutedTextBlockStyle}"
+                               Text="集中维护 MES 接口、调用方式、示例报文和测试返回结果。" TextWrapping="Wrap"  />
+                </StackPanel>
+                <searchBox:SearchBox Grid.Row="1"
+                                   Margin="0,16,0,0"
+                                   PlaceholderText="搜索接口配置..."
+                                   Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                <UniformGrid Grid.Row="2" Columns="4" Margin="0,16,0,16">
+                    <Button Content="新增"
+                            Click="NewProfileButton_Click"
+                            Style="{StaticResource PrimaryActionButtonStyle}" />
+                    <Button Content="复制"
+                            Click="DuplicateProfileButton_Click"
+                            Style="{StaticResource ActionButtonStyle}" />
+                    <Button Content="删除"
+                            Click="DeleteProfileButton_Click"
+                            Style="{StaticResource ActionButtonStyle}" />
+                    <Button Content="保存"
+                            Click="SaveProfilesButton_Click"
+                            Style="{StaticResource ActionButtonStyle}" />
+                </UniformGrid>
+
+                <ListBox Grid.Row="3"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         ItemContainerStyle="{StaticResource ConfigListBoxItemStyle}"
+                         ItemsSource="{Binding ProfilesView}"
+                         SelectedItem="{Binding SelectedProfile, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppContentTextBrush}"
+                                               Text="{Binding ApiName}" />
+                                    <Border DockPanel.Dock="Right"
+                                            Margin="10,0,0,0"
+                                            Padding="8,2"
+                                            Background="{DynamicResource PrimaryButtonBrush}"
+                                            BorderBrush="{DynamicResource TabItemBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="999">
+                                        <TextBlock Foreground="{DynamicResource SecondaryButtonForegroundBrush}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding TypeDisplayName}" />
+                                    </Border>
+                                </DockPanel>
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="{Binding Summary}"
+                                           TextWrapping="Wrap" />
+                                
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="16" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="16" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="16" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="基础配置" />
+                        <Border DockPanel.Dock="Right"
+                                Padding="12,6"
+                                Background="{DynamicResource TabCardBackgroundBrush}"
+                                BorderBrush="{DynamicResource TabItemBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="999">
+                            <TextBlock FontWeight="SemiBold"
+                                       Foreground="{Binding PageStatusBrush}"
+                                       Text="{Binding PageStatusText}" />
+                        </Border>
+                    </DockPanel>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="1.2*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="接口名称" />
+                            <TextBox x:Name="ApiNameTextBox"
+                                     Style="{StaticResource InputTextBoxStyle}"
+                                     Text="{Binding SelectedProfile.ApiName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="备注" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                     Text="{Binding SelectedProfile.Remarks, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="数据结构" />
+                            <DockPanel LastChildFill="True">
+                                <Button DockPanel.Dock="Right"
+                                        Content="刷新"
+                                        Height="{Binding ActualHeight, ElementName=ApiNameTextBox}"
+                                        Margin="8,0,0,0"
+                                        Padding="10,0"
+                                        Click="RefreshStructuresButton_Click"
+                                        Style="{StaticResource ActionButtonStyle}" />
+                                <ComboBox Height="{Binding ActualHeight, ElementName=ApiNameTextBox}"
+                                          VerticalAlignment="Top"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+                                          ItemsSource="{Binding DataStructureOptions}"
+                                          SelectedItem="{Binding SelectedProfile.DataStruct, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="结果校验" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                     Text="{Binding SelectedProfile.ResultCheck, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="操作" />
+                            <WrapPanel Margin="0,0,0,6">
+                                <Button Content="生成上传报文"
+                                        Click="GeneratePayloadButton_Click"
+                                        Style="{StaticResource PrimaryActionButtonStyle}" />
+                                <Button Content="测试接口"
+                                        Click="TestInterfaceButton_Click"
+                                        Style="{StaticResource PrimaryActionButtonStyle}" />
+                            </WrapPanel>
+                            <CheckBox Margin="0,10,0,0"
+                                      Foreground="{DynamicResource AppContentTextBrush}"
+                                      Content="启用接口"
+                                      IsChecked="{Binding SelectedProfile.IsEnabledAPI, Mode=TwoWay}" />
+                            <CheckBox Margin="0,8,0,0"
+                                      Foreground="{DynamicResource AppContentTextBrush}"
+                                      Content="通信查询中显示"
+                                      IsChecked="{Binding SelectedProfile.IsCommunicationQueryVisible, Mode=TwoWay}" />
+                            <TextBlock Margin="0,10,0,0"
+                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                       Text="{Binding StructureDirectoryDisplay}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="14" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Style="{StaticResource SectionTitleStyle}"
+                               Text="调用方式与连接参数" />
+
+                    <ListBox Grid.Row="2" x:Name="SendMESType"
+                             Style="{StaticResource MethodTypeListBoxStyle}"
+                             ItemContainerStyle="{StaticResource MethodTypeListBoxItemStyle}"
+                             ItemsSource="{Binding MethodTypes}"
+                             SelectedValue="{Binding SelectedProfile.SelectMESType, Mode=TwoWay}"
+                             SelectedValuePath="Value">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Grid Grid.Row="4">
+                        <Border Visibility="{Binding ElementName=SendMESType,Path=SelectedItem.Value, Converter={StaticResource Comp2Vis},ConverterParameter='WebApi'}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="280" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="上传方式" />
+                                    <ComboBox Style="{StaticResource InputComboBoxStyle}"
+                                              ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+                                              ItemsSource="{Binding WebApiMethods}"
+                                              SelectedValuePath="Value"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectedValue="{Binding SelectedProfile.WebApiType, Mode=TwoWay}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="WebApi 地址" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.Url, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Token 地址" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.TokenUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Token 名称" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.TokenName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Border Margin="0,12,0,0"
+                                            Padding="12,10"
+                                            Background="{DynamicResource TabCardBackgroundBrush}"
+                                            BorderBrush="{DynamicResource TabItemBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="12">
+                                        <DockPanel LastChildFill="False">
+                                            <StackPanel>
+                                                <TextBlock FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppContentTextBrush}"
+                                                           Text="请求头" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                                           Text="{Binding SelectedProfile.HeaderSummaryText}" />
+                                            </StackPanel>
+                                            <Button DockPanel.Dock="Right"
+                                                    Width="34"
+                                                    Height="34"
+                                                    Content="..."
+                                                    ToolTip="编辑请求头"
+                                                    Click="OpenHeaderDrawerButton_Click"
+                                                    Style="{StaticResource DrawerIconButtonStyle}" />
+                                        </DockPanel>
+                                    </Border>
+                                    
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Visibility="{Binding ElementName=SendMESType,Path=SelectedItem.Value, Converter={StaticResource Comp2Vis},ConverterParameter='WebService'}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="WebService 地址" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.Url, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Action" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.Action, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="用户名" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.UserName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="密码" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.Password, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="说明" />
+                                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="适用于 SOAP 或 XML 场景，测试接口时会把左侧上传报文直接作为请求体发送。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Visibility="{Binding ElementName=SendMESType,Path=SelectedItem.Value, Converter={StaticResource Comp2Vis},ConverterParameter='TCP Client'}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="本地 IP" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.TCPLocalIpAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="本地端口" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.TCPLocalPort, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="远程 IP" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.TCPRemoteIpAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="远程端口" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.TCPRemotePort, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="附加选项" />
+                                    <CheckBox Margin="0,0,0,8"
+                                              Foreground="{DynamicResource AppContentTextBrush}"
+                                              Content="结尾自动追加回车换行"
+                                              IsChecked="{Binding SelectedProfile.IsEnter, Mode=TwoWay}" />
+                                    <CheckBox Foreground="{DynamicResource AppContentTextBrush}"
+                                              Content="保持 TCP 长连接"
+                                              IsChecked="{Binding SelectedProfile.IsEnabledTCPKeepAlive, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Visibility="{Binding ElementName=SendMESType,Path=SelectedItem.Value, Converter={StaticResource Comp2Vis},ConverterParameter='FTP'}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="FTP 地址" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.Url, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="下载路径" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.DownPath, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="用户名" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.UserName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="密码" />
+                                    <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                             Text="{Binding SelectedProfile.Password, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="模式" />
+                                    <CheckBox Foreground="{DynamicResource AppContentTextBrush}"
+                                              Content="下载模式"
+                                              IsChecked="{Binding SelectedProfile.IsDown, Mode=TwoWay}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                               Text="未勾选时按上传模式执行。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Visibility="{Binding ElementName=SendMESType,Path=SelectedItem.Value, Converter={StaticResource Comp2Vis},ConverterParameter='P-Invoke'}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="16" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="P-Invoke 当前只保留配置入口，底层发送逻辑尚未接入。你可以先在下方 Lua 脚本中编排自定义调用。"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="2"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="保存不会报错，但测试接口暂不执行 P-Invoke。"
+                                           TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="4" Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="10" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Style="{StaticResource SectionTitleStyle}"
+                               Text="调用预览与返回结果" />
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="8" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="上传报文" />
+                            <TextBox Grid.Row="2"
+                                     Style="{StaticResource InputTextBoxStyle}"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas"
+                                     FontSize="13"
+                                     Text="{Binding SelectedProfile.SampleRequestBody, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="8" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="MES 返回" />
+                            <TextBox Grid.Row="2"
+                                     Style="{StaticResource InputTextBoxStyle}"
+                                     AcceptsReturn="True"
+                                     IsReadOnly="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas"
+                                     FontSize="13"
+                                     Text="{Binding SelectedProfile.SampleResponseBody, Mode=OneWay}" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Grid x:Name="HeaderDrawerHost"
+                  Grid.Row="2"
+                  Grid.RowSpan="3"
+                  Panel.ZIndex="20"
+                  Opacity="0"
+                  IsHitTestVisible="False">
+                <Border Background="#14000000"
+                        MouseLeftButtonDown="HeaderDrawerBackdrop_MouseLeftButtonDown" />
+
+                <Border x:Name="HeaderDrawerSheet"
+                        Width="320"
+                        Margin="0,0,0,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Style="{StaticResource HeaderDrawerBorderStyle}">
+                    <Border.RenderTransform>
+                        <TranslateTransform x:Name="HeaderDrawerTranslateTransform" X="40" />
+                    </Border.RenderTransform>
+
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="14" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="14" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel LastChildFill="False">
+                            <TextBlock Style="{StaticResource SectionTitleStyle}" Text="请求头" />
+                            <Button DockPanel.Dock="Right"
+                                    Content="关闭"
+                                    Click="CloseHeaderDrawerButton_Click"
+                                    Style="{StaticResource ActionButtonStyle}" />
+                        </DockPanel>
+
+                        <Border Grid.Row="2"
+                                Padding="0"
+                                Background="{DynamicResource TabCardBackgroundBrush}"
+                                BorderBrush="{DynamicResource TabItemBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <DataGrid ItemsSource="{Binding SelectedProfile.Heads}"
+                                      SelectedItem="{Binding SelectedProfile.SelectedHeader, Mode=TwoWay}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      AlternationCount="2"
+                                      HeadersVisibility="Column" RowHeight="35"
+                                      ColumnHeaderStyle="{StaticResource StrongDataGridHeaderStyle}"
+                                      RowStyle="{StaticResource HeaderDataGridRowStyle}"
+                                      CellStyle="{StaticResource HeaderDataGridCellStyle}"
+                                      GridLinesVisibility="Horizontal"
+                                      Background="{DynamicResource TabCardBackgroundBrush}"
+                                      Foreground="{DynamicResource AppContentTextBrush}"
+                                      RowBackground="{DynamicResource TabCardBackgroundBrush}"
+                                      AlternatingRowBackground="{DynamicResource TabItemBackgroundBrush}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Key"
+                                                        Width="1.1*"
+                                                        ElementStyle="{StaticResource CenteredDataGridTextBlockStyle}"
+                                                        EditingElementStyle="{StaticResource CenteredDataGridTextBoxStyle}"
+                                                        Binding="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <DataGridTextColumn Header="Value"
+                                                        Width="1.9*"
+                                                        ElementStyle="{StaticResource CenteredDataGridTextBlockStyle}"
+                                                        EditingElementStyle="{StaticResource CenteredDataGridTextBoxStyle}"
+                                                        Binding="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <StackPanel Grid.Row="4"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right">
+                            <Button Content="新增"
+                                    Click="AddHeaderButton_Click"
+                                    Style="{StaticResource ActionButtonStyle}" />
+                            <Button Content="删除"
+                                    Click="DeleteHeaderButton_Click"
+                                    Style="{StaticResource ActionButtonStyle}" />
+                            <Button Content="保存"
+                                    Click="SaveHeaderButton_Click"
+                                    Style="{StaticResource PrimaryActionButtonStyle}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!--<Grid x:Name="LuaEditorHost"
+              Grid.ColumnSpan="3"
+              Panel.ZIndex="30"
+              Opacity="0"
+              IsHitTestVisible="False">
+            <Border Background="#4D0F172A"/>
+
+            <Border x:Name="LuaEditorSheet"
+                    Width="1380"
+                    MaxWidth="1600"
+                    Height="780"
+                    Margin="28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource HeaderDrawerBorderStyle}">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="LuaEditorTranslateTransform" Y="24" />
+                </Border.RenderTransform>
                 
             </Border>
-        </Grid>
+        </Grid>-->
     </Grid>
 </UserControl>

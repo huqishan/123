@@ -14,8 +14,16 @@ namespace ControlLibrary.Converts
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value == null || parameter == null) return Visibility.Collapsed;
-            return parameter.ToString().ToUpper().Contains(value?.ToString().ToUpper()) ? Visibility.Visible : Visibility.Collapsed;
+            string? valueText = value?.ToString();
+            string? parameterText = parameter?.ToString();
+            if (string.IsNullOrWhiteSpace(valueText) || string.IsNullOrWhiteSpace(parameterText))
+            {
+                return Visibility.Collapsed;
+            }
+
+            return parameterText.ToUpperInvariant().Contains(valueText.ToUpperInvariant())
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

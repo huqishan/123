@@ -21,15 +21,7 @@
             <Setter Property="FontSize" Value="15" />
             <Setter Property="Foreground" Value="{DynamicResource AppContentTextBrush}" />
         </Style>
-
-        <Style x:Key="ActionButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource PaletteButtonStyle}">
-            <Setter Property="Height" Value="40" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-        </Style>
-    </UserControl.Resources>
+</UserControl.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>

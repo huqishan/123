@@ -1,4 +1,4 @@
-using ControlLibrary;
+﻿using ControlLibrary;
 using ControlLibrary.Controls.Navigation.Models;
 using System;
 using System.Collections.Generic;
@@ -36,18 +36,19 @@ namespace WpfApp
                     new ObservableCollection<ControlInfoDataItem>
                     {
                         new ControlInfoDataItem("接口配置", IconFactory.PlugZap, "Module.MES.Views.ApiConfigView, Module.MES", null),
-                        new ControlInfoDataItem("结构配置", IconFactory.Network, "结构配置", null),
+                        new ControlInfoDataItem("结构配置", IconFactory.Network, "ControlLibrary.ControlViews.Structure.DataStructureConfigView, ControlLibrary", null),
                         new ControlInfoDataItem("通讯配置", IconFactory.MessageSquareCode, "通讯配置", null)
                     },
                     description: "Manufacturing"),
                 new ControlInfoDataItem("设备管理", IconFactory.Cpu, null,
                     new ObservableCollection<ControlInfoDataItem>
                     {
-                        new ControlInfoDataItem("设备通信配置", IconFactory.Router, "ControlLibrary.ControlViews.Communication.DeviceCommunicationConfigView, ControlLibrary", null),
+                        new ControlInfoDataItem("设备通讯配置", IconFactory.Router, "ControlLibrary.ControlViews.Communication.DeviceCommunicationConfigView, ControlLibrary", null),
                         new ControlInfoDataItem("流程图", IconFactory.Workflow, "ControlLibrary.ControlViews.Flowchar.FlowchartView, ControlLibrary", null),
                         new ControlInfoDataItem("协议配置", IconFactory.FileCog, "ControlLibrary.ControlViews.Protocol.ProtocolConfigView, ControlLibrary", null)
                     },
-                    description: "Devices")
+                    description: "Devices"),
+                new ControlInfoDataItem("脚本管理", IconFactory.FlaskConical, "ControlLibrary.ControlViews.LuaScrip.LuaScriptView, ControlLibrary", null, description: "Lua"),
             };
 
             // The custom navigation control handles visuals while the window owns page opening.
@@ -169,3 +170,5 @@ namespace WpfApp
         }
     }
 }
+
+

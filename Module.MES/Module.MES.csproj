@@ -14,4 +14,9 @@
     <Folder Include="ViewModels\VMs\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ControlLibrary\ControlLibrary.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+
 </Project>
