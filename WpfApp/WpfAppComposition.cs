@@ -1,6 +1,7 @@
 using Autofac;
 using ControlLibrary;
 using Module.Business.Services;
+using Module.Business.Services.BusinessOperations;
 using Module.Communication.Services;
 using Module.MES.Services;
 using Module.Test.Services;
@@ -38,6 +39,8 @@ internal static class WpfAppComposition
     {
         IEventAggregator eventAggregator = scope.Resolve<IEventAggregator>();
         BusinessSystem.ConfigureEventAggregator(eventAggregator);
+        BusinessOperationInvoker.ConfigureServiceResolver(type => scope.ResolveOptional(type));
+        BusinessOperationCatalog.Refresh();
 
         // Resolve long-lived module services that subscribe to application events.
         _ = scope.Resolve<BusinessService>();

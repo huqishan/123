@@ -1,8 +1,10 @@
 ﻿using ControlLibrary.Models.EventsModels.Test;
 using ControlLibrary.Models.MediatorModels.Communication;
 using Module.Business.Models;
+using Module.Business.Services.BusinessOperations;
 using Module.Business.ViewModels.PropertyVMs;
 using Shared.Abstractions;
+using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Events;
 using Shared.Infrastructure.Extensions;
 using Shared.Infrastructure.Lua;
@@ -660,6 +662,18 @@ public static class SchemeExecutionService
             return ExecuteJudge(operation, schemeStep, returnValues);
         }
 
+        if (TryResolveBusinessOperation(operation, out string deviceId, out string operationId))
+        {
+            return await ExecuteCatalogBusinessOperationAsync(
+                    context,
+                    operation,
+                    schemeStep,
+                    returnValues,
+                    deviceId,
+                    operationId)
+                .ConfigureAwait(false);
+        }
+
         if (IsSystemOperation(operation))
         {
             return await ExecuteSystemMethodAsync(operation, schemeStep, returnValues)
@@ -680,6 +694,51 @@ public static class SchemeExecutionService
 
         string resultText = string.Join(", ", results.Select(item => item?.ToString() ?? string.Empty));
         return SchemeStepExecutionOutput.Success(resultText);
+    }
+
+    private static bool TryResolveBusinessOperation(
+        WorkStepOperation operation,
+        out string deviceId,
+        out string operationId)
+    {
+        deviceId = BusinessOperationBindingResolver.ResolveCatalogDeviceId(
+            operation.OperationObject,
+            operation.DeviceId);
+        operationId = string.IsNullOrWhiteSpace(operation.OperationId)
+            ? operation.InvokeMethod?.Trim() ?? string.Empty
+            : operation.OperationId.Trim();
+
+        return BusinessOperationCatalog.Find(deviceId, operationId) is not null;
+    }
+
+    private static async Task<SchemeStepExecutionOutput> ExecuteCatalogBusinessOperationAsync(
+        IControlledExecutionContext context,
+        WorkStepOperation operation,
+        SchemeWorkStepItem schemeStep,
+        IReadOnlyDictionary<string, string> returnValues,
+        string deviceId,
+        string operationId)
+    {
+        Dictionary<string, string> parameterValues = operation.Parameters
+            .OrderBy(parameter => parameter.Sequence)
+            .Where(parameter => !string.IsNullOrWhiteSpace(parameter.ParameterName))
+            .GroupBy(parameter => parameter.ParameterName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => ResolveParameterValue(group.First(), schemeStep, returnValues),
+                StringComparer.OrdinalIgnoreCase);
+        ICommunication? currentCommunication = string.IsNullOrWhiteSpace(operation.OperationObject)
+            ? null
+            : CommunicationFactory.Get(operation.OperationObject.Trim());
+
+        BusinessOperationInvocationResult result = await BusinessOperationInvoker
+            .InvokeAsync(deviceId, operationId, parameterValues, currentCommunication, context.CancellationToken)
+            .ConfigureAwait(false);
+        context.ThrowIfCancellationRequested();
+
+        return result.IsSuccess
+            ? SchemeStepExecutionOutput.Success(result.Result)
+            : SchemeStepExecutionOutput.Failure(result.Message, result.Result);
     }
 
     private static async Task<SchemeStepExecutionOutput> ExecuteSystemMethodAsync(

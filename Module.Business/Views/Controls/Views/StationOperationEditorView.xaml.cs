@@ -233,9 +233,11 @@ public partial class StationOperationEditorView : UserControl
         return new WorkStepOperation
         {
             OperationObject = ViewModel?.EditingOperationObject ?? string.Empty,
+            DeviceId = ViewModel?.EditingOperationObject ?? string.Empty,
             ProtocolName = ViewModel?.EditingProtocolName ?? string.Empty,
             CommandName = ViewModel?.EditingCommandName ?? string.Empty,
             InvokeMethod = ViewModel?.EditingInvokeMethod ?? string.Empty,
+            OperationId = ViewModel?.EditingInvokeMethod ?? string.Empty,
             ReturnValue = ViewModel?.EditingReturnValue ?? string.Empty
         };
     }

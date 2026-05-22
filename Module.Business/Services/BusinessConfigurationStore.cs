@@ -18,26 +18,67 @@ namespace Module.Business.Services;
 /// </summary>
 public static class BusinessConfigurationStore
 {
+    #region 配置路径与常量
+
+    /// <summary>
+    /// 业务配置根目录。
+    /// </summary>
     private static readonly string RootConfigDirectory =
         Path.Combine(AppContext.BaseDirectory, "Config");
 
+    /// <summary>
+    /// 业务方案配置目录。
+    /// </summary>
     private static readonly string SchemeDirectory =
         Path.Combine(RootConfigDirectory, "Scheme");
 
+    /// <summary>
+    /// 工位配置目录。
+    /// </summary>
     private static readonly string StationDirectory =
         Path.Combine(RootConfigDirectory, "Station");
 
+    /// <summary>
+    /// 业务方案配置文件搜索通配符。
+    /// </summary>
     private const string SchemeFileSearchPattern = "*.scheme.json";
+
+    /// <summary>
+    /// 工位配置文件搜索通配符。
+    /// </summary>
     private const string StationFileSearchPattern = "*.station.json";
+
+    /// <summary>
+    /// 流程图节点默认宽度。
+    /// </summary>
     private const double DefaultNodeWidth = 150;
+
+    /// <summary>
+    /// 流程图节点默认高度。
+    /// </summary>
     private const double DefaultNodeHeight = 70;
 
+    #endregion
+
+    #region JSON 序列化选项
+
+    /// <summary>
+    /// 业务配置 JSON 序列化选项。
+    /// </summary>
     private static readonly JsonSerializerOptions SchemeJsonOptions = new()
     {
         WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    #endregion
+
+    #region 公开加载保存入口
+
+    /// <summary>
+    /// 加载业务方案配置目录并返回规范化后的配置目录。
+    /// </summary>
+    /// <returns>业务方案配置目录。</returns>
     public static SchemeConfigurationCatalog LoadCatalog()
     {
         SchemeConfigurationCatalog catalog = new()
@@ -48,6 +89,10 @@ public static class BusinessConfigurationStore
         return NormalizeCatalog(catalog);
     }
 
+    /// <summary>
+    /// 保存业务方案配置目录。
+    /// </summary>
+    /// <param name="catalog">待保存的业务方案配置目录。</param>
     public static void SaveCatalog(SchemeConfigurationCatalog catalog)
     {
         SchemeConfigurationCatalog normalized = NormalizeCatalog(catalog);
@@ -55,6 +100,10 @@ public static class BusinessConfigurationStore
         SaveSchemes(normalized.Schemes);
     }
 
+    /// <summary>
+    /// 加载工位配置目录并返回规范化后的配置目录。
+    /// </summary>
+    /// <returns>工位配置目录。</returns>
     public static StationConfigurationCatalog LoadStationCatalog()
     {
         StationConfigurationCatalog catalog = new()
@@ -65,12 +114,24 @@ public static class BusinessConfigurationStore
         return NormalizeStationCatalog(catalog);
     }
 
+    /// <summary>
+    /// 保存工位配置目录。
+    /// </summary>
+    /// <param name="catalog">待保存的工位配置目录。</param>
     public static void SaveStationCatalog(StationConfigurationCatalog catalog)
     {
         StationConfigurationCatalog normalized = NormalizeStationCatalog(catalog);
         SaveStations(normalized.Stations);
     }
 
+    #endregion
+
+    #region 方案加载保存
+
+    /// <summary>
+    /// 从方案目录读取所有业务方案配置。
+    /// </summary>
+    /// <returns>业务方案集合。</returns>
     private static ObservableCollection<SchemeProfile> LoadSchemes()
     {
         ObservableCollection<SchemeProfile> schemes = new();
@@ -86,6 +147,10 @@ public static class BusinessConfigurationStore
         return schemes;
     }
 
+    /// <summary>
+    /// 保存业务方案集合并清理已删除的方案文件。
+    /// </summary>
+    /// <param name="schemes">待保存的业务方案集合。</param>
     private static void SaveSchemes(ObservableCollection<SchemeProfile> schemes)
     {
         Directory.CreateDirectory(SchemeDirectory);
@@ -101,6 +166,14 @@ public static class BusinessConfigurationStore
         DeleteStaleFiles(SchemeDirectory, SchemeFileSearchPattern, currentFilePaths);
     }
 
+    #endregion
+
+    #region 工位加载保存
+
+    /// <summary>
+    /// 从工位目录读取所有工位配置。
+    /// </summary>
+    /// <returns>工位配置集合。</returns>
     private static ObservableCollection<StationProfile> LoadStations()
     {
         ObservableCollection<StationProfile> stations = new();
@@ -116,6 +189,10 @@ public static class BusinessConfigurationStore
         return stations;
     }
 
+    /// <summary>
+    /// 保存工位配置集合并清理已删除的工位文件。
+    /// </summary>
+    /// <param name="stations">待保存的工位配置集合。</param>
     private static void SaveStations(ObservableCollection<StationProfile> stations)
     {
         Directory.CreateDirectory(StationDirectory);
@@ -131,6 +208,15 @@ public static class BusinessConfigurationStore
         DeleteStaleFiles(StationDirectory, StationFileSearchPattern, currentFilePaths);
     }
 
+    #endregion
+
+    #region 配置规范化入口
+
+    /// <summary>
+    /// 规范化业务方案配置目录，确保集合、编号、名称和步骤数据可用。
+    /// </summary>
+    /// <param name="catalog">原始业务方案配置目录。</param>
+    /// <returns>规范化后的业务方案配置目录。</returns>
     private static SchemeConfigurationCatalog NormalizeCatalog(SchemeConfigurationCatalog? catalog)
     {
         SchemeConfigurationCatalog normalized = new()
@@ -150,6 +236,11 @@ public static class BusinessConfigurationStore
         return normalized;
     }
 
+    /// <summary>
+    /// 规范化工位配置目录，确保工位和流程图数据可用。
+    /// </summary>
+    /// <param name="catalog">原始工位配置目录。</param>
+    /// <returns>规范化后的工位配置目录。</returns>
     private static StationConfigurationCatalog NormalizeStationCatalog(StationConfigurationCatalog? catalog)
     {
         StationConfigurationCatalog normalized = new()
@@ -164,6 +255,14 @@ public static class BusinessConfigurationStore
         return normalized;
     }
 
+    #endregion
+
+    #region 工步与操作规范化
+
+    /// <summary>
+    /// 规范化工步集合中的标识、名称、更新时间和操作列表。
+    /// </summary>
+    /// <param name="workSteps">待规范化的工步集合。</param>
     private static void NormalizeWorkSteps(ObservableCollection<WorkStepProfile> workSteps)
     {
         HashSet<string> usedIds = new(StringComparer.Ordinal);
@@ -186,6 +285,11 @@ public static class BusinessConfigurationStore
         }
     }
 
+    /// <summary>
+    /// 规范化单个工步操作，补齐操作类型、对象、调用方法和参数。
+    /// </summary>
+    /// <param name="operation">原始工步操作。</param>
+    /// <returns>规范化后的工步操作。</returns>
     private static WorkStepOperation NormalizeOperation(WorkStepOperation operation)
     {
         string operationObject = ResolveOperationObject(operation);
@@ -220,9 +324,11 @@ public static class BusinessConfigurationStore
             Id = string.IsNullOrWhiteSpace(operation.Id) ? Guid.NewGuid().ToString("N") : operation.Id.Trim(),
             OperationType = isLuaOperation ? "Lua" : isJudgeOperation ? "判断" : isSystemOperation ? "系统" : "设备",
             OperationObject = operationObject,
+            DeviceId = string.IsNullOrWhiteSpace(operation.DeviceId) ? operationObject : operation.DeviceId.Trim(),
             ProtocolName = protocolName,
             CommandName = commandName,
             InvokeMethod = invokeMethod,
+            OperationId = string.IsNullOrWhiteSpace(operation.OperationId) ? invokeMethod : operation.OperationId.Trim(),
             ReturnValue = isLuaOperation ? string.Empty : operation.ReturnValue?.Trim() ?? string.Empty,
             ShowDataToView = !isLuaOperation && operation.ShowDataToView,
             ViewDataName = isLuaOperation ? string.Empty : operation.ViewDataName?.Trim() ?? string.Empty,
@@ -235,6 +341,11 @@ public static class BusinessConfigurationStore
         };
     }
 
+    /// <summary>
+    /// 解析操作对象，兼容系统、判断、Lua 和设备操作。
+    /// </summary>
+    /// <param name="operation">待解析的工步操作。</param>
+    /// <returns>规范化后的操作对象。</returns>
     private static string ResolveOperationObject(WorkStepOperation operation)
     {
         if (IsLuaOperationObject(operation.OperationType) ||
@@ -260,6 +371,12 @@ public static class BusinessConfigurationStore
             : operation.OperationObject.Trim();
     }
 
+    /// <summary>
+    /// 规范化操作参数的标识、顺序、名称和值。
+    /// </summary>
+    /// <param name="parameter">原始操作参数。</param>
+    /// <param name="index">参数在集合中的索引。</param>
+    /// <returns>规范化后的操作参数。</returns>
     private static WorkStepOperationParameter NormalizeOperationParameter(WorkStepOperationParameter parameter, int index)
     {
         return new WorkStepOperationParameter
@@ -270,11 +387,21 @@ public static class BusinessConfigurationStore
             ParameterName = string.IsNullOrWhiteSpace(parameter.ParameterName)
                 ? parameter.Description?.Trim() ?? string.Empty
                 : parameter.ParameterName.Trim(),
+            ValueType = parameter.ValueType?.Trim() ?? string.Empty,
             Value = parameter.Value?.Trim() ?? string.Empty,
             Remark = parameter.Remark?.Trim() ?? string.Empty
         };
     }
 
+    #endregion
+
+    #region 方案规范化
+
+    /// <summary>
+    /// 规范化业务方案集合，并在需要时从工步模板补齐方案步骤操作。
+    /// </summary>
+    /// <param name="schemes">待规范化的方案集合。</param>
+    /// <param name="workSteps">可引用的工步模板集合。</param>
     private static void NormalizeSchemes(
         ObservableCollection<SchemeProfile> schemes,
         ObservableCollection<WorkStepProfile> workSteps)
@@ -330,6 +457,14 @@ public static class BusinessConfigurationStore
         }
     }
 
+    #endregion
+
+    #region 工位与流程图规范化
+
+    /// <summary>
+    /// 规范化流程图集合中的标识、名称和流程图文档。
+    /// </summary>
+    /// <param name="flowcharts">待规范化的流程图集合。</param>
     private static void NormalizeFlowcharts(ObservableCollection<FlowchartProfile> flowcharts)
     {
         HashSet<string> usedIds = new(StringComparer.Ordinal);
@@ -347,6 +482,10 @@ public static class BusinessConfigurationStore
         }
     }
 
+    /// <summary>
+    /// 规范化工位集合中的标识、名称、编码、更新时间和流程图文档。
+    /// </summary>
+    /// <param name="stations">待规范化的工位集合。</param>
     private static void NormalizeStations(ObservableCollection<StationProfile> stations)
     {
         HashSet<string> usedIds = new(StringComparer.Ordinal);
@@ -367,6 +506,11 @@ public static class BusinessConfigurationStore
         }
     }
 
+    /// <summary>
+    /// 规范化流程图文档，修复节点、连线、锚点和尺寸数据。
+    /// </summary>
+    /// <param name="document">原始流程图文档。</param>
+    /// <returns>规范化后的流程图文档。</returns>
     private static FlowchartDocument NormalizeFlowchartDocument(FlowchartDocument? document)
     {
         if (document is null)
@@ -436,17 +580,36 @@ public static class BusinessConfigurationStore
         };
     }
 
+    #endregion
+
+    #region 操作类型判断
+
+    /// <summary>
+    /// 判断是否为旧格式系统操作类型。
+    /// </summary>
+    /// <param name="operationType">操作类型文本。</param>
+    /// <returns>是旧格式系统操作类型时返回 true。</returns>
     private static bool IsLegacySystemOperationType(string? operationType)
     {
         return string.Equals(operationType?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断操作对象是否表示系统操作。
+    /// </summary>
+    /// <param name="operationObject">操作对象文本。</param>
+    /// <returns>是系统操作对象时返回 true。</returns>
     private static bool IsSystemOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(operationObject?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断操作类型是否为规范化后的系统操作。
+    /// </summary>
+    /// <param name="operationType">操作类型文本。</param>
+    /// <returns>是系统操作类型时返回 true。</returns>
     private static bool IsNormalizedSystemOperationType(string? operationType)
     {
         return string.Equals(operationType?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
@@ -454,6 +617,11 @@ public static class BusinessConfigurationStore
                IsLegacySystemOperationType(operationType);
     }
 
+    /// <summary>
+    /// 判断操作对象是否为规范化后的系统操作对象。
+    /// </summary>
+    /// <param name="operationObject">操作对象文本。</param>
+    /// <returns>是系统操作对象时返回 true。</returns>
     private static bool IsNormalizedSystemOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
@@ -461,16 +629,36 @@ public static class BusinessConfigurationStore
                IsSystemOperationObject(operationObject);
     }
 
+    /// <summary>
+    /// 判断操作对象是否表示判断操作。
+    /// </summary>
+    /// <param name="operationObject">操作对象文本。</param>
+    /// <returns>是判断操作对象时返回 true。</returns>
     private static bool IsJudgeOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), "判断", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断操作对象是否表示 Lua 操作。
+    /// </summary>
+    /// <param name="operationObject">操作对象文本。</param>
+    /// <returns>是 Lua 操作对象时返回 true。</returns>
     private static bool IsLuaOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
     }
 
+    #endregion
+
+    #region 唯一性与名称工具
+
+    /// <summary>
+    /// 确保字符串标识在指定集合中唯一。
+    /// </summary>
+    /// <param name="id">原始标识。</param>
+    /// <param name="usedIds">已占用的标识集合。</param>
+    /// <returns>唯一标识。</returns>
     private static string EnsureUniqueId(string id, HashSet<string> usedIds)
     {
         string candidate = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id.Trim();
@@ -482,6 +670,12 @@ public static class BusinessConfigurationStore
         return candidate;
     }
 
+    /// <summary>
+    /// 确保 Guid 标识在指定集合中唯一。
+    /// </summary>
+    /// <param name="id">原始 Guid。</param>
+    /// <param name="usedIds">已占用的 Guid 集合。</param>
+    /// <returns>唯一 Guid。</returns>
     private static Guid EnsureUniqueGuid(Guid id, HashSet<Guid> usedIds)
     {
         Guid candidate = id == Guid.Empty ? Guid.NewGuid() : id;
@@ -493,6 +687,12 @@ public static class BusinessConfigurationStore
         return candidate;
     }
 
+    /// <summary>
+    /// 基于名称生成集合内唯一名称。
+    /// </summary>
+    /// <param name="name">原始名称。</param>
+    /// <param name="usedNames">已占用的名称集合。</param>
+    /// <returns>唯一名称。</returns>
     private static string BuildUniqueName(string name, HashSet<string> usedNames)
     {
         string baseName = string.IsNullOrWhiteSpace(name) ? "名称" : name.Trim();
@@ -508,6 +708,13 @@ public static class BusinessConfigurationStore
         return candidate;
     }
 
+    /// <summary>
+    /// 生成集合内唯一的工位编码。
+    /// </summary>
+    /// <param name="code">原始工位编码。</param>
+    /// <param name="usedCodes">已占用的工位编码集合。</param>
+    /// <param name="index">默认编码序号。</param>
+    /// <returns>唯一工位编码。</returns>
     private static string BuildUniqueStationCode(string? code, HashSet<string> usedCodes, int index)
     {
         string baseCode = string.IsNullOrWhiteSpace(code) ? $"ST-{index:00}" : code.Trim().ToUpperInvariant();
@@ -523,6 +730,16 @@ public static class BusinessConfigurationStore
         return candidate;
     }
 
+    #endregion
+
+    #region 文件与辅助工具
+
+    /// <summary>
+    /// 枚举指定目录下匹配通配符的配置文件。
+    /// </summary>
+    /// <param name="directory">配置目录。</param>
+    /// <param name="searchPattern">文件搜索通配符。</param>
+    /// <returns>排序后的配置文件路径集合。</returns>
     private static IEnumerable<string> EnumerateConfigFiles(string directory, string searchPattern)
     {
         if (!Directory.Exists(directory))
@@ -535,16 +752,34 @@ public static class BusinessConfigurationStore
             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 规范化流程图坐标值。
+    /// </summary>
+    /// <param name="value">原始坐标值。</param>
+    /// <returns>可用坐标值。</returns>
     private static double NormalizeCoordinate(double value)
     {
         return double.IsNaN(value) || double.IsInfinity(value) ? 0 : value;
     }
 
+    /// <summary>
+    /// 规范化流程图节点尺寸。
+    /// </summary>
+    /// <param name="value">原始尺寸。</param>
+    /// <param name="fallback">默认尺寸。</param>
+    /// <returns>可用尺寸。</returns>
     private static double NormalizeSize(double value, double fallback)
     {
         return double.IsNaN(value) || double.IsInfinity(value) || value <= 0 ? fallback : value;
     }
 
+    /// <summary>
+    /// 从文件读取 JSON 并反序列化。
+    /// </summary>
+    /// <typeparam name="T">目标配置类型。</typeparam>
+    /// <param name="filePath">配置文件路径。</param>
+    /// <param name="options">JSON 序列化选项。</param>
+    /// <returns>反序列化结果；失败时返回默认值。</returns>
     private static T? ReadJson<T>(string filePath, JsonSerializerOptions options)
     {
         try
@@ -558,12 +793,25 @@ public static class BusinessConfigurationStore
         }
     }
 
+    /// <summary>
+    /// 将配置对象序列化为 JSON 并写入文件。
+    /// </summary>
+    /// <typeparam name="T">配置对象类型。</typeparam>
+    /// <param name="filePath">配置文件路径。</param>
+    /// <param name="value">待写入的配置对象。</param>
+    /// <param name="options">JSON 序列化选项。</param>
     private static void WriteJson<T>(string filePath, T value, JsonSerializerOptions options)
     {
         string json = JsonSerializer.Serialize(value, options);
         File.WriteAllText(filePath, json);
     }
 
+    /// <summary>
+    /// 删除目录中不再属于当前集合的旧配置文件。
+    /// </summary>
+    /// <param name="directory">配置目录。</param>
+    /// <param name="searchPattern">文件搜索通配符。</param>
+    /// <param name="currentFilePaths">当前仍需保留的文件路径集合。</param>
     private static void DeleteStaleFiles(string directory, string searchPattern, HashSet<string> currentFilePaths)
     {
         foreach (string filePath in Directory.EnumerateFiles(directory, searchPattern, SearchOption.TopDirectoryOnly))
@@ -575,17 +823,31 @@ public static class BusinessConfigurationStore
         }
     }
 
-    
+    /// <summary>
+    /// 生成业务方案配置文件路径。
+    /// </summary>
+    /// <param name="scheme">业务方案配置。</param>
+    /// <returns>业务方案配置文件路径。</returns>
     private static string BuildSchemeFilePath(SchemeProfile scheme)
     {
         return Path.Combine(SchemeDirectory, $"{SanitizeFileName(scheme.SchemeName)}_{SanitizeFileName(scheme.Id)}.scheme.json");
     }
 
+    /// <summary>
+    /// 生成工位配置文件路径。
+    /// </summary>
+    /// <param name="station">工位配置。</param>
+    /// <returns>工位配置文件路径。</returns>
     private static string BuildStationFilePath(StationProfile station)
     {
         return Path.Combine(StationDirectory, $"{SanitizeFileName(station.StationName)}_{SanitizeFileName(station.Id)}.station.json");
     }
 
+    /// <summary>
+    /// 清理文件名中的非法字符。
+    /// </summary>
+    /// <param name="fileName">原始文件名。</param>
+    /// <returns>可用于文件系统的安全文件名。</returns>
     private static string SanitizeFileName(string fileName)
     {
         string safeName = string.IsNullOrWhiteSpace(fileName) ? "config" : fileName.Trim();
@@ -596,4 +858,6 @@ public static class BusinessConfigurationStore
 
         return safeName;
     }
+
+    #endregion
 }

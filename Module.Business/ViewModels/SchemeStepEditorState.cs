@@ -1,6 +1,7 @@
-using ControlLibrary;
+﻿using ControlLibrary;
 using Module.Business.Models;
 using Module.Business.Services;
+using Module.Business.Services.BusinessOperations;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -488,6 +489,9 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
     #endregion
 
     #region 属性联动方法
+    /// <summary>
+    /// 监听当前工步属性变更，同步汇总信息、筛选结果和命令状态。
+    /// </summary>
     private void SelectedWorkStep_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(WorkStepProfile.OperationCount)
@@ -512,6 +516,9 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
         }
     }
 
+    /// <summary>
+    /// 刷新页面顶部的工步数和步骤数汇总展示。
+    /// </summary>
     private void RaisePageSummaryChanged()
     {
         OnPropertyChanged(nameof(WorkStepCountText));
@@ -531,6 +538,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     #region 构造与初始化
 
+    /// <summary>
+    /// 初始化工步编辑状态、集合视图和页面命令。
+    /// </summary>
     public SchemeStepEditorState()
     {
         WorkSteps.CollectionChanged += WorkSteps_CollectionChanged;
@@ -567,6 +577,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
     #endregion
     #region 工步命令方法
 
+    /// <summary>
+    /// 新建工步，并在创建后立即打开首条步骤的编辑抽屉。
+    /// </summary>
     private void NewWorkStep()
     {
         if (!CanRunCreateOrCopyCommand())
@@ -654,7 +667,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         WorkStepOperation operation = new()
         {
             OperationObject = SystemOperationObjectName,
+            DeviceId = SystemOperationObjectName,
             InvokeMethod = string.Empty,
+            OperationId = string.Empty,
             ReturnValue = string.Empty,
             ShowDataToView = false,
             ViewDataName = string.Empty,
@@ -756,6 +771,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SetPageStatus("已从方法表新增步骤。", SuccessBrush);
     }
 
+    /// <summary>
+    /// 根据方法指令表当前行创建步骤操作对象。
+    /// </summary>
     public WorkStepOperation? CreateOperationFromMethodTableRow(DataRowView? rowView)
     {
         if (rowView is null)
@@ -776,6 +794,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             invokeMethod);
     }
 
+    /// <summary>
+    /// 根据方法指令项创建步骤操作对象。
+    /// </summary>
     public WorkStepOperation? CreateOperationFromMethodItem(StationOperationMethodItem? item)
     {
         if (item is null)
@@ -791,6 +812,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             item.InvokeMethod);
     }
 
+    /// <summary>
+    /// 按操作定义组装步骤操作，并填充默认返回值和参数。
+    /// </summary>
     private WorkStepOperation? CreateOperationFromMethodDefinition(
         string operationType,
         string operationObject,
@@ -807,9 +831,13 @@ private static readonly Regex ProtocolPlaceholderRegex =
         {
             OperationType = string.IsNullOrWhiteSpace(operationType) ? "设备" : operationType,
             OperationObject = operationObject,
+            DeviceId = string.Equals(operationType?.Trim(), "涓氬姟", StringComparison.OrdinalIgnoreCase)
+                ? BusinessOperationBindingResolver.ResolveCatalogDeviceId(operationObject, operationObject)
+                : operationObject,
             ProtocolName = protocolName,
             CommandName = commandName,
             InvokeMethod = invokeMethod,
+            OperationId = invokeMethod,
             ReturnValue = ResolveDefaultProtocolCommandReturnValueKey(protocolName, commandName),
             ShowDataToView = false,
             DelayMilliseconds = 0,
@@ -822,7 +850,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// 保存抽屉中的步骤编辑内容。
+    /// 保存步骤编辑抽屉中的当前内容，并同步回目标步骤对象。
     /// </summary>
     private void SaveOperationDrawer()
     {
@@ -882,6 +910,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
         _drawerOperation.OperationObject = isLuaOperation
             ? LuaOperationObjectName
             : selectedMethodOperation?.OperationObject ?? EditingOperationObject.Trim();
+        _drawerOperation.DeviceId = isLuaOperation
+            ? LuaOperationObjectName
+            : selectedMethodOperation?.DeviceId ??
+              BusinessOperationBindingResolver.ResolveCatalogDeviceId(
+                  _drawerOperation.OperationObject,
+                  _drawerOperation.DeviceId);
         _drawerOperation.ProtocolName = isLuaOperation
             ? string.Empty
             : selectedMethodOperation?.ProtocolName ??
@@ -891,6 +925,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : selectedMethodOperation?.CommandName ??
               (IsProtocolCommandSelectionVisible ? invokeMethod.Trim() : string.Empty);
         _drawerOperation.InvokeMethod = invokeMethod.Trim();
+        _drawerOperation.OperationId = invokeMethod.Trim();
         _drawerOperation.ReturnValue = isLuaOperation ? string.Empty : EditingReturnValue.Trim();
         _drawerOperation.ShowDataToView = !isLuaOperation && EditingShowDataToView;
         _drawerOperation.ViewDataName = isLuaOperation ? string.Empty : EditingViewDataName.Trim();
@@ -1012,22 +1047,34 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : $"已删除 {operationsToDelete.Count} 个步骤。", WarningBrush);
     }
 
+    /// <summary>
+    /// 判断当前是否允许复制步骤。
+    /// </summary>
     private bool CanCopyOperations()
     {
         return SelectedWorkStep is not null && GetOperationsForClipboard().Count > 0;
     }
 
+    /// <summary>
+    /// 判断当前是否允许粘贴已复制的步骤。
+    /// </summary>
     private bool CanPasteOperations()
     {
         return SelectedWorkStep is not null && _copiedOperations.Count > 0;
     }
 
+    /// <summary>
+    /// 判断当前是否存在可删除的步骤。
+    /// </summary>
     private bool CanDeleteOperations()
     {
         return SelectedWorkStep is not null &&
                (SelectedOperation is not null || SelectedWorkStep.Steps.Any(operation => operation.IsChecked));
     }
 
+    /// <summary>
+    /// 复制勾选或当前选中的步骤到内部剪贴板。
+    /// </summary>
     private void CopySelectedOperations()
     {
         List<WorkStepOperation> operationsToCopy = GetOperationsForClipboard();
@@ -1045,6 +1092,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : $"已复制 {operationsToCopy.Count} 个步骤。", SuccessBrush);
     }
 
+    /// <summary>
+    /// 将内部剪贴板中的步骤插入到当前工步。
+    /// </summary>
     private void PasteCopiedOperations()
     {
         if (SelectedWorkStep is null || _copiedOperations.Count == 0)
@@ -1072,6 +1122,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : $"已粘贴 {operationsToPaste.Count} 个步骤。", SuccessBrush);
     }
 
+    /// <summary>
+    /// 获取步骤集合中所有被勾选的项。
+    /// </summary>
     private List<WorkStepOperation> GetCheckedOperations(ObservableCollection<WorkStepOperation> steps)
     {
         return steps
@@ -1079,6 +1132,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .ToList();
     }
 
+    /// <summary>
+    /// 获取用于复制的步骤列表，优先使用勾选项。
+    /// </summary>
     private List<WorkStepOperation> GetOperationsForClipboard()
     {
         if (SelectedWorkStep is null)
@@ -1097,6 +1153,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : new List<WorkStepOperation> { SelectedOperation };
     }
 
+    /// <summary>
+    /// 计算粘贴步骤时的插入位置。
+    /// </summary>
     private int ResolvePasteInsertIndex(ObservableCollection<WorkStepOperation> steps)
     {
         List<WorkStepOperation> checkedOperations = GetCheckedOperations(steps);
@@ -1124,6 +1183,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return steps.Count;
     }
 
+    /// <summary>
+    /// 清除步骤集合中的勾选状态。
+    /// </summary>
     private void ClearCheckedOperations(ObservableCollection<WorkStepOperation> steps)
     {
         foreach (WorkStepOperation operation in steps.Where(item => item.IsChecked).ToList())
@@ -1132,6 +1194,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 克隆步骤及其参数，用于复制粘贴场景。
+    /// </summary>
     private WorkStepOperation CreateClipboardOperation(WorkStepOperation source)
     {
         WorkStepOperation operation = source.Clone();
@@ -1147,6 +1212,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return operation;
     }
 
+    /// <summary>
+    /// 初始化步骤编辑抽屉中的各项编辑状态。
+    /// </summary>
     private void BeginOperationDrawer(WorkStepOperation operation, bool isNewOperation)
     {
         _drawerOperation = operation;
@@ -1239,6 +1307,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         IsOperationDrawerOpen = true;
     }
 
+    /// <summary>
+    /// 在当前编辑集合中新增一个调用参数。
+    /// </summary>
     private void AddInvokeParameter()
     {
         WorkStepOperationParameter parameter = new()
@@ -1255,6 +1326,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SetPageStatus("已新增调用方法参数。", SuccessBrush);
     }
 
+    /// <summary>
+    /// 删除当前选中的调用参数。
+    /// </summary>
     private void DeleteSelectedInvokeParameter()
     {
         if (SelectedEditingInvokeParameter is null)
@@ -1270,6 +1344,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SetPageStatus("已删除调用方法参数。", WarningBrush);
     }
 
+    /// <summary>
+    /// 监听调用参数集合变化，维护事件订阅和顺序状态。
+    /// </summary>
     private void EditingInvokeParameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.Action == NotifyCollectionChangedAction.Move)
@@ -1312,6 +1389,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 监听单个调用参数变化，刷新修改标记和可选值。
+    /// </summary>
     private void EditingInvokeParameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (sender is not WorkStepOperationParameter parameter)
@@ -1334,6 +1414,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     #region 工具方法
 
+    /// <summary>
+    /// 规范当前调用参数的序号，确保连续递增。
+    /// </summary>
     private void NormalizeInvokeParameterSequences()
     {
         bool wasSorting = _isSortingInvokeParameters;
@@ -1364,6 +1447,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 获取新增调用参数时使用的下一个序号。
+    /// </summary>
     private int GetNextInvokeParameterSequence()
     {
         return EditingInvokeParameters.Count == 0
@@ -1371,6 +1457,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : EditingInvokeParameters.Max(parameter => parameter.Sequence) + 1;
     }
 
+    /// <summary>
+    /// 按参数序号重新排序当前编辑集合。
+    /// </summary>
     private void SortInvokeParametersBySequence()
     {
         if (_isSortingInvokeParameters || EditingInvokeParameters.Count < 2)
@@ -1404,6 +1493,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 刷新所有调用参数的可选值列表。
+    /// </summary>
     private void RefreshParameterValueOptions()
     {
         foreach (WorkStepOperationParameter parameter in EditingInvokeParameters)
@@ -1412,11 +1504,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 更新单个调用参数的可选值来源。
+    /// </summary>
     private void UpdateParameterValueOptions(WorkStepOperationParameter parameter)
     {
         ReplaceStringOptions(parameter.ValueOptions, BuildParameterValueOptions(parameter.Type));
     }
 
+    /// <summary>
+    /// 按参数值类型构建候选值列表。
+    /// </summary>
     private IEnumerable<string> BuildParameterValueOptions(string parameterType)
     {
         string normalizedType = parameterType?.Trim() ?? string.Empty;
@@ -1427,6 +1525,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         };
     }
 
+    /// <summary>
+    /// 构建可供参数引用的返回值列表。
+    /// </summary>
     private IEnumerable<string> BuildParameterReturnValueOptions()
     {
         if (_isStandaloneOperationEditMode)
@@ -1474,6 +1575,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 构建当前步骤可写入的返回值候选项。
+    /// </summary>
     private IEnumerable<string> BuildReturnValueOptions()
     {
         if (_isStandaloneOperationEditMode)
@@ -1502,11 +1606,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 刷新返回值下拉项，并修正默认值。
+    /// </summary>
     private void RefreshReturnValueOptions()
     {
         ReplaceStringOptions(ReturnValueOptions, BuildReturnValueOptions());
     }
 
+    /// <summary>
+    /// 在存在唯一默认返回值时自动回填。
+    /// </summary>
     private void ApplyDefaultReturnValueKey()
     {
         if (IsSystemOrJudgeOperationSelected ||
@@ -1523,6 +1633,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 使用新数据替换字符串选项集合内容。
+    /// </summary>
     private static void ReplaceStringOptions(ObservableCollection<string> target, IEnumerable<string> source)
     {
         List<string> options = source
@@ -1542,6 +1655,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             target.Add(option);
         }
     }
+    /// <summary>
+    /// 创建包含默认步骤的新工步。
+    /// </summary>
     private WorkStepProfile CreateWorkStep(string stepName)
     {
         WorkStepProfile workStep = new()
@@ -1566,6 +1682,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return workStep;
     }
 
+    /// <summary>
+    /// 深拷贝工步及其全部步骤。
+    /// </summary>
     private WorkStepProfile CreateCopyWorkStep(WorkStepProfile source)
     {
         return new WorkStepProfile
@@ -1579,9 +1698,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
                     Id = Guid.NewGuid().ToString("N"),
                     OperationType = operation.OperationType,
                     OperationObject = operation.OperationObject,
+                    DeviceId = operation.DeviceId,
                     ProtocolName = operation.ProtocolName,
                     CommandName = operation.CommandName,
                     InvokeMethod = operation.InvokeMethod,
+                    OperationId = operation.OperationId,
                     ReturnValue = operation.ReturnValue,
                     ShowDataToView = operation.ShowDataToView,
                     ViewDataName = operation.ViewDataName,
@@ -1597,6 +1718,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
                             Sequence = parameter.Sequence,
                             Name = parameter.Name,
                             ParameterName = parameter.ParameterName,
+                            ValueType = parameter.ValueType,
                             Value = parameter.Value,
                             Remark = parameter.Remark
                         }))
@@ -1604,6 +1726,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         };
     }
 
+    /// <summary>
+    /// 用最新工步集合替换当前目录中的工步数据。
+    /// </summary>
     private void ReloadWorkSteps(ObservableCollection<WorkStepProfile> latestWorkSteps)
     {
         WorkSteps.CollectionChanged -= WorkSteps_CollectionChanged;
@@ -1621,6 +1746,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 选中新建或复制后的工步并滚动到可见范围。
+    /// </summary>
     private void SelectCreatedWorkStep(WorkStepProfile workStep)
     {
         SearchText = string.Empty;
@@ -1629,6 +1757,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         WorkStepsView.MoveCurrentTo(workStep);
     }
 
+    /// <summary>
+    /// 控制新建和复制工步命令的触发节流。
+    /// </summary>
     private bool CanRunCreateOrCopyCommand()
     {
         DateTime now = DateTime.UtcNow;
@@ -1640,6 +1771,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         _lastCreateOrCopyCommandAt = now;
         return true;
     }
+    /// <summary>
+    /// 生成当前目录下不重复的工步名称。
+    /// </summary>
     private string GenerateUniqueStepName(string prefix)
     {
         HashSet<string> existingNames = new(WorkSteps.Select(step => step.StepName), StringComparer.OrdinalIgnoreCase);
@@ -1656,11 +1790,14 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return candidate;
     }
 
+    /// <summary>
+    /// 为复制得到的工步生成不重复名称。
+    /// </summary>
     private string GenerateCopyStepName(string baseName)
     {
         HashSet<string> existingNames = new(WorkSteps.Select(step => step.StepName), StringComparer.OrdinalIgnoreCase);
 
-        string copyName = $"{baseName.Trim()} 副本";
+        string copyName = $"{baseName.Trim()} 鍓湰";
         if (!existingNames.Contains(copyName))
         {
             return copyName;
@@ -1676,6 +1813,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 根据搜索关键字筛选工步。
+    /// </summary>
     private bool FilterWorkSteps(object item)
     {
         if (item is not WorkStepProfile workStep)
@@ -1694,11 +1834,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
                Contains(workStep.LastModifiedText, keyword);
     }
 
+    /// <summary>
+    /// 以忽略大小写的方式判断文本是否包含关键字。
+    /// </summary>
     private static bool Contains(string? source, string keyword)
     {
         return source?.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
+    /// <summary>
+    /// 校验全部工步和步骤配置是否可保存。
+    /// </summary>
     private bool ValidateWorkSteps(out string message)
     {
         if (WorkSteps.Count == 0)
@@ -1749,6 +1895,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return true;
     }
 
+    /// <summary>
+    /// 监听工步集合变化，刷新页面汇总和选中状态。
+    /// </summary>
     private void WorkSteps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         RaisePageSummaryChanged();
@@ -1757,11 +1906,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
         RaiseCommandStatesChanged();
     }
 
+    /// <summary>
+    /// 在当前筛选结果中优先保持原选中项，否则选中第一条可见工步。
+    /// </summary>
     private void SelectFirstVisibleWorkStep()
     {
         SelectVisibleWorkStep(SelectedWorkStep?.Id);
     }
 
+    /// <summary>
+    /// 按给定工步 Id 恢复选择；若目标不可见，则回退到当前可见列表中的第一项。
+    /// </summary>
     private void SelectVisibleWorkStep(string? preferredWorkStepId)
     {
         WorkStepProfile? preferredWorkStep = WorkStepsView
@@ -1784,17 +1939,26 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 更新页面底部状态文案和颜色。
+    /// </summary>
     private void SetPageStatus(string text, Brush brush)
     {
         PageStatusText = text;
         PageStatusBrush = brush;
     }
 
+    /// <summary>
+    /// 加载可供选择的设备操作对象名称。
+    /// </summary>
     public IEnumerable<string> LoadDeviceOperationObjectNames()
     {
         return LoadDeviceOperationObjectOptions();
     }
 
+    /// <summary>
+    /// 根据当前操作对象加载可调用的方法或指令列表。
+    /// </summary>
     public IEnumerable<string> LoadInvokeMethodOptionsForOperationObject(string? operationObject)
     {
         string normalizedOperationObject = operationObject?.Trim() ?? string.Empty;
@@ -1817,19 +1981,29 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return LoadDeviceInvokeMethodOptions(normalizedOperationObject);
     }
 
+    /// <summary>
+    /// 为普通设备对象加载方法列表：先取业务方法，再拼接该设备支持协议下的指令。
+    /// </summary>
     private static IEnumerable<string> LoadDeviceInvokeMethodOptions(string operationObject)
     {
+        IEnumerable<string> businessOperations = BusinessOperationBindingResolver
+            .GetOperationsForOperationObject(operationObject)
+            .Select(operation => operation.OperationId);
         HashSet<string> allowedProtocols = new(LoadDeviceSupportedProtocolNames(operationObject), StringComparer.OrdinalIgnoreCase);
         if (allowedProtocols.Count == 0)
         {
-            return Enumerable.Empty<string>();
+            return businessOperations;
         }
 
-        return LoadProtocolSelectionItems()
+        return businessOperations.Concat(LoadProtocolSelectionItems()
             .Where(protocol => allowedProtocols.Contains(protocol.Name))
-            .SelectMany(protocol => protocol.Commands.Select(command => command.Name));
+            .SelectMany(protocol => protocol.Commands.Select(command => command.Name)));
     }
 
+    /// <summary>
+    /// 当操作对象或方法发生变化时，重新规范化步骤元数据。
+    /// 包括操作类型、业务绑定键、协议名和指令名。
+    /// </summary>
     public void SynchronizeOperationMetadata(
         WorkStepOperation operation,
         IReadOnlyList<string> invokeMethodOptions)
@@ -1863,12 +2037,26 @@ private static readonly Regex ProtocolPlaceholderRegex =
         {
             operation.OperationType = "系统";
             operation.OperationObject = SystemOperationObjectName;
+            operation.DeviceId = SystemOperationObjectName;
             operation.ProtocolName = string.Empty;
             operation.CommandName = string.Empty;
             return;
         }
 
         operation.OperationType = "设备";
+        BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(
+            operationObject,
+            operation.DeviceId,
+            invokeMethod);
+        if (businessOperation is not null)
+        {
+            operation.DeviceId = businessOperation.DeviceId;
+            operation.ProtocolName = string.Empty;
+            operation.CommandName = string.Empty;
+            return;
+        }
+
+        operation.DeviceId = operationObject;
         if (TryFindDeviceCommand(operationObject, invokeMethod, out string protocolName, out string commandName))
         {
             operation.ProtocolName = protocolName;
@@ -1881,6 +2069,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 在设备支持的协议指令中查找与方法名匹配的协议和命令定义。
+    /// </summary>
     private static bool TryFindDeviceCommand(
         string operationObject,
         string invokeMethod,
@@ -1918,6 +2109,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return false;
     }
 
+    /// <summary>
+    /// 创建步骤方法面板使用的数据表结构。
+    /// </summary>
     private static DataTable CreateOperationMethodTable()
     {
         DataTable table = new("OperationMethods");
@@ -1932,6 +2126,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return table;
     }
 
+    /// <summary>
+    /// 按当前编辑状态刷新方法表，统一展示系统方法、业务方法和协议指令。
+    /// </summary>
     private void RefreshOperationMethodTable()
     {
         SelectedOperationMethodRow = null;
@@ -1982,6 +2179,22 @@ private static readonly Regex ProtocolPlaceholderRegex =
             }
 
             string operationObject = EditingOperationObject.Trim();
+            foreach (BusinessOperationDescriptor operation in BusinessOperationBindingResolver
+                         .GetOperationsForOperationObject(operationObject)
+                         .OrderBy(operation => operation.DisplayName, StringComparer.OrdinalIgnoreCase)
+                         .ThenBy(operation => operation.OperationId, StringComparer.OrdinalIgnoreCase))
+            {
+                AddOperationMethodRow(
+                    "涓氬姟",
+                    "涓氬姟",
+                    operationObject,
+                    string.Empty,
+                    string.Empty,
+                    operation.OperationId,
+                    string.IsNullOrWhiteSpace(operation.Description) ? operation.DisplayName : operation.Description,
+                    operation.Parameters.Count);
+            }
+
             HashSet<string> allowedProtocols = new(LoadDeviceSupportedProtocolNames(operationObject), StringComparer.OrdinalIgnoreCase);
             if (allowedProtocols.Count == 0)
             {
@@ -2014,6 +2227,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 向方法指令表追加一行可选操作定义。
+    /// </summary>
     private void AddOperationMethodRow(
         string kind,
         string operationType,
@@ -2036,6 +2252,10 @@ private static readonly Regex ProtocolPlaceholderRegex =
         OperationMethodTable.Rows.Add(row);
     }
 
+    /// <summary>
+    /// 根据方法表中的选项构建默认输入参数。
+    /// 系统方法、业务方法和协议指令分别走各自的参数生成逻辑。
+    /// </summary>
     private ObservableCollection<WorkStepOperationParameter> CreateOperationParametersFromMethodTableRow(
         string operationObject,
         string protocolName,
@@ -2052,6 +2272,15 @@ private static readonly Regex ProtocolPlaceholderRegex =
         {
             SystemMethodSelectionItem? method = FindSystemMethodByName(invokeMethod);
             return CreateOperationParametersFromSystemMethod(method, useTypeAsDefaultValue: true);
+        }
+
+        BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(
+            operationObject,
+            null,
+            invokeMethod);
+        if (businessOperation is not null)
+        {
+            return CreateOperationParametersFromBusinessOperation(businessOperation);
         }
 
         ObservableCollection<WorkStepOperationParameter> parameters = new();
@@ -2072,6 +2301,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return parameters;
     }
 
+    /// <summary>
+    /// 为步骤重新生成默认输入参数，用于回填和重置。
+    /// </summary>
     public ObservableCollection<WorkStepOperationParameter> CreateDefaultOperationParameters(WorkStepOperation operation)
     {
         if (operation is null ||
@@ -2087,6 +2319,14 @@ private static readonly Regex ProtocolPlaceholderRegex =
             ? operation.InvokeMethod?.Trim() ?? string.Empty
             : operation.CommandName.Trim();
         string invokeMethod = operation.InvokeMethod?.Trim() ?? string.Empty;
+        BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(
+            operationObject,
+            operation.DeviceId,
+            invokeMethod);
+        if (businessOperation is not null)
+        {
+            return CreateOperationParametersFromBusinessOperation(businessOperation);
+        }
 
         if (!IsSystemOperationObject(operationObject) &&
             !IsJudgeOperationObject(operationObject) &&
@@ -2100,6 +2340,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return CreateOperationParametersFromMethodTableRow(operationObject, protocolName, commandName, invokeMethod);
     }
 
+    /// <summary>
+    /// 为当前步骤推导返回值参数定义，供工步参数映射和界面显示使用。
+    /// </summary>
     public ObservableCollection<WorkStepOperationParameter> CreateReturnParametersFromOperation(WorkStepOperation? operation)
     {
         if (operation is null ||
@@ -2114,6 +2357,33 @@ private static readonly Regex ProtocolPlaceholderRegex =
         string commandName = string.IsNullOrWhiteSpace(operation.CommandName)
             ? operation.InvokeMethod?.Trim() ?? string.Empty
             : operation.CommandName.Trim();
+        string invokeMethod = operation.OperationId?.Trim() ?? operation.InvokeMethod?.Trim() ?? string.Empty;
+
+        BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(
+            operationObject,
+            operation.DeviceId,
+            invokeMethod);
+        if (businessOperation is not null &&
+            !string.Equals(businessOperation.ReturnTypeName, "void", StringComparison.OrdinalIgnoreCase))
+        {
+            string key = string.IsNullOrWhiteSpace(operation.ReturnValue)
+                ? businessOperation.OperationId
+                : operation.ReturnValue.Trim();
+            return new ObservableCollection<WorkStepOperationParameter>
+            {
+                new()
+                {
+                    Sequence = 1,
+                    Name = "ReturnValue",
+                    ParameterName = key,
+                    ValueType = businessOperation.ReturnTypeName,
+                    Value = key,
+                    Remark = string.IsNullOrWhiteSpace(businessOperation.Description)
+                        ? businessOperation.DisplayName
+                        : businessOperation.Description
+                }
+            };
+        }
 
         if (!IsSystemOperationObject(operationObject) &&
             !IsJudgeOperationObject(operationObject) &&
@@ -2156,6 +2426,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             }));
     }
 
+    /// <summary>
+    /// 判断步骤当前参数是否偏离默认生成结果。
+    /// </summary>
     public bool HasModifiedOperationParameters(
         WorkStepOperation operation,
         IEnumerable<WorkStepOperationParameter>? parameters = null)
@@ -2165,11 +2438,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
                HasModifiedOperationReturnParameters(operation);
     }
 
+    /// <summary>
+    /// 刷新单条步骤的“参数已修改”标记。
+    /// </summary>
     public void RefreshOperationParameterModifiedState(WorkStepOperation operation)
     {
         operation.AreParametersModified = HasModifiedOperationParameters(operation);
     }
 
+    /// <summary>
+    /// 批量刷新步骤的“参数已修改”标记。
+    /// </summary>
     public void RefreshOperationParameterModifiedStates(IEnumerable<WorkStepOperation> operations)
     {
         foreach (WorkStepOperation operation in operations.Where(operation => operation is not null))
@@ -2178,6 +2457,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 将步骤参数恢复为按当前方法推导出的默认值。
+    /// </summary>
     public void ResetOperationParametersToDefault(WorkStepOperation operation)
     {
         if (operation is null)
@@ -2189,6 +2471,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         operation.AreParametersModified = false;
     }
 
+    /// <summary>
+    /// 比较两组步骤参数是否完全一致。
+    /// </summary>
     private static bool HasSameOperationParameters(
         IEnumerable<WorkStepOperationParameter> first,
         IEnumerable<WorkStepOperationParameter> second)
@@ -2212,6 +2497,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             if (left.Sequence != right.Sequence ||
                 !TextEquals(left.Name, right.Name) ||
                 !TextEquals(left.ParameterName, right.ParameterName) ||
+                !TextEquals(left.ValueType, right.ValueType) ||
                 !TextEquals(left.Value, right.Value) ||
                 !TextEquals(left.Remark, right.Remark))
             {
@@ -2222,6 +2508,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return true;
     }
 
+    /// <summary>
+    /// 判断步骤返回值相关配置是否偏离默认值。
+    /// </summary>
     private static bool HasModifiedOperationReturnParameters(WorkStepOperation operation)
     {
         string defaultReturnValue = ResolveDefaultOperationReturnValue(operation);
@@ -2232,6 +2521,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
                !string.IsNullOrWhiteSpace(operation.ViewJudgeCondition);
     }
 
+    /// <summary>
+    /// 推导当前步骤默认应使用的返回值键。
+    /// </summary>
     private static string ResolveDefaultOperationReturnValue(WorkStepOperation operation)
     {
         if (operation is null ||
@@ -2249,6 +2541,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return ResolveDefaultProtocolCommandReturnValueKey(protocolName, commandName);
     }
 
+    /// <summary>
+    /// 根据系统方法元数据生成输入参数集合。
+    /// </summary>
     private ObservableCollection<WorkStepOperationParameter> CreateOperationParametersFromSystemMethod(
         SystemMethodSelectionItem? method,
         bool useTypeAsDefaultValue)
@@ -2267,7 +2562,8 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 Sequence = sequence,
                 Name = ParameterTypeOptions.FirstOrDefault() ?? "设置值",
                 ParameterName = parameterMetadata.Name,
-                Value = useTypeAsDefaultValue ? parameterMetadata.Type : string.Empty,
+                ValueType = parameterMetadata.Type,
+                Value = parameterMetadata.DefaultValue,
                 Remark = parameterMetadata.Description
             });
             sequence++;
@@ -2276,6 +2572,35 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return parameters;
     }
 
+    /// <summary>
+    /// 根据业务方法描述生成输入参数集合。
+    /// 运行时注入参数不会出现在这里。
+    /// </summary>
+    private ObservableCollection<WorkStepOperationParameter> CreateOperationParametersFromBusinessOperation(
+        BusinessOperationDescriptor operation)
+    {
+        ObservableCollection<WorkStepOperationParameter> parameters = new();
+        foreach (BusinessParameterDescriptor parameterMetadata in operation.Parameters.OrderBy(parameter => parameter.Sequence))
+        {
+            parameters.Add(new WorkStepOperationParameter
+            {
+                Sequence = parameterMetadata.Sequence,
+                Name = ParameterTypeOptions.FirstOrDefault() ?? "Literal",
+                ParameterName = parameterMetadata.Name,
+                ValueType = parameterMetadata.TypeName,
+                Value = parameterMetadata.DefaultValue,
+                Remark = string.IsNullOrWhiteSpace(parameterMetadata.Description)
+                    ? parameterMetadata.DisplayName
+                    : parameterMetadata.Description
+            });
+        }
+
+        return parameters;
+    }
+
+    /// <summary>
+    /// 安全读取方法指令表中的字符串列值。
+    /// </summary>
     private static string GetOperationMethodTableValue(DataRowView rowView, string columnName)
     {
         return rowView.Row.Table.Columns.Contains(columnName)
@@ -2283,6 +2608,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : string.Empty;
     }
 
+    /// <summary>
+    /// 刷新操作对象下拉项，并尽量保留当前编辑选择。
+    /// </summary>
     private void RefreshOperationObjectOptions(bool updateStatus)
     {
         string previousSelection = EditingOperationObject;
@@ -2331,6 +2659,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 根据当前操作对象刷新可选协议列表。
+    /// </summary>
     private void RefreshProtocolOptions(bool updateStatus)
     {
         string previousSelection = EditingProtocolName;
@@ -2366,6 +2697,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 根据当前协议刷新可选指令列表。
+    /// </summary>
     private void RefreshCommandOptions(bool updateStatus)
     {
         string previousSelection = EditingCommandName;
@@ -2401,6 +2735,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 根据当前协议指令刷新占位符参数列表。
+    /// </summary>
     private void RefreshInvokeParametersFromSelectedCommand()
     {
         if (IsSystemOrJudgeOperationSelected || IsLuaOperationSelected)
@@ -2470,6 +2807,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         ApplyDefaultReturnValueKey();
     }
 
+    /// <summary>
+    /// 根据当前系统方法刷新参数列表。
+    /// </summary>
     private void RefreshInvokeParametersFromSelectedSystemMethod(bool clearWhenNoMetadata)
     {
         if (!IsSystemOperationSelected)
@@ -2498,7 +2838,8 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 Sequence = sequence,
                 Name = ParameterTypeOptions.FirstOrDefault() ?? "设置值",
                 ParameterName = parameterMetadata.Name,
-                Value = parameterMetadata.Type,
+                ValueType = parameterMetadata.Type,
+                Value = parameterMetadata.DefaultValue,
                 Remark = parameterMetadata.Description
             });
             sequence++;
@@ -2509,6 +2850,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SelectedEditingInvokeParameter = EditingInvokeParameters.FirstOrDefault();
     }
 
+    /// <summary>
+    /// 根据当前判断方法刷新参数列表。
+    /// </summary>
     private void RefreshInvokeParametersFromSelectedJudgeMethod(bool clearWhenNoMetadata)
     {
         if (!IsJudgeOperationSelected)
@@ -2537,7 +2881,8 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 Sequence = sequence,
                 Name = ParameterTypeOptions.FirstOrDefault() ?? "设置值",
                 ParameterName = parameterMetadata.Name,
-                Value = string.Empty,
+                ValueType = parameterMetadata.Type,
+                Value = parameterMetadata.DefaultValue,
                 Remark = parameterMetadata.Description
             });
             sequence++;
@@ -2548,6 +2893,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SelectedEditingInvokeParameter = EditingInvokeParameters.FirstOrDefault();
     }
 
+    /// <summary>
+    /// 将系统方法摘要同步到方法说明编辑项。
+    /// </summary>
     private void SyncSystemInvokeMethodRemarkFromMethod()
     {
         SystemMethodSelectionItem? method = FindSystemMethodByName(EditingInvokeMethod);
@@ -2569,6 +2917,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 将判断方法摘要同步到方法说明编辑项。
+    /// </summary>
     private void SyncJudgeInvokeMethodRemarkFromMethod()
     {
         SystemMethodSelectionItem? method = FindJudgeMethodByName(EditingInvokeMethod);
@@ -2590,6 +2941,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 根据系统方法说明反向匹配方法名称。
+    /// </summary>
     private void SyncSystemInvokeMethodFromRemark()
     {
         if (string.IsNullOrWhiteSpace(EditingInvokeMethodRemark))
@@ -2620,6 +2974,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 根据判断方法说明反向匹配方法名称。
+    /// </summary>
     private void SyncJudgeInvokeMethodFromRemark()
     {
         if (string.IsNullOrWhiteSpace(EditingInvokeMethodRemark))
@@ -2650,6 +3007,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 按当前操作对象刷新可选调用方法及说明列表。
+    /// </summary>
     private void RefreshInvokeMethodOptions(bool updateStatus)
     {
         string previousSelection = null;
@@ -2723,8 +3083,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         if (!IsSystemOperationSelected)
         {
+            previousSelection = EditingInvokeMethod;
             InvokeMethodOptions.Clear();
             InvokeMethodRemarkOptions.Clear();
+            foreach (string option in LoadDeviceInvokeMethodOptions(EditingOperationObject)
+                         .Where(option => !string.IsNullOrWhiteSpace(option))
+                         .Select(option => option.Trim())
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                InvokeMethodOptions.Add(option);
+            }
+
             _isSyncingSystemInvokeMethodSelection = true;
             try
             {
@@ -2735,7 +3104,34 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 _isSyncingSystemInvokeMethodSelection = false;
             }
 
-            EditingInvokeMethod = EditingCommandName;
+            if (InvokeMethodOptions.Count == 0)
+            {
+                EditingInvokeMethod = EditingCommandName;
+            }
+            else if (!string.IsNullOrWhiteSpace(previousSelection) &&
+                     InvokeMethodOptions.Any(option => string.Equals(option, previousSelection, StringComparison.OrdinalIgnoreCase)))
+            {
+                EditingInvokeMethod = previousSelection.Trim();
+            }
+            else
+            {
+                EditingInvokeMethod = InvokeMethodOptions.First();
+            }
+
+            BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(
+                EditingOperationObject,
+                _drawerOperation?.DeviceId,
+                EditingInvokeMethod);
+            if (businessOperation is not null)
+            {
+                EditingInvokeParameters.Clear();
+                foreach (WorkStepOperationParameter parameter in CreateOperationParametersFromBusinessOperation(businessOperation))
+                {
+                    EditingInvokeParameters.Add(parameter);
+                }
+                SelectedEditingInvokeParameter = EditingInvokeParameters.FirstOrDefault();
+            }
+
             return;
         }
 
@@ -2802,6 +3198,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 按名称查找系统方法定义。
+    /// </summary>
     private static SystemMethodSelectionItem? FindSystemMethodByName(string methodName)
     {
         if (string.IsNullOrWhiteSpace(methodName))
@@ -2813,6 +3212,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .FirstOrDefault(method => TextEquals(method.Name, methodName));
     }
 
+    /// <summary>
+    /// 按名称查找判断方法定义。
+    /// </summary>
     private static SystemMethodSelectionItem? FindJudgeMethodByName(string methodName)
     {
         if (string.IsNullOrWhiteSpace(methodName))
@@ -2824,6 +3226,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .FirstOrDefault(method => TextEquals(method.Name, methodName));
     }
 
+    /// <summary>
+    /// 加载内置判断方法的选择项定义。
+    /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> LoadJudgeMethodSelectionItems()
     {
         return new[]
@@ -2879,6 +3284,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         };
     }
 
+    /// <summary>
+    /// 创建单个判断方法的元数据定义。
+    /// </summary>
     private static SystemMethodSelectionItem CreateJudgeMethod(
         string name,
         string summary,
@@ -2893,24 +3301,34 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 parameter.Description)));
     }
 
+    /// <summary>
+    /// 加载系统方法的选择项定义。
+    /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> LoadSystemMethodSelectionItems()
     {
-        string? filePath = GetSystemMethodSourceFileCandidates().FirstOrDefault(File.Exists);
-        if (filePath is null)
-        {
-            return Array.Empty<SystemMethodSelectionItem>();
-        }
-
-        try
-        {
-            return ParseSystemMethodSelectionItems(File.ReadAllText(filePath, Encoding.UTF8));
-        }
-        catch
-        {
-            return Array.Empty<SystemMethodSelectionItem>();
-        }
+        return LoadBusinessMethodSelectionItems(SystemOperationObjectName);
     }
 
+    /// <summary>
+    /// 将业务目录中的方法描述映射成系统方法选择项模型。
+    /// </summary>
+    private static IReadOnlyList<SystemMethodSelectionItem> LoadBusinessMethodSelectionItems(string deviceId)
+    {
+        return BusinessOperationCatalog.GetOperations(deviceId)
+            .Select(operation => new SystemMethodSelectionItem(
+                operation.OperationId,
+                string.IsNullOrWhiteSpace(operation.Description) ? operation.DisplayName : operation.Description,
+                operation.Parameters.Select(parameter => new SystemMethodParameterSelectionItem(
+                    parameter.Name,
+                    parameter.TypeName,
+                    string.IsNullOrWhiteSpace(parameter.Description) ? parameter.DisplayName : parameter.Description,
+                    parameter.DefaultValue))))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// 枚举系统方法源码的候选文件路径。
+    /// </summary>
     private static IEnumerable<string> GetSystemMethodSourceFileCandidates()
     {
         HashSet<string> seenPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -2940,6 +3358,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 从源码文本中解析系统方法列表。
+    /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> ParseSystemMethodSelectionItems(string sourceText)
     {
         List<SystemMethodSelectionItem> methods = new();
@@ -2988,6 +3409,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return methods;
     }
 
+    /// <summary>
+    /// 从当前行开始读取完整的方法签名文本。
+    /// </summary>
     private static bool TryReadSystemMethodSignature(string[] lines, ref int index, out Match match)
     {
         StringBuilder signatureBuilder = new(lines[index].Trim());
@@ -3011,6 +3435,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return match.Success;
     }
 
+    /// <summary>
+    /// 统计文本中圆括号的深度变化。
+    /// </summary>
     private static int CountParenthesisDepth(string text)
     {
         int depth = 0;
@@ -3029,6 +3456,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return depth;
     }
 
+    /// <summary>
+    /// 解析系统方法 XML 文档摘要和参数说明。
+    /// </summary>
     private static (string Summary, Dictionary<string, string> ParameterDescriptions) ParseSystemMethodDocumentation(string documentationText)
     {
         string xmlText = string.Join(
@@ -3060,6 +3490,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// XML 解析失败时用正则回退解析方法文档。
+    /// </summary>
     private static (string Summary, Dictionary<string, string> ParameterDescriptions) ParseSystemMethodDocumentationFallback(string xmlText)
     {
         string summary = NormalizeDocumentationText(
@@ -3083,6 +3516,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return (summary, parameterDescriptions);
     }
 
+    /// <summary>
+    /// 解析系统方法签名中的参数列表。
+    /// </summary>
     private static IReadOnlyList<SystemMethodParameterSelectionItem> ParseSystemMethodParameters(
         string parameterText,
         IReadOnlyDictionary<string, string> parameterDescriptions)
@@ -3130,6 +3566,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return parameters;
     }
 
+    /// <summary>
+    /// 按逗号拆分方法参数文本，同时处理泛型嵌套场景。
+    /// </summary>
     private static IEnumerable<string> SplitSystemMethodParameters(string parameterText)
     {
         if (string.IsNullOrWhiteSpace(parameterText))
@@ -3160,22 +3599,34 @@ private static readonly Regex ProtocolPlaceholderRegex =
         yield return parameterText[startIndex..];
     }
 
+    /// <summary>
+    /// 判断标记是否属于参数修饰符。
+    /// </summary>
     private static bool IsParameterModifier(string value)
     {
         return value is "ref" or "out" or "in" or "params" or "this";
     }
 
+    /// <summary>
+    /// 规范化文档文本，去除标签和多余空白。
+    /// </summary>
     private static string NormalizeDocumentationText(string? value)
     {
         string text = Regex.Replace(value ?? string.Empty, "<.*?>", string.Empty);
         return Regex.Replace(text, @"\s+", " ").Trim();
     }
 
+    /// <summary>
+    /// 以忽略大小写和首尾空白的方式比较文本。
+    /// </summary>
     private static bool TextEquals(string? left, string? right)
     {
         return string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 读取设备操作对象下拉项；当前只返回通信配置中的设备名称。
+    /// </summary>
     private static IEnumerable<string> LoadDeviceOperationObjectOptions()
     {
         string communicationConfigDirectory = Path.Combine(AppContext.BaseDirectory, "Config", "Communication");
@@ -3205,9 +3656,15 @@ private static readonly Regex ProtocolPlaceholderRegex =
             }
         }
 
-        return names;
+        return names
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 读取指定设备在通信配置中声明的支持协议名称。
+    /// </summary>
     private static IEnumerable<string> LoadDeviceSupportedProtocolNames(string operationObject)
     {
         if (string.IsNullOrWhiteSpace(operationObject))
@@ -3262,6 +3719,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 加载全部协议名称选项。
+    /// </summary>
     private static IEnumerable<string> LoadProtocolOptions()
     {
         return LoadProtocolSelectionItems()
@@ -3271,6 +3731,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 加载指定协议下的全部指令名称。
+    /// </summary>
     private static IEnumerable<string> LoadProtocolCommandOptions(string protocolName)
     {
         return LoadProtocolSelectionItems()
@@ -3281,6 +3744,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 加载指定协议指令的占位符定义。
+    /// </summary>
     private static IReadOnlyList<ProtocolPlaceholderSelectionItem> LoadProtocolCommandPlaceholders(
         string protocolName,
         string commandName)
@@ -3300,6 +3766,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : command.Placeholders;
     }
 
+    /// <summary>
+    /// 加载指定协议指令支持的返回值键。
+    /// </summary>
     private static IReadOnlyList<string> LoadProtocolCommandReturnValueKeys(
         string protocolName,
         string commandName)
@@ -3319,6 +3788,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : command.ReturnValueKeys;
     }
 
+    /// <summary>
+    /// 推导协议指令默认的返回值键。
+    /// </summary>
     private static string ResolveDefaultProtocolCommandReturnValueKey(
         string protocolName,
         string commandName)
@@ -3327,6 +3799,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return keys.Count == 1 ? keys[0] : string.Empty;
     }
 
+    /// <summary>
+    /// 从协议配置目录加载协议及指令定义。
+    /// </summary>
     private static IEnumerable<ProtocolSelectionItem> LoadProtocolSelectionItems()
     {
         string protocolConfigDirectory = Path.Combine(AppContext.BaseDirectory, "Config", "Protocol");
@@ -3396,6 +3871,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return items;
     }
 
+    /// <summary>
+    /// 读取协议配置内容，兼容加密和明文两种格式。
+    /// </summary>
     private static string TryReadProtocolJson(string storageText)
     {
         try
@@ -3408,6 +3886,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 从 JSON 元素中安全读取字符串属性。
+    /// </summary>
     private static string GetJsonString(JsonElement element, string propertyName)
     {
         return element.TryGetProperty(propertyName, out JsonElement propertyElement)
@@ -3415,6 +3896,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : string.Empty;
     }
 
+    /// <summary>
+    /// 从 JSON 元素中安全读取字符串数组属性。
+    /// </summary>
     private static IReadOnlyList<string> GetJsonStringArray(JsonElement element, string propertyName)
     {
         if (!element.TryGetProperty(propertyName, out JsonElement propertyElement) ||
@@ -3434,6 +3918,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             .ToArray();
     }
 
+    /// <summary>
+    /// 根据模板文本和默认值构建占位符选择项。
+    /// </summary>
     private static IReadOnlyList<ProtocolPlaceholderSelectionItem> BuildProtocolPlaceholderSelectionItems(
         string contentTemplate,
         string placeholderValuesText)
@@ -3449,6 +3936,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return placeholders;
     }
 
+    /// <summary>
+    /// 从协议模板中提取占位符名称。
+    /// </summary>
     private static IEnumerable<string> ExtractProtocolPlaceholderNames(string contentTemplate)
     {
         HashSet<string> seenNames = new(StringComparer.OrdinalIgnoreCase);
@@ -3462,6 +3952,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 解析占位符默认值配置文本。
+    /// </summary>
     private static Dictionary<string, string> ParseProtocolPlaceholderValues(string placeholderValuesText)
     {
         Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
@@ -3495,6 +3988,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return values;
     }
 
+    /// <summary>
+    /// 确保指定操作对象存在于当前下拉选项中。
+    /// </summary>
     private void EnsureOperationObjectOption(string operationObject)
     {
         RefreshOperationObjectOptions(updateStatus: false);
@@ -3505,6 +4001,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 确保指定协议名存在于当前协议选项中，并同步编辑值。
+    /// </summary>
     private void EnsureProtocolOption(string protocolName)
     {
         RefreshProtocolOptions(updateStatus: false);
@@ -3520,6 +4019,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 确保指定指令名存在于当前指令选项中，并同步编辑值。
+    /// </summary>
     private void EnsureCommandOption(string commandName)
     {
         RefreshCommandOptions(updateStatus: false);
@@ -3535,6 +4037,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
 
+    /// <summary>
+    /// 解析步骤在编辑态下应显示的操作对象名称。
+    /// </summary>
     private static string ResolveOperationObjectForEditing(WorkStepOperation operation)
     {
         if (IsLuaOperationObject(operation.OperationType) ||
@@ -3560,6 +4065,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
             : operation.OperationObject.Trim();
     }
 
+    /// <summary>
+    /// 判断操作类型是否为旧版系统类型标记。
+    /// </summary>
     private static bool IsLegacySystemOperationType(string? operationType)
     {
         return string.Equals(operationType?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
@@ -3571,22 +4079,34 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     internal const string LuaOperationObjectName = "Lua";
 
+    /// <summary>
+    /// 判断操作对象是否为系统对象。
+    /// </summary>
     internal static bool IsSystemOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), SystemOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(operationObject?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断操作对象是否为判断对象。
+    /// </summary>
     internal static bool IsJudgeOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断操作对象是否为 Lua 对象。
+    /// </summary>
     internal static bool IsLuaOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), LuaOperationObjectName, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断调用方法是否仍为占位文本。
+    /// </summary>
     private static bool IsPlaceholderInvokeMethod(string? invokeMethod)
     {
         return string.IsNullOrWhiteSpace(invokeMethod) ||
@@ -3595,6 +4115,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     private sealed class SystemMethodSelectionItem
     {
+        /// <summary>
+        /// 创建系统方法选择项。
+        /// </summary>
         public SystemMethodSelectionItem(
             string name,
             string summary,
@@ -3614,11 +4137,15 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     private sealed class SystemMethodParameterSelectionItem
     {
-        public SystemMethodParameterSelectionItem(string name, string type, string description)
+        /// <summary>
+        /// 创建系统方法参数选择项。
+        /// </summary>
+        public SystemMethodParameterSelectionItem(string name, string type, string description, string defaultValue = "")
         {
             Name = name;
             Type = type;
             Description = description;
+            DefaultValue = defaultValue;
         }
 
         public string Name { get; }
@@ -3626,10 +4153,15 @@ private static readonly Regex ProtocolPlaceholderRegex =
         public string Type { get; }
 
         public string Description { get; }
+
+        public string DefaultValue { get; }
     }
 
     private sealed class ProtocolSelectionItem
     {
+        /// <summary>
+        /// 创建协议选择项。
+        /// </summary>
         public ProtocolSelectionItem(string name, IEnumerable<ProtocolCommandSelectionItem> commands)
         {
             Name = name;
@@ -3643,6 +4175,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     private sealed class ProtocolCommandSelectionItem
     {
+        /// <summary>
+        /// 创建协议指令选择项。
+        /// </summary>
         public ProtocolCommandSelectionItem(
             string name,
             IEnumerable<ProtocolPlaceholderSelectionItem> placeholders,
@@ -3667,6 +4202,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     private sealed class ProtocolPlaceholderSelectionItem
     {
+        /// <summary>
+        /// 创建协议占位符选择项。
+        /// </summary>
         public ProtocolPlaceholderSelectionItem(string name, string value)
         {
             Name = name;
@@ -3678,6 +4216,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         public string Value { get; }
     }
 
+    /// <summary>
+    /// 刷新所有页面命令的可执行状态。
+    /// </summary>
     private void RaiseCommandStatesChanged()
     {
         RaiseCommandState(DuplicateWorkStepCommand);
@@ -3693,6 +4234,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
         RaiseCommandState(DeleteInvokeParameterCommand);
     }
 
+    /// <summary>
+    /// 如果命令是 <see cref="RelayCommand"/>，则触发其可执行状态刷新。
+    /// </summary>
     private static void RaiseCommandState(ICommand? command)
     {
         if (command is RelayCommand relayCommand)
@@ -3791,12 +4335,17 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return operation?.Clone();
     }
 
+    /// <summary>
+    /// 创建独立编辑模式下使用的默认步骤模板。
+    /// </summary>
     private static WorkStepOperation CreateDefaultStandaloneOperation()
     {
         return new WorkStepOperation
         {
             OperationObject = SystemOperationObjectName,
+            DeviceId = SystemOperationObjectName,
             InvokeMethod = string.Empty,
+            OperationId = string.Empty,
             ReturnValue = string.Empty,
             ShowDataToView = false,
             ViewDataName = string.Empty,

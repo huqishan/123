@@ -1,4 +1,5 @@
 ﻿using Shared.Infrastructure.Events;
+using Shared.Abstractions.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Module.Business.Business
 {
+    [DeviceBusiness("System", "系统")]
     public static class System
     {
         private static IEventAggregator? _eventAggregator;
@@ -21,7 +23,8 @@ namespace Module.Business.Business
         /// </summary>
         /// <param name="hexString">十六进制字符串</param>
         /// <returns></returns>
-        public static string HextoString(string hexString)
+        [BusinessOperation("HextoString", "十六进制转字符串")]
+        public static string HextoString([BusinessParam("十六进制字符串")] string hexString)
         {
             if (string.IsNullOrEmpty(hexString))
                 return string.Empty;
@@ -46,7 +49,8 @@ namespace Module.Business.Business
         /// </summary>
         /// <param name="input">要转换的字符串</param>
         /// <returns>十六进制表示的字符串</returns>
-        public static string StringtoHex(string input)
+        [BusinessOperation("StringtoHex", "字符串转十六进制")]
+        public static string StringtoHex([BusinessParam("输入字符串")] string input)
         {
             if (string.IsNullOrEmpty(input))
                 return string.Empty;
@@ -63,6 +67,7 @@ namespace Module.Business.Business
         /// 获取当前用户名
         /// </summary>
         /// <returns></returns>
+        [BusinessOperation("GetCurrentUserName", "获取当前用户名")]
         public static string GetCurrentUserName()
         {
             return Environment.UserName;
@@ -74,7 +79,12 @@ namespace Module.Business.Business
         /// <param name="type">判断类型</param>
         /// <param name="value">数据值</param>
         /// <param name="judge">判断条件</param>
-        public static void SendDataToView(string name, string type, string value, string judge)
+        [BusinessOperation("SendDataToView", "发送数据到视图层")]
+        public static void SendDataToView(
+            [BusinessParam("数据名称")] string name,
+            [BusinessParam("判断类型")] string type,
+            [BusinessParam("数据值")] string value,
+            [BusinessParam("判断条件")] string judge)
         {
             _eventAggregator?.GetEvent<MessageShowView>().Publish(new MessageShowView
             {

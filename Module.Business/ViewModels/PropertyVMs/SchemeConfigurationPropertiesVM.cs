@@ -152,9 +152,11 @@ namespace Module.Business.ViewModels.PropertyVMs
         private void Step_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(WorkStepOperation.OperationObject)
+                or nameof(WorkStepOperation.DeviceId)
                 or nameof(WorkStepOperation.ProtocolName)
                 or nameof(WorkStepOperation.CommandName)
                 or nameof(WorkStepOperation.InvokeMethod)
+                or nameof(WorkStepOperation.OperationId)
                 or nameof(WorkStepOperation.ReturnValue)
                 or nameof(WorkStepOperation.ShowDataToView)
                 or nameof(WorkStepOperation.ViewDataName)
@@ -229,9 +231,11 @@ namespace Module.Business.ViewModels.PropertyVMs
         private string _id = Guid.NewGuid().ToString("N");
         private string _operationType = "设备";
         private string _operationObject = "System";
+        private string _deviceId = string.Empty;
         private string _protocolName = string.Empty;
         private string _commandName = string.Empty;
         private string _invokeMethod = "等待";
+        private string _operationId = string.Empty;
         private string _returnValue = string.Empty;
         private bool _showDataToView;
         private string _viewDataName = string.Empty;
@@ -283,6 +287,19 @@ namespace Module.Business.ViewModels.PropertyVMs
             {
                 if (SetField(ref _operationObject, value ?? string.Empty, true))
                 {
+                    OnPropertyChanged(nameof(DeviceId));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        public string DeviceId
+        {
+            get => string.IsNullOrWhiteSpace(_deviceId) ? _operationObject : _deviceId;
+            set
+            {
+                if (SetField(ref _deviceId, value ?? string.Empty, true))
+                {
                     OnPropertyChanged(nameof(DisplayText));
                 }
             }
@@ -318,6 +335,19 @@ namespace Module.Business.ViewModels.PropertyVMs
             set
             {
                 if (SetField(ref _invokeMethod, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(OperationId));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        public string OperationId
+        {
+            get => string.IsNullOrWhiteSpace(_operationId) ? _invokeMethod : _operationId;
+            set
+            {
+                if (SetField(ref _operationId, value ?? string.Empty, true))
                 {
                     OnPropertyChanged(nameof(DisplayText));
                 }
@@ -454,14 +484,15 @@ namespace Module.Business.ViewModels.PropertyVMs
                     return $"Lua{delayText}{remarkText}";
                 }
 
-                string methodText = string.IsNullOrWhiteSpace(CommandName) ? InvokeMethod : CommandName;
+                string methodText = string.IsNullOrWhiteSpace(CommandName) ? OperationId : CommandName;
                 string protocolText = string.IsNullOrWhiteSpace(ProtocolName) ? string.Empty : $"{ProtocolName}.";
                 string actionText = IsSystemOperationObject(OperationObject)
-                    ? InvokeMethod
+                    ? OperationId
                     : $"{protocolText}{methodText}";
-                string operationPath = string.IsNullOrWhiteSpace(OperationObject)
+                string operationObject = DeviceId;
+                string operationPath = string.IsNullOrWhiteSpace(operationObject)
                     ? actionText
-                    : $"{OperationObject}.{actionText}";
+                    : $"{operationObject}.{actionText}";
 
                 return $"{operationPath}{returnText}{delayText}{remarkText}{parameterText}";
             }
@@ -516,6 +547,7 @@ namespace Module.Business.ViewModels.PropertyVMs
             if (e.PropertyName is nameof(WorkStepOperationParameter.Name)
                 or nameof(WorkStepOperationParameter.Type)
                 or nameof(WorkStepOperationParameter.ParameterName)
+                or nameof(WorkStepOperationParameter.ValueType)
                 or nameof(WorkStepOperationParameter.Sequence)
                 or nameof(WorkStepOperationParameter.Value)
                 or nameof(WorkStepOperationParameter.Remark)
@@ -536,9 +568,11 @@ namespace Module.Business.ViewModels.PropertyVMs
                 Id = Id,
                 OperationType = OperationType,
                 OperationObject = OperationObject,
+                DeviceId = _deviceId,
                 ProtocolName = ProtocolName,
                 CommandName = CommandName,
                 InvokeMethod = InvokeMethod,
+                OperationId = _operationId,
                 ReturnValue = ReturnValue,
                 ShowDataToView = ShowDataToView,
                 ViewDataName = ViewDataName,
@@ -582,6 +616,7 @@ namespace Module.Business.ViewModels.PropertyVMs
         private int _sequence = 1;
         private string _name = "设置值";
         private string _parameterName = string.Empty;
+        private string _valueType = string.Empty;
         private string _value = string.Empty;
         private string _remark = string.Empty;
 
@@ -624,6 +659,12 @@ namespace Module.Business.ViewModels.PropertyVMs
         {
             get => _parameterName;
             set => SetField(ref _parameterName, value ?? string.Empty, true);
+        }
+
+        public string ValueType
+        {
+            get => _valueType;
+            set => SetField(ref _valueType, value ?? string.Empty, true);
         }
 
         public string Remark
@@ -690,6 +731,7 @@ namespace Module.Business.ViewModels.PropertyVMs
                 Sequence = Sequence,
                 Name = Name,
                 ParameterName = ParameterName,
+                ValueType = ValueType,
                 Value = Value,
                 Remark = Remark
             };

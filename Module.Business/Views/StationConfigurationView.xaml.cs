@@ -115,10 +115,13 @@ public partial class StationConfigurationView : UserControl
             ?? string.Empty;
         string summary = NormalizeInlineText(lines.Skip(1));
 
+        string operationObject = ResolveOperationObject(e.NodeKind, firstLine);
         return new WorkStepOperation
         {
-            OperationObject = ResolveOperationObject(e.NodeKind, firstLine),
+            OperationObject = operationObject,
+            DeviceId = operationObject,
             InvokeMethod = string.Empty,
+            OperationId = string.Empty,
             ReturnValue = string.Empty,
             ShowDataToView = false,
             ViewDataName = string.Empty,
