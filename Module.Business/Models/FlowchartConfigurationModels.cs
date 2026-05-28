@@ -1,6 +1,6 @@
 using ControlLibrary;
 using ControlLibrary.Controls.FlowchartEditor.Models;
-using Module.Business.ViewModels;
+using Module.Business.Features.StationConfiguration;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -13,8 +13,8 @@ namespace Module.Business.Models;
 /// </summary>
 public sealed class FlowchartConfigurationCatalog
 {
+    /// <summary>
+    /// 已保存的流程图配置集合。
+    /// </summary>
     public ObservableCollection<FlowchartProfile> Flowcharts { get; set; } = new();
 }
-
-
-

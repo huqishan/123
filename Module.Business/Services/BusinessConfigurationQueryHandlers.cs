@@ -1,6 +1,6 @@
 using ControlLibrary.Models.MediatorModels.Business;
-using Module.Business.ViewModels;
-using Module.Business.ViewModels.PropertyVMs;
+using Module.Business.Features.StationConfiguration;
+using Module.Business.Features.SchemeConfiguration;
 using Shared.Infrastructure.Mediator;
 using System;
 using System.Linq;

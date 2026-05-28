@@ -1,4 +1,4 @@
-ï»¿using ControlLibrary;
+using ControlLibrary;
 using Module.Business.Models;
 using Module.Business.Services;
 using Module.Business.Services.BusinessOperations;
@@ -7,7 +7,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System;
-using System.Data;
 using System.Windows.Input;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -18,13 +17,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Shared.Infrastructure.Extensions;
-using Module.Business.ViewModels.PropertyVMs;
 
-namespace Module.Business.ViewModels;
+namespace Module.Business.Features.SchemeConfiguration;
 
 internal sealed class SchemeStepEditorState : ViewModelProperties
 {
-    #region çŠ¶æ€é¢œè‰²
+    #region ×´Ì¬ÑÕÉ«
 
     private static readonly Brush SuccessBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A"));
@@ -37,16 +35,16 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
 
     #endregion
 
-    #region ç§æœ‰çŠ¶æ€
+    #region Ë½ÓĞ×´Ì¬
 
     private SchemeConfigurationCatalog _catalog = BusinessConfigurationStore.LoadCatalog();
     private WorkStepProfile? _selectedWorkStep;
     private WorkStepOperation? _selectedOperation;
-    private DataRowView? _selectedOperationMethodRow;
+    private StationOperationMethodItem? _selectedOperationMethod;
     private WorkStepOperation? _drawerOperation;
     private WorkStepOperationParameter? _selectedEditingInvokeParameter;
     private string _searchText = string.Empty;
-    private string _pageStatusText = "ç­‰å¾…ç¼–è¾‘";
+    private string _pageStatusText = "µÈ´ı±à¼­";
     private string _editingOperationObject = string.Empty;
     private string _editingProtocolName = string.Empty;
     private string _editingCommandName = string.Empty;
@@ -75,20 +73,7 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
 
     #endregion
 
-    #region æ–¹æ³•æŒ‡ä»¤è¡¨å­—æ®µ
-
-    private const string OperationMethodColumnKind = "Kind";
-    private const string OperationMethodColumnOperationType = "OperationType";
-    private const string OperationMethodColumnOperationObject = "OperationObject";
-    private const string OperationMethodColumnProtocolName = "ProtocolName";
-    private const string OperationMethodColumnCommandName = "CommandName";
-    private const string OperationMethodColumnInvokeMethod = "InvokeMethod";
-    private const string OperationMethodColumnSummary = "Summary";
-    private const string OperationMethodColumnParameterCount = "ParameterCount";
-
-    #endregion
-
-    #region é›†åˆå±æ€§
+    #region ¼¯ºÏÊôĞÔ
 
     public ObservableCollection<WorkStepProfile> WorkSteps => _catalog.WorkSteps;
 
@@ -108,26 +93,26 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
 
     public ObservableCollection<string> ParameterTypeOptions { get; } = new()
     {
-        "è®¾ç½®å€¼",
-        "è¿”å›å€¼",
-        "ç³»ç»Ÿå€¼"
+        "ÉèÖÃÖµ",
+        "·µ»ØÖµ",
+        "ÏµÍ³Öµ"
     };
 
     public ObservableCollection<WorkStepOperationParameter> EditingInvokeParameters { get; } = new();
 
-    public DataTable OperationMethodTable { get; } = CreateOperationMethodTable();
+    public ObservableCollection<StationOperationMethodItem> OperationMethods { get; } = new();
 
-    public DataRowView? SelectedOperationMethodRow
+    public StationOperationMethodItem? SelectedOperationMethod
     {
-        get => _selectedOperationMethodRow;
-        set => SetField(ref _selectedOperationMethodRow, value);
+        get => _selectedOperationMethod;
+        set => SetField(ref _selectedOperationMethod, value);
     }
 
     private ObservableCollection<string> ExternalReturnValueOptions { get; } = new();
 
     #endregion
 
-    #region æœç´¢ä¸å½“å‰ç¼–è¾‘å±æ€§
+    #region ËÑË÷Óëµ±Ç°±à¼­ÊôĞÔ
     public string SearchText
     {
         get => _searchText;
@@ -206,7 +191,7 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
         }
     }
 
-    public string OperationDrawerTitle => _isNewOperationInDrawer ? "æ–°å»ºæ­¥éª¤" : "ç¼–è¾‘æ­¥éª¤";
+    public string OperationDrawerTitle => _isNewOperationInDrawer ? "ĞÂ½¨²½Öè" : "±à¼­²½Öè";
 
     public string EditingOperationObject
     {
@@ -414,7 +399,7 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
 
     #endregion
 
-    #region é¡µé¢çŠ¶æ€å±æ€§
+    #region Ò³Ãæ×´Ì¬ÊôĞÔ
 
     public string PageStatusText
     {
@@ -428,14 +413,14 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
         private set => SetField(ref _pageStatusBrush, value);
     }
 
-    public string WorkStepCountText => $"{WorkSteps.Count} ä¸ªå·¥æ­¥";
+    public string WorkStepCountText => $"{WorkSteps.Count} ¸ö¹¤²½";
     public string OperationCountText => SelectedWorkStep is null
-        ? "æœªé€‰æ‹©å·¥æ­¥"
-        : $"{SelectedWorkStep.OperationCount} ä¸ªæ­¥éª¤";
+        ? "Î´Ñ¡Ôñ¹¤²½"
+        : $"{SelectedWorkStep.OperationCount} ¸ö²½Öè";
 
     #endregion
 
-    #region å‘½ä»¤å±æ€§
+    #region ÃüÁîÊôĞÔ
 
     public bool AreAllOperationsChecked
     {
@@ -488,9 +473,9 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
 
     #endregion
 
-    #region å±æ€§è”åŠ¨æ–¹æ³•
+    #region ÊôĞÔÁª¶¯·½·¨
     /// <summary>
-    /// ç›‘å¬å½“å‰å·¥æ­¥å±æ€§å˜æ›´ï¼ŒåŒæ­¥æ±‡æ€»ä¿¡æ¯ã€ç­›é€‰ç»“æœå’Œå‘½ä»¤çŠ¶æ€ã€‚
+    /// ¼àÌıµ±Ç°¹¤²½ÊôĞÔ±ä¸ü£¬Í¬²½»ã×ÜĞÅÏ¢¡¢É¸Ñ¡½á¹ûºÍÃüÁî×´Ì¬¡£
     /// </summary>
     private void SelectedWorkStep_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -517,7 +502,7 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
     }
 
     /// <summary>
-    /// åˆ·æ–°é¡µé¢é¡¶éƒ¨çš„å·¥æ­¥æ•°å’Œæ­¥éª¤æ•°æ±‡æ€»å±•ç¤ºã€‚
+    /// Ë¢ĞÂÒ³Ãæ¶¥²¿µÄ¹¤²½ÊıºÍ²½ÖèÊı»ã×ÜÕ¹Ê¾¡£
     /// </summary>
     private void RaisePageSummaryChanged()
     {
@@ -536,10 +521,10 @@ private static readonly Regex ProtocolPlaceholderRegex =
             @"^\s*public\s+static\s+(?:async\s+)?(?<return>[A-Za-z_][\w\.<>,\[\]\?]*)\s+(?<name>[A-Za-z_]\w*(?:<[^>]+>)?)\s*\((?<parameters>.*)\)",
             RegexOptions.Compiled);
 
-    #region æ„é€ ä¸åˆå§‹åŒ–
+    #region ¹¹ÔìÓë³õÊ¼»¯
 
     /// <summary>
-    /// åˆå§‹åŒ–å·¥æ­¥ç¼–è¾‘çŠ¶æ€ã€é›†åˆè§†å›¾å’Œé¡µé¢å‘½ä»¤ã€‚
+    /// ³õÊ¼»¯¹¤²½±à¼­×´Ì¬¡¢¼¯ºÏÊÓÍ¼ºÍÒ³ÃæÃüÁî¡£
     /// </summary>
     public SchemeStepEditorState()
     {
@@ -551,11 +536,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SelectFirstVisibleWorkStep();
         RefreshOperationMethodTable();
         RefreshReturnValueOptions();
-        SetPageStatus("ç­‰å¾…ç¼–è¾‘æ­¥éª¤ã€‚", NeutralBrush);
+        SetPageStatus("µÈ´ı±à¼­²½Öè¡£", NeutralBrush);
     }
 
     /// <summary>
-    /// åˆå§‹åŒ–é¡µé¢å‘½ä»¤ï¼ŒXAML ä¸ç»‘å®šåå¯ç”¨ Click äº‹ä»¶ã€‚
+    /// ³õÊ¼»¯Ò³ÃæÃüÁî£¬XAML ²»°ó¶¨ºó¿ÉÓÃ Click ÊÂ¼ş¡£
     /// </summary>
     private void InitializeCommands()
     {
@@ -575,10 +560,10 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     #endregion
-    #region å·¥æ­¥å‘½ä»¤æ–¹æ³•
+    #region ¹¤²½ÃüÁî·½·¨
 
     /// <summary>
-    /// æ–°å»ºå·¥æ­¥ï¼Œå¹¶åœ¨åˆ›å»ºåç«‹å³æ‰“å¼€é¦–æ¡æ­¥éª¤çš„ç¼–è¾‘æŠ½å±‰ã€‚
+    /// ĞÂ½¨¹¤²½£¬²¢ÔÚ´´½¨ºóÁ¢¼´´ò¿ªÊ×Ìõ²½ÖèµÄ±à¼­³éÌë¡£
     /// </summary>
     private void NewWorkStep()
     {
@@ -587,7 +572,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             return;
         }
 
-        WorkStepProfile workStep = CreateWorkStep(GenerateUniqueStepName("å·¥æ­¥"));
+        WorkStepProfile workStep = CreateWorkStep(GenerateUniqueStepName("¹¤²½"));
         WorkSteps.Add(workStep);
         SelectCreatedWorkStep(workStep);
         if (workStep.Steps.FirstOrDefault() is WorkStepOperation operation)
@@ -595,11 +580,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
             OpenOperationDrawerForEdit(operation);
         }
 
-        SetPageStatus("å·²æ–°å¢å·¥æ­¥ï¼Œç¼–è¾‘åç‚¹å‡»ä¿å­˜ã€‚", SuccessBrush);
+        SetPageStatus("ÒÑĞÂÔö¹¤²½£¬±à¼­ºóµã»÷±£´æ¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// å¤åˆ¶å½“å‰é€‰ä¸­å·¥æ­¥åŠå…¶æ­¥éª¤åˆ—è¡¨ã€‚
+    /// ¸´ÖÆµ±Ç°Ñ¡ÖĞ¹¤²½¼°Æä²½ÖèÁĞ±í¡£
     /// </summary>
     private void DuplicateSelectedWorkStep()
     {
@@ -616,11 +601,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         WorkStepProfile workStep = CreateCopyWorkStep(SelectedWorkStep);
         WorkSteps.Add(workStep);
         SelectCreatedWorkStep(workStep);
-        SetPageStatus($"å·²å¤åˆ¶å·¥æ­¥ï¼š{workStep.StepName}ã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑ¸´ÖÆ¹¤²½£º{workStep.StepName}¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// åˆ é™¤å½“å‰é€‰ä¸­å·¥æ­¥ã€‚
+    /// É¾³ıµ±Ç°Ñ¡ÖĞ¹¤²½¡£
     /// </summary>
     private void DeleteSelectedWorkStep()
     {
@@ -632,11 +617,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         WorkSteps.Remove(SelectedWorkStep);
         SelectFirstVisibleWorkStep();
 
-        SetPageStatus("å·²åˆ é™¤å·¥æ­¥ï¼Œç‚¹å‡»ä¿å­˜ååŒæ­¥åˆ°æ–¹æ¡ˆé…ç½®ã€‚", WarningBrush);
+        SetPageStatus("ÒÑÉ¾³ı¹¤²½£¬µã»÷±£´æºóÍ¬²½µ½·½°¸ÅäÖÃ¡£", WarningBrush);
     }
 
     /// <summary>
-    /// æ ¡éªŒå¹¶ä¿å­˜æ‰€æœ‰å·¥æ­¥æ¨¡æ¿ã€‚
+    /// Ğ£Ñé²¢±£´æËùÓĞ¹¤²½Ä£°å¡£
     /// </summary>
     private void SaveWorkSteps()
     {
@@ -647,15 +632,15 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
 
         BusinessConfigurationStore.SaveCatalog(_catalog);
-        SetPageStatus($"å·²ä¿å­˜ {WorkSteps.Count} ä¸ªå·¥æ­¥ã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑ±£´æ {WorkSteps.Count} ¸ö¹¤²½¡£", SuccessBrush);
     }
 
     #endregion
 
-    #region æ­¥éª¤å‘½ä»¤æ–¹æ³•
+    #region ²½ÖèÃüÁî·½·¨
 
     /// <summary>
-    /// æ‰“å¼€æŠ½å±‰ï¼Œæ–°å»ºå½“å‰å·¥æ­¥çš„æ“ä½œæ­¥éª¤ã€‚
+    /// ´ò¿ª³éÌë£¬ĞÂ½¨µ±Ç°¹¤²½µÄ²Ù×÷²½Öè¡£
     /// </summary>
     private void OpenOperationDrawerForNew()
     {
@@ -680,11 +665,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         };
 
         BeginOperationDrawer(operation, isNewOperation: true);
-        SetPageStatus("æ­£åœ¨æ–°å»ºæ­¥éª¤ã€‚", NeutralBrush);
+        SetPageStatus("ÕıÔÚĞÂ½¨²½Öè¡£", NeutralBrush);
     }
 
     /// <summary>
-    /// æ‰“å¼€æŠ½å±‰ï¼Œç¼–è¾‘å½“å‰å·¥æ­¥ä¸‹çš„å·²æœ‰æ­¥éª¤ã€‚
+    /// ´ò¿ª³éÌë£¬±à¼­µ±Ç°¹¤²½ÏÂµÄÒÑÓĞ²½Öè¡£
     /// </summary>
     public void OpenOperationDrawerForEdit(WorkStepOperation operation)
     {
@@ -695,11 +680,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         SelectedOperation = operation;
         BeginOperationDrawer(operation, isNewOperation: false);
-        SetPageStatus("æ­£åœ¨ç¼–è¾‘æ­¥éª¤ã€‚", NeutralBrush);
+        SetPageStatus("ÕıÔÚ±à¼­²½Öè¡£", NeutralBrush);
     }
 
     /// <summary>
-    /// å°†æ‹–æ‹½çš„æ­¥éª¤ç§»åŠ¨åˆ°ç›®æ ‡æ­¥éª¤å‰åã€‚
+    /// ½«ÍÏ×§µÄ²½ÖèÒÆ¶¯µ½Ä¿±ê²½ÖèÇ°ºó¡£
     /// </summary>
     public void MoveOperation(WorkStepOperation draggedOperation, WorkStepOperation targetOperation, bool insertAfter)
     {
@@ -730,11 +715,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         steps.Move(oldIndex, newIndex);
         SelectedOperation = draggedOperation;
-        SetPageStatus("å·²è°ƒæ•´æ­¥éª¤é¡ºåºã€‚", SuccessBrush);
+        SetPageStatus("ÒÑµ÷Õû²½ÖèË³Ğò¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// å°†æ–¹æ³•æŒ‡ä»¤è¡¨æ‹–æ‹½å‡ºæ¥çš„æ–°æ­¥éª¤æ’å…¥åˆ°å½“å‰æ­¥éª¤åˆ—è¡¨ã€‚
+    /// ½«·½·¨Ö¸Áî±íÍÏ×§³öÀ´µÄĞÂ²½Öè²åÈëµ½µ±Ç°²½ÖèÁĞ±í¡£
     /// </summary>
     public void InsertOperation(WorkStepOperation operation, WorkStepOperation? targetOperation, bool insertAfter)
     {
@@ -768,34 +753,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         steps.Insert(Math.Clamp(insertIndex, 0, steps.Count), operationToInsert);
         RefreshOperationParameterModifiedState(operationToInsert);
         SelectedOperation = operationToInsert;
-        SetPageStatus("å·²ä»æ–¹æ³•è¡¨æ–°å¢æ­¥éª¤ã€‚", SuccessBrush);
+        SetPageStatus("ÒÑ´Ó·½·¨±íĞÂÔö²½Öè¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// æ ¹æ®æ–¹æ³•æŒ‡ä»¤è¡¨å½“å‰è¡Œåˆ›å»ºæ­¥éª¤æ“ä½œå¯¹è±¡ã€‚
-    /// </summary>
-    public WorkStepOperation? CreateOperationFromMethodTableRow(DataRowView? rowView)
-    {
-        if (rowView is null)
-        {
-            return null;
-        }
-
-        string operationType = GetOperationMethodTableValue(rowView, OperationMethodColumnOperationType);
-        string operationObject = GetOperationMethodTableValue(rowView, OperationMethodColumnOperationObject);
-        string protocolName = GetOperationMethodTableValue(rowView, OperationMethodColumnProtocolName);
-        string commandName = GetOperationMethodTableValue(rowView, OperationMethodColumnCommandName);
-        string invokeMethod = GetOperationMethodTableValue(rowView, OperationMethodColumnInvokeMethod);
-        return CreateOperationFromMethodDefinition(
-            operationType,
-            operationObject,
-            protocolName,
-            commandName,
-            invokeMethod);
-    }
-
-    /// <summary>
-    /// æ ¹æ®æ–¹æ³•æŒ‡ä»¤é¡¹åˆ›å»ºæ­¥éª¤æ“ä½œå¯¹è±¡ã€‚
+    /// ¸ù¾İ·½·¨Ö¸Áî±íµ±Ç°ĞĞ´´½¨²½Öè²Ù×÷¶ÔÏó¡£
     /// </summary>
     public WorkStepOperation? CreateOperationFromMethodItem(StationOperationMethodItem? item)
     {
@@ -813,7 +775,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰æ“ä½œå®šä¹‰ç»„è£…æ­¥éª¤æ“ä½œï¼Œå¹¶å¡«å……é»˜è®¤è¿”å›å€¼å’Œå‚æ•°ã€‚
+    /// °´²Ù×÷¶¨Òå×é×°²½Öè²Ù×÷£¬²¢Ìî³äÄ¬ÈÏ·µ»ØÖµºÍ²ÎÊı¡£
     /// </summary>
     private WorkStepOperation? CreateOperationFromMethodDefinition(
         string operationType,
@@ -829,9 +791,9 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         WorkStepOperation operation = new()
         {
-            OperationType = string.IsNullOrWhiteSpace(operationType) ? "è®¾å¤‡" : operationType,
+            OperationType = string.IsNullOrWhiteSpace(operationType) ? "Éè±¸" : operationType,
             OperationObject = operationObject,
-            DeviceId = string.Equals(operationType?.Trim(), "æ¶“æ°¬å§Ÿ", StringComparison.OrdinalIgnoreCase)
+            DeviceId = string.Equals(operationType?.Trim(), "ä¸šåŠ¡", StringComparison.OrdinalIgnoreCase)
                 ? BusinessOperationBindingResolver.ResolveCatalogDeviceId(operationObject, operationObject)
                 : operationObject,
             ProtocolName = protocolName,
@@ -850,7 +812,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä¿å­˜æ­¥éª¤ç¼–è¾‘æŠ½å±‰ä¸­çš„å½“å‰å†…å®¹ï¼Œå¹¶åŒæ­¥å›ç›®æ ‡æ­¥éª¤å¯¹è±¡ã€‚
+    /// ±£´æ²½Öè±à¼­³éÌëÖĞµÄµ±Ç°ÄÚÈİ£¬²¢Í¬²½»ØÄ¿±ê²½Öè¶ÔÏó¡£
     /// </summary>
     private void SaveOperationDrawer()
     {
@@ -863,11 +825,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         bool isLuaOperation = IsLuaOperationSelected;
         WorkStepOperation? selectedMethodOperation = isLuaOperation
             ? null
-            : CreateOperationFromMethodTableRow(SelectedOperationMethodRow);
+            : CreateOperationFromMethodItem(SelectedOperationMethod);
 
         if (string.IsNullOrWhiteSpace(EditingOperationObject) && selectedMethodOperation is null)
         {
-            SetPageStatus("æ“ä½œå¯¹è±¡ä¸èƒ½ä¸ºç©ºã€‚", WarningBrush);
+            SetPageStatus("²Ù×÷¶ÔÏó²»ÄÜÎª¿Õ¡£", WarningBrush);
             return;
         }
 
@@ -881,7 +843,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
                       : EditingCommandName);
         if (string.IsNullOrWhiteSpace(invokeMethod))
         {
-            SetPageStatus("è°ƒç”¨æ–¹æ³•ä¸èƒ½ä¸ºç©ºã€‚", WarningBrush);
+            SetPageStatus("µ÷ÓÃ·½·¨²»ÄÜÎª¿Õ¡£", WarningBrush);
             return;
         }
 
@@ -889,13 +851,13 @@ private static readonly Regex ProtocolPlaceholderRegex =
             EditingShowDataToView &&
             string.IsNullOrWhiteSpace(EditingViewDataName))
         {
-            SetPageStatus("å‹¾é€‰æ˜¾ç¤ºåˆ°ç•Œé¢æ—¶ï¼Œæ•°æ®åç§°ä¸èƒ½ä¸ºç©ºã€‚", WarningBrush);
+            SetPageStatus("¹´Ñ¡ÏÔÊ¾µ½½çÃæÊ±£¬Êı¾İÃû³Æ²»ÄÜÎª¿Õ¡£", WarningBrush);
             return;
         }
 
         if (!int.TryParse(EditingDelayMillisecondsText, out int delayMilliseconds) || delayMilliseconds < 0)
         {
-            SetPageStatus("å»¶æ—¶(ms)å¿…é¡»æ˜¯å¤§äºç­‰äº 0 çš„æ•´æ•°ã€‚", WarningBrush);
+            SetPageStatus("ÑÓÊ±(ms)±ØĞëÊÇ´óÓÚµÈÓÚ 0 µÄÕûÊı¡£", WarningBrush);
             return;
         }
 
@@ -905,8 +867,8 @@ private static readonly Regex ProtocolPlaceholderRegex =
               (IsJudgeOperationSelected
                   ? JudgeOperationObjectName
                   : IsSystemOperationSelected
-                      ? "ç³»ç»Ÿ"
-                      : "è®¾å¤‡");
+                      ? "ÏµÍ³"
+                      : "Éè±¸");
         _drawerOperation.OperationObject = isLuaOperation
             ? LuaOperationObjectName
             : selectedMethodOperation?.OperationObject ?? EditingOperationObject.Trim();
@@ -962,11 +924,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SelectedOperation = _drawerOperation;
         bool savedNewOperation = _isNewOperationInDrawer;
         CloseOperationDrawer();
-        SetPageStatus(savedNewOperation ? "å·²æ–°å¢æ­¥éª¤ã€‚" : "å·²æ›´æ–°æ­¥éª¤ã€‚", SuccessBrush);
+        SetPageStatus(savedNewOperation ? "ÒÑĞÂÔö²½Öè¡£" : "ÒÑ¸üĞÂ²½Öè¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// å…³é—­æ­¥éª¤ç¼–è¾‘æŠ½å±‰ï¼Œä¸æäº¤å½“å‰ç¼–è¾‘ç¼“å­˜ã€‚
+    /// ¹Ø±Õ²½Öè±à¼­³éÌë£¬²»Ìá½»µ±Ç°±à¼­»º´æ¡£
     /// </summary>
     private void CloseOperationDrawer()
     {
@@ -985,7 +947,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ é™¤å½“å‰é€‰ä¸­çš„æ“ä½œæ­¥éª¤ã€‚
+    /// É¾³ıµ±Ç°Ñ¡ÖĞµÄ²Ù×÷²½Öè¡£
     /// </summary>
     private void DeleteSelectedOperation()
     {
@@ -1043,12 +1005,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
 
         SetPageStatus(operationsToDelete.Count == 1
-            ? "å·²åˆ é™¤æ­¥éª¤ã€‚"
-            : $"å·²åˆ é™¤ {operationsToDelete.Count} ä¸ªæ­¥éª¤ã€‚", WarningBrush);
+            ? "ÒÑÉ¾³ı²½Öè¡£"
+            : $"ÒÑÉ¾³ı {operationsToDelete.Count} ¸ö²½Öè¡£", WarningBrush);
     }
 
     /// <summary>
-    /// åˆ¤æ–­å½“å‰æ˜¯å¦å…è®¸å¤åˆ¶æ­¥éª¤ã€‚
+    /// ÅĞ¶Ïµ±Ç°ÊÇ·ñÔÊĞí¸´ÖÆ²½Öè¡£
     /// </summary>
     private bool CanCopyOperations()
     {
@@ -1056,7 +1018,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­å½“å‰æ˜¯å¦å…è®¸ç²˜è´´å·²å¤åˆ¶çš„æ­¥éª¤ã€‚
+    /// ÅĞ¶Ïµ±Ç°ÊÇ·ñÔÊĞíÕ³ÌùÒÑ¸´ÖÆµÄ²½Öè¡£
     /// </summary>
     private bool CanPasteOperations()
     {
@@ -1064,7 +1026,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­å½“å‰æ˜¯å¦å­˜åœ¨å¯åˆ é™¤çš„æ­¥éª¤ã€‚
+    /// ÅĞ¶Ïµ±Ç°ÊÇ·ñ´æÔÚ¿ÉÉ¾³ıµÄ²½Öè¡£
     /// </summary>
     private bool CanDeleteOperations()
     {
@@ -1073,7 +1035,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å¤åˆ¶å‹¾é€‰æˆ–å½“å‰é€‰ä¸­çš„æ­¥éª¤åˆ°å†…éƒ¨å‰ªè´´æ¿ã€‚
+    /// ¸´ÖÆ¹´Ñ¡»òµ±Ç°Ñ¡ÖĞµÄ²½Öèµ½ÄÚ²¿¼ôÌù°å¡£
     /// </summary>
     private void CopySelectedOperations()
     {
@@ -1088,12 +1050,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
         RaiseCommandStatesChanged();
 
         SetPageStatus(operationsToCopy.Count == 1
-            ? "å·²å¤åˆ¶ 1 ä¸ªæ­¥éª¤ã€‚"
-            : $"å·²å¤åˆ¶ {operationsToCopy.Count} ä¸ªæ­¥éª¤ã€‚", SuccessBrush);
+            ? "ÒÑ¸´ÖÆ 1 ¸ö²½Öè¡£"
+            : $"ÒÑ¸´ÖÆ {operationsToCopy.Count} ¸ö²½Öè¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// å°†å†…éƒ¨å‰ªè´´æ¿ä¸­çš„æ­¥éª¤æ’å…¥åˆ°å½“å‰å·¥æ­¥ã€‚
+    /// ½«ÄÚ²¿¼ôÌù°åÖĞµÄ²½Öè²åÈëµ½µ±Ç°¹¤²½¡£
     /// </summary>
     private void PasteCopiedOperations()
     {
@@ -1118,12 +1080,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         SelectedOperation = operationsToPaste.FirstOrDefault();
         SetPageStatus(operationsToPaste.Count == 1
-            ? "å·²ç²˜è´´ 1 ä¸ªæ­¥éª¤ã€‚"
-            : $"å·²ç²˜è´´ {operationsToPaste.Count} ä¸ªæ­¥éª¤ã€‚", SuccessBrush);
+            ? "ÒÑÕ³Ìù 1 ¸ö²½Öè¡£"
+            : $"ÒÑÕ³Ìù {operationsToPaste.Count} ¸ö²½Öè¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// è·å–æ­¥éª¤é›†åˆä¸­æ‰€æœ‰è¢«å‹¾é€‰çš„é¡¹ã€‚
+    /// »ñÈ¡²½Öè¼¯ºÏÖĞËùÓĞ±»¹´Ñ¡µÄÏî¡£
     /// </summary>
     private List<WorkStepOperation> GetCheckedOperations(ObservableCollection<WorkStepOperation> steps)
     {
@@ -1133,7 +1095,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è·å–ç”¨äºå¤åˆ¶çš„æ­¥éª¤åˆ—è¡¨ï¼Œä¼˜å…ˆä½¿ç”¨å‹¾é€‰é¡¹ã€‚
+    /// »ñÈ¡ÓÃÓÚ¸´ÖÆµÄ²½ÖèÁĞ±í£¬ÓÅÏÈÊ¹ÓÃ¹´Ñ¡Ïî¡£
     /// </summary>
     private List<WorkStepOperation> GetOperationsForClipboard()
     {
@@ -1154,7 +1116,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è®¡ç®—ç²˜è´´æ­¥éª¤æ—¶çš„æ’å…¥ä½ç½®ã€‚
+    /// ¼ÆËãÕ³Ìù²½ÖèÊ±µÄ²åÈëÎ»ÖÃ¡£
     /// </summary>
     private int ResolvePasteInsertIndex(ObservableCollection<WorkStepOperation> steps)
     {
@@ -1184,7 +1146,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ¸…é™¤æ­¥éª¤é›†åˆä¸­çš„å‹¾é€‰çŠ¶æ€ã€‚
+    /// Çå³ı²½Öè¼¯ºÏÖĞµÄ¹´Ñ¡×´Ì¬¡£
     /// </summary>
     private void ClearCheckedOperations(ObservableCollection<WorkStepOperation> steps)
     {
@@ -1195,7 +1157,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å…‹éš†æ­¥éª¤åŠå…¶å‚æ•°ï¼Œç”¨äºå¤åˆ¶ç²˜è´´åœºæ™¯ã€‚
+    /// ¿ËÂ¡²½Öè¼°Æä²ÎÊı£¬ÓÃÓÚ¸´ÖÆÕ³Ìù³¡¾°¡£
     /// </summary>
     private WorkStepOperation CreateClipboardOperation(WorkStepOperation source)
     {
@@ -1213,7 +1175,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆå§‹åŒ–æ­¥éª¤ç¼–è¾‘æŠ½å±‰ä¸­çš„å„é¡¹ç¼–è¾‘çŠ¶æ€ã€‚
+    /// ³õÊ¼»¯²½Öè±à¼­³éÌëÖĞµÄ¸÷Ïî±à¼­×´Ì¬¡£
     /// </summary>
     private void BeginOperationDrawer(WorkStepOperation operation, bool isNewOperation)
     {
@@ -1308,14 +1270,14 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åœ¨å½“å‰ç¼–è¾‘é›†åˆä¸­æ–°å¢ä¸€ä¸ªè°ƒç”¨å‚æ•°ã€‚
+    /// ÔÚµ±Ç°±à¼­¼¯ºÏÖĞĞÂÔöÒ»¸öµ÷ÓÃ²ÎÊı¡£
     /// </summary>
     private void AddInvokeParameter()
     {
         WorkStepOperationParameter parameter = new()
         {
             Sequence = GetNextInvokeParameterSequence(),
-            Name = ParameterTypeOptions.FirstOrDefault() ?? "è®¾ç½®å€¼",
+            Name = ParameterTypeOptions.FirstOrDefault() ?? "ÉèÖÃÖµ",
             Value = string.Empty,
             Remark = string.Empty
         };
@@ -1323,11 +1285,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         EditingInvokeParameters.Add(parameter);
         SortInvokeParametersBySequence();
         SelectedEditingInvokeParameter = parameter;
-        SetPageStatus("å·²æ–°å¢è°ƒç”¨æ–¹æ³•å‚æ•°ã€‚", SuccessBrush);
+        SetPageStatus("ÒÑĞÂÔöµ÷ÓÃ·½·¨²ÎÊı¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// åˆ é™¤å½“å‰é€‰ä¸­çš„è°ƒç”¨å‚æ•°ã€‚
+    /// É¾³ıµ±Ç°Ñ¡ÖĞµÄµ÷ÓÃ²ÎÊı¡£
     /// </summary>
     private void DeleteSelectedInvokeParameter()
     {
@@ -1341,11 +1303,11 @@ private static readonly Regex ProtocolPlaceholderRegex =
         SelectedEditingInvokeParameter = EditingInvokeParameters.Count == 0
             ? null
             : EditingInvokeParameters[Math.Clamp(index, 0, EditingInvokeParameters.Count - 1)];
-        SetPageStatus("å·²åˆ é™¤è°ƒç”¨æ–¹æ³•å‚æ•°ã€‚", WarningBrush);
+        SetPageStatus("ÒÑÉ¾³ıµ÷ÓÃ·½·¨²ÎÊı¡£", WarningBrush);
     }
 
     /// <summary>
-    /// ç›‘å¬è°ƒç”¨å‚æ•°é›†åˆå˜åŒ–ï¼Œç»´æŠ¤äº‹ä»¶è®¢é˜…å’Œé¡ºåºçŠ¶æ€ã€‚
+    /// ¼àÌıµ÷ÓÃ²ÎÊı¼¯ºÏ±ä»¯£¬Î¬»¤ÊÂ¼ş¶©ÔÄºÍË³Ğò×´Ì¬¡£
     /// </summary>
     private void EditingInvokeParameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -1390,7 +1352,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç›‘å¬å•ä¸ªè°ƒç”¨å‚æ•°å˜åŒ–ï¼Œåˆ·æ–°ä¿®æ”¹æ ‡è®°å’Œå¯é€‰å€¼ã€‚
+    /// ¼àÌıµ¥¸öµ÷ÓÃ²ÎÊı±ä»¯£¬Ë¢ĞÂĞŞ¸Ä±ê¼ÇºÍ¿ÉÑ¡Öµ¡£
     /// </summary>
     private void EditingInvokeParameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -1412,10 +1374,10 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
     #endregion
 
-    #region å·¥å…·æ–¹æ³•
+    #region ¹¤¾ß·½·¨
 
     /// <summary>
-    /// è§„èŒƒå½“å‰è°ƒç”¨å‚æ•°çš„åºå·ï¼Œç¡®ä¿è¿ç»­é€’å¢ã€‚
+    /// ¹æ·¶µ±Ç°µ÷ÓÃ²ÎÊıµÄĞòºÅ£¬È·±£Á¬ĞøµİÔö¡£
     /// </summary>
     private void NormalizeInvokeParameterSequences()
     {
@@ -1448,7 +1410,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è·å–æ–°å¢è°ƒç”¨å‚æ•°æ—¶ä½¿ç”¨çš„ä¸‹ä¸€ä¸ªåºå·ã€‚
+    /// »ñÈ¡ĞÂÔöµ÷ÓÃ²ÎÊıÊ±Ê¹ÓÃµÄÏÂÒ»¸öĞòºÅ¡£
     /// </summary>
     private int GetNextInvokeParameterSequence()
     {
@@ -1458,7 +1420,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰å‚æ•°åºå·é‡æ–°æ’åºå½“å‰ç¼–è¾‘é›†åˆã€‚
+    /// °´²ÎÊıĞòºÅÖØĞÂÅÅĞòµ±Ç°±à¼­¼¯ºÏ¡£
     /// </summary>
     private void SortInvokeParametersBySequence()
     {
@@ -1494,7 +1456,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ·æ–°æ‰€æœ‰è°ƒç”¨å‚æ•°çš„å¯é€‰å€¼åˆ—è¡¨ã€‚
+    /// Ë¢ĞÂËùÓĞµ÷ÓÃ²ÎÊıµÄ¿ÉÑ¡ÖµÁĞ±í¡£
     /// </summary>
     private void RefreshParameterValueOptions()
     {
@@ -1505,7 +1467,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ›´æ–°å•ä¸ªè°ƒç”¨å‚æ•°çš„å¯é€‰å€¼æ¥æºã€‚
+    /// ¸üĞÂµ¥¸öµ÷ÓÃ²ÎÊıµÄ¿ÉÑ¡ÖµÀ´Ô´¡£
     /// </summary>
     private void UpdateParameterValueOptions(WorkStepOperationParameter parameter)
     {
@@ -1513,20 +1475,20 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰å‚æ•°å€¼ç±»å‹æ„å»ºå€™é€‰å€¼åˆ—è¡¨ã€‚
+    /// °´²ÎÊıÖµÀàĞÍ¹¹½¨ºòÑ¡ÖµÁĞ±í¡£
     /// </summary>
     private IEnumerable<string> BuildParameterValueOptions(string parameterType)
     {
         string normalizedType = parameterType?.Trim() ?? string.Empty;
         return normalizedType switch
         {
-            "è¿”å›å€¼" => BuildParameterReturnValueOptions(),
+            "·µ»ØÖµ" => BuildParameterReturnValueOptions(),
             _ => Enumerable.Empty<string>()
         };
     }
 
     /// <summary>
-    /// æ„å»ºå¯ä¾›å‚æ•°å¼•ç”¨çš„è¿”å›å€¼åˆ—è¡¨ã€‚
+    /// ¹¹½¨¿É¹©²ÎÊıÒıÓÃµÄ·µ»ØÖµÁĞ±í¡£
     /// </summary>
     private IEnumerable<string> BuildParameterReturnValueOptions()
     {
@@ -1576,7 +1538,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ„å»ºå½“å‰æ­¥éª¤å¯å†™å…¥çš„è¿”å›å€¼å€™é€‰é¡¹ã€‚
+    /// ¹¹½¨µ±Ç°²½Öè¿ÉĞ´ÈëµÄ·µ»ØÖµºòÑ¡Ïî¡£
     /// </summary>
     private IEnumerable<string> BuildReturnValueOptions()
     {
@@ -1607,7 +1569,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ·æ–°è¿”å›å€¼ä¸‹æ‹‰é¡¹ï¼Œå¹¶ä¿®æ­£é»˜è®¤å€¼ã€‚
+    /// Ë¢ĞÂ·µ»ØÖµÏÂÀ­Ïî£¬²¢ĞŞÕıÄ¬ÈÏÖµ¡£
     /// </summary>
     private void RefreshReturnValueOptions()
     {
@@ -1615,7 +1577,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åœ¨å­˜åœ¨å”¯ä¸€é»˜è®¤è¿”å›å€¼æ—¶è‡ªåŠ¨å›å¡«ã€‚
+    /// ÔÚ´æÔÚÎ¨Ò»Ä¬ÈÏ·µ»ØÖµÊ±×Ô¶¯»ØÌî¡£
     /// </summary>
     private void ApplyDefaultReturnValueKey()
     {
@@ -1634,7 +1596,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä½¿ç”¨æ–°æ•°æ®æ›¿æ¢å­—ç¬¦ä¸²é€‰é¡¹é›†åˆå†…å®¹ã€‚
+    /// Ê¹ÓÃĞÂÊı¾İÌæ»»×Ö·û´®Ñ¡Ïî¼¯ºÏÄÚÈİ¡£
     /// </summary>
     private static void ReplaceStringOptions(ObservableCollection<string> target, IEnumerable<string> source)
     {
@@ -1656,7 +1618,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
     }
     /// <summary>
-    /// åˆ›å»ºåŒ…å«é»˜è®¤æ­¥éª¤çš„æ–°å·¥æ­¥ã€‚
+    /// ´´½¨°üº¬Ä¬ÈÏ²½ÖèµÄĞÂ¹¤²½¡£
     /// </summary>
     private WorkStepProfile CreateWorkStep(string stepName)
     {
@@ -1669,7 +1631,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
         workStep.Steps.Add(new WorkStepOperation
         {
             OperationObject = SystemOperationObjectName,
-            InvokeMethod = "ç­‰å¾…",
+            InvokeMethod = "µÈ´ı",
             ReturnValue = string.Empty,
             ShowDataToView = false,
             ViewDataName = string.Empty,
@@ -1683,7 +1645,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ·±æ‹·è´å·¥æ­¥åŠå…¶å…¨éƒ¨æ­¥éª¤ã€‚
+    /// Éî¿½±´¹¤²½¼°ÆäÈ«²¿²½Öè¡£
     /// </summary>
     private WorkStepProfile CreateCopyWorkStep(WorkStepProfile source)
     {
@@ -1727,7 +1689,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç”¨æœ€æ–°å·¥æ­¥é›†åˆæ›¿æ¢å½“å‰ç›®å½•ä¸­çš„å·¥æ­¥æ•°æ®ã€‚
+    /// ÓÃ×îĞÂ¹¤²½¼¯ºÏÌæ»»µ±Ç°Ä¿Â¼ÖĞµÄ¹¤²½Êı¾İ¡£
     /// </summary>
     private void ReloadWorkSteps(ObservableCollection<WorkStepProfile> latestWorkSteps)
     {
@@ -1747,7 +1709,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// é€‰ä¸­æ–°å»ºæˆ–å¤åˆ¶åçš„å·¥æ­¥å¹¶æ»šåŠ¨åˆ°å¯è§èŒƒå›´ã€‚
+    /// Ñ¡ÖĞĞÂ½¨»ò¸´ÖÆºóµÄ¹¤²½²¢¹ö¶¯µ½¿É¼û·¶Î§¡£
     /// </summary>
     private void SelectCreatedWorkStep(WorkStepProfile workStep)
     {
@@ -1758,7 +1720,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ§åˆ¶æ–°å»ºå’Œå¤åˆ¶å·¥æ­¥å‘½ä»¤çš„è§¦å‘èŠ‚æµã€‚
+    /// ¿ØÖÆĞÂ½¨ºÍ¸´ÖÆ¹¤²½ÃüÁîµÄ´¥·¢½ÚÁ÷¡£
     /// </summary>
     private bool CanRunCreateOrCopyCommand()
     {
@@ -1772,7 +1734,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
         return true;
     }
     /// <summary>
-    /// ç”Ÿæˆå½“å‰ç›®å½•ä¸‹ä¸é‡å¤çš„å·¥æ­¥åç§°ã€‚
+    /// Éú³Éµ±Ç°Ä¿Â¼ÏÂ²»ÖØ¸´µÄ¹¤²½Ãû³Æ¡£
     /// </summary>
     private string GenerateUniqueStepName(string prefix)
     {
@@ -1791,13 +1753,13 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä¸ºå¤åˆ¶å¾—åˆ°çš„å·¥æ­¥ç”Ÿæˆä¸é‡å¤åç§°ã€‚
+    /// Îª¸´ÖÆµÃµ½µÄ¹¤²½Éú³É²»ÖØ¸´Ãû³Æ¡£
     /// </summary>
     private string GenerateCopyStepName(string baseName)
     {
         HashSet<string> existingNames = new(WorkSteps.Select(step => step.StepName), StringComparer.OrdinalIgnoreCase);
 
-        string copyName = $"{baseName.Trim()} é“îˆ›æ¹°";
+        string copyName = $"{baseName.Trim()} å‰¯æœ¬";
         if (!existingNames.Contains(copyName))
         {
             return copyName;
@@ -1814,7 +1776,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®æœç´¢å…³é”®å­—ç­›é€‰å·¥æ­¥ã€‚
+    /// ¸ù¾İËÑË÷¹Ø¼ü×ÖÉ¸Ñ¡¹¤²½¡£
     /// </summary>
     private bool FilterWorkSteps(object item)
     {
@@ -1835,7 +1797,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä»¥å¿½ç•¥å¤§å°å†™çš„æ–¹å¼åˆ¤æ–­æ–‡æœ¬æ˜¯å¦åŒ…å«å…³é”®å­—ã€‚
+    /// ÒÔºöÂÔ´óĞ¡Ğ´µÄ·½Ê½ÅĞ¶ÏÎÄ±¾ÊÇ·ñ°üº¬¹Ø¼ü×Ö¡£
     /// </summary>
     private static bool Contains(string? source, string keyword)
     {
@@ -1843,7 +1805,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¡éªŒå…¨éƒ¨å·¥æ­¥å’Œæ­¥éª¤é…ç½®æ˜¯å¦å¯ä¿å­˜ã€‚
+    /// Ğ£ÑéÈ«²¿¹¤²½ºÍ²½ÖèÅäÖÃÊÇ·ñ¿É±£´æ¡£
     /// </summary>
     private bool ValidateWorkSteps(out string message)
     {
@@ -1858,13 +1820,13 @@ private static readonly Regex ProtocolPlaceholderRegex =
         {
             if (string.IsNullOrWhiteSpace(workStep.StepName))
             {
-                message = "å·¥æ­¥åç§°ä¸èƒ½ä¸ºç©ºã€‚";
+                message = "¹¤²½Ãû³Æ²»ÄÜÎª¿Õ¡£";
                 return false;
             }
 
             if (!stepNames.Add(workStep.StepName.Trim()))
             {
-                message = $"å·¥æ­¥åç§°ä¸èƒ½é‡å¤ï¼š{workStep.StepName}";
+                message = $"¹¤²½Ãû³Æ²»ÄÜÖØ¸´£º{workStep.StepName}";
                 return false;
             }
 
@@ -1872,20 +1834,20 @@ private static readonly Regex ProtocolPlaceholderRegex =
             {
                 if (string.IsNullOrWhiteSpace(operation.OperationObject))
                 {
-                    message = $"å·¥æ­¥â€œ{workStep.StepName}â€çš„æ“ä½œå¯¹è±¡ä¸èƒ½ä¸ºç©ºã€‚";
+                    message = $"¹¤²½¡°{workStep.StepName}¡±µÄ²Ù×÷¶ÔÏó²»ÄÜÎª¿Õ¡£";
                     return false;
                 }
 
                 if (!IsLuaOperationObject(operation.OperationObject) &&
                     string.IsNullOrWhiteSpace(operation.InvokeMethod))
                 {
-                    message = $"å·¥æ­¥â€œ{workStep.StepName}â€çš„è°ƒç”¨æ–¹æ³•ä¸èƒ½ä¸ºç©ºã€‚";
+                    message = $"¹¤²½¡°{workStep.StepName}¡±µÄµ÷ÓÃ·½·¨²»ÄÜÎª¿Õ¡£";
                     return false;
                 }
 
                 if (operation.DelayMilliseconds < 0)
                 {
-                    message = $"å·¥æ­¥â€œ{workStep.StepName}â€çš„æ­¥éª¤å»¶æ—¶ä¸èƒ½å°äº 0ã€‚";
+                    message = $"¹¤²½¡°{workStep.StepName}¡±µÄ²½ÖèÑÓÊ±²»ÄÜĞ¡ÓÚ 0¡£";
                     return false;
                 }
             }
@@ -1896,7 +1858,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç›‘å¬å·¥æ­¥é›†åˆå˜åŒ–ï¼Œåˆ·æ–°é¡µé¢æ±‡æ€»å’Œé€‰ä¸­çŠ¶æ€ã€‚
+    /// ¼àÌı¹¤²½¼¯ºÏ±ä»¯£¬Ë¢ĞÂÒ³Ãæ»ã×ÜºÍÑ¡ÖĞ×´Ì¬¡£
     /// </summary>
     private void WorkSteps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -1907,7 +1869,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åœ¨å½“å‰ç­›é€‰ç»“æœä¸­ä¼˜å…ˆä¿æŒåŸé€‰ä¸­é¡¹ï¼Œå¦åˆ™é€‰ä¸­ç¬¬ä¸€æ¡å¯è§å·¥æ­¥ã€‚
+    /// ÔÚµ±Ç°É¸Ñ¡½á¹ûÖĞÓÅÏÈ±£³ÖÔ­Ñ¡ÖĞÏî£¬·ñÔòÑ¡ÖĞµÚÒ»Ìõ¿É¼û¹¤²½¡£
     /// </summary>
     private void SelectFirstVisibleWorkStep()
     {
@@ -1915,7 +1877,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰ç»™å®šå·¥æ­¥ Id æ¢å¤é€‰æ‹©ï¼›è‹¥ç›®æ ‡ä¸å¯è§ï¼Œåˆ™å›é€€åˆ°å½“å‰å¯è§åˆ—è¡¨ä¸­çš„ç¬¬ä¸€é¡¹ã€‚
+    /// °´¸ø¶¨¹¤²½ Id »Ö¸´Ñ¡Ôñ£»ÈôÄ¿±ê²»¿É¼û£¬Ôò»ØÍËµ½µ±Ç°¿É¼ûÁĞ±íÖĞµÄµÚÒ»Ïî¡£
     /// </summary>
     private void SelectVisibleWorkStep(string? preferredWorkStepId)
     {
@@ -1940,7 +1902,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ›´æ–°é¡µé¢åº•éƒ¨çŠ¶æ€æ–‡æ¡ˆå’Œé¢œè‰²ã€‚
+    /// ¸üĞÂÒ³Ãæµ×²¿×´Ì¬ÎÄ°¸ºÍÑÕÉ«¡£
     /// </summary>
     private void SetPageStatus(string text, Brush brush)
     {
@@ -1949,7 +1911,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½å¯ä¾›é€‰æ‹©çš„è®¾å¤‡æ“ä½œå¯¹è±¡åç§°ã€‚
+    /// ¼ÓÔØ¿É¹©Ñ¡ÔñµÄÉè±¸²Ù×÷¶ÔÏóÃû³Æ¡£
     /// </summary>
     public IEnumerable<string> LoadDeviceOperationObjectNames()
     {
@@ -1957,7 +1919,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®å½“å‰æ“ä½œå¯¹è±¡åŠ è½½å¯è°ƒç”¨çš„æ–¹æ³•æˆ–æŒ‡ä»¤åˆ—è¡¨ã€‚
+    /// ¸ù¾İµ±Ç°²Ù×÷¶ÔÏó¼ÓÔØ¿Éµ÷ÓÃµÄ·½·¨»òÖ¸ÁîÁĞ±í¡£
     /// </summary>
     public IEnumerable<string> LoadInvokeMethodOptionsForOperationObject(string? operationObject)
     {
@@ -1982,7 +1944,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä¸ºæ™®é€šè®¾å¤‡å¯¹è±¡åŠ è½½æ–¹æ³•åˆ—è¡¨ï¼šå…ˆå–ä¸šåŠ¡æ–¹æ³•ï¼Œå†æ‹¼æ¥è¯¥è®¾å¤‡æ”¯æŒåè®®ä¸‹çš„æŒ‡ä»¤ã€‚
+    /// ÎªÆÕÍ¨Éè±¸¶ÔÏó¼ÓÔØ·½·¨ÁĞ±í£ºÏÈÈ¡ÒµÎñ·½·¨£¬ÔÙÆ´½Ó¸ÃÉè±¸Ö§³ÖĞ­ÒéÏÂµÄÖ¸Áî¡£
     /// </summary>
     private static IEnumerable<string> LoadDeviceInvokeMethodOptions(string operationObject)
     {
@@ -2001,8 +1963,8 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å½“æ“ä½œå¯¹è±¡æˆ–æ–¹æ³•å‘ç”Ÿå˜åŒ–æ—¶ï¼Œé‡æ–°è§„èŒƒåŒ–æ­¥éª¤å…ƒæ•°æ®ã€‚
-    /// åŒ…æ‹¬æ“ä½œç±»å‹ã€ä¸šåŠ¡ç»‘å®šé”®ã€åè®®åå’ŒæŒ‡ä»¤åã€‚
+    /// µ±²Ù×÷¶ÔÏó»ò·½·¨·¢Éú±ä»¯Ê±£¬ÖØĞÂ¹æ·¶»¯²½ÖèÔªÊı¾İ¡£
+    /// °üÀ¨²Ù×÷ÀàĞÍ¡¢ÒµÎñ°ó¶¨¼ü¡¢Ğ­ÒéÃûºÍÖ¸ÁîÃû¡£
     /// </summary>
     public void SynchronizeOperationMetadata(
         WorkStepOperation operation,
@@ -2035,7 +1997,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         if (IsSystemOperationObject(operationObject))
         {
-            operation.OperationType = "ç³»ç»Ÿ";
+            operation.OperationType = "ÏµÍ³";
             operation.OperationObject = SystemOperationObjectName;
             operation.DeviceId = SystemOperationObjectName;
             operation.ProtocolName = string.Empty;
@@ -2043,7 +2005,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             return;
         }
 
-        operation.OperationType = "è®¾å¤‡";
+        operation.OperationType = "Éè±¸";
         BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(
             operationObject,
             operation.DeviceId,
@@ -2070,7 +2032,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åœ¨è®¾å¤‡æ”¯æŒçš„åè®®æŒ‡ä»¤ä¸­æŸ¥æ‰¾ä¸æ–¹æ³•ååŒ¹é…çš„åè®®å’Œå‘½ä»¤å®šä¹‰ã€‚
+    /// ÔÚÉè±¸Ö§³ÖµÄĞ­ÒéÖ¸ÁîÖĞ²éÕÒÓë·½·¨ÃûÆ¥ÅäµÄĞ­ÒéºÍÃüÁî¶¨Òå¡£
     /// </summary>
     private static bool TryFindDeviceCommand(
         string operationObject,
@@ -2110,127 +2072,107 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ›å»ºæ­¥éª¤æ–¹æ³•é¢æ¿ä½¿ç”¨çš„æ•°æ®è¡¨ç»“æ„ã€‚
-    /// </summary>
-    private static DataTable CreateOperationMethodTable()
-    {
-        DataTable table = new("OperationMethods");
-        table.Columns.Add(OperationMethodColumnKind, typeof(string));
-        table.Columns.Add(OperationMethodColumnOperationType, typeof(string));
-        table.Columns.Add(OperationMethodColumnOperationObject, typeof(string));
-        table.Columns.Add(OperationMethodColumnProtocolName, typeof(string));
-        table.Columns.Add(OperationMethodColumnCommandName, typeof(string));
-        table.Columns.Add(OperationMethodColumnInvokeMethod, typeof(string));
-        table.Columns.Add(OperationMethodColumnSummary, typeof(string));
-        table.Columns.Add(OperationMethodColumnParameterCount, typeof(int));
-        return table;
-    }
-
-    /// <summary>
-    /// æŒ‰å½“å‰ç¼–è¾‘çŠ¶æ€åˆ·æ–°æ–¹æ³•è¡¨ï¼Œç»Ÿä¸€å±•ç¤ºç³»ç»Ÿæ–¹æ³•ã€ä¸šåŠ¡æ–¹æ³•å’Œåè®®æŒ‡ä»¤ã€‚
+    /// °´µ±Ç°±à¼­×´Ì¬Ë¢ĞÂ·½·¨±í£¬Í³Ò»Õ¹Ê¾ÏµÍ³·½·¨¡¢ÒµÎñ·½·¨ºÍĞ­ÒéÖ¸Áî¡£
     /// </summary>
     private void RefreshOperationMethodTable()
     {
-        SelectedOperationMethodRow = null;
-        OperationMethodTable.BeginLoadData();
-        try
+        SelectedOperationMethod = null;
+        OperationMethods.Clear();
+        if (IsLuaOperationSelected)
         {
-            OperationMethodTable.Rows.Clear();
-            if (IsLuaOperationSelected)
+            OnPropertyChanged(nameof(OperationMethods));
+            return;
+        }
+
+        if (IsJudgeOperationSelected)
+        {
+            foreach (SystemMethodSelectionItem method in LoadJudgeMethodSelectionItems())
             {
-                return;
+                AddOperationMethod(
+                    "·½·¨",
+                    JudgeOperationObjectName,
+                    JudgeOperationObjectName,
+                    string.Empty,
+                    string.Empty,
+                    method.Name,
+                    method.Summary,
+                    method.Parameters.Count);
             }
 
-            if (IsJudgeOperationSelected)
-            {
-                foreach (SystemMethodSelectionItem method in LoadJudgeMethodSelectionItems())
-                {
-                    AddOperationMethodRow(
-                        "æ–¹æ³•",
-                        JudgeOperationObjectName,
-                        JudgeOperationObjectName,
-                        string.Empty,
-                        string.Empty,
-                        method.Name,
-                        method.Summary,
-                        method.Parameters.Count);
-                }
+            OnPropertyChanged(nameof(OperationMethods));
+            return;
+        }
 
-                return;
+        if (IsSystemOperationSelected)
+        {
+            IReadOnlyList<SystemMethodSelectionItem> methods = LoadSystemMethodSelectionItems();
+            foreach (SystemMethodSelectionItem method in methods)
+            {
+                AddOperationMethod(
+                    "·½·¨",
+                    "ÏµÍ³",
+                    SystemOperationObjectName,
+                    string.Empty,
+                    string.Empty,
+                    method.Name,
+                    method.Summary,
+                    method.Parameters.Count);
             }
 
-            if (IsSystemOperationSelected)
-            {
-                IReadOnlyList<SystemMethodSelectionItem> methods = LoadSystemMethodSelectionItems();
-                foreach (SystemMethodSelectionItem method in methods)
-                {
-                    AddOperationMethodRow(
-                        "æ–¹æ³•",
-                        "ç³»ç»Ÿ",
-                        SystemOperationObjectName,
-                        string.Empty,
-                        string.Empty,
-                        method.Name,
-                        method.Summary,
-                        method.Parameters.Count);
-                }
+            OnPropertyChanged(nameof(OperationMethods));
+            return;
+        }
 
-                return;
-            }
+        string operationObject = EditingOperationObject.Trim();
+        foreach (BusinessOperationDescriptor operation in BusinessOperationBindingResolver
+                     .GetOperationsForOperationObject(operationObject)
+                     .OrderBy(operation => operation.DisplayName, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(operation => operation.OperationId, StringComparer.OrdinalIgnoreCase))
+        {
+            AddOperationMethod(
+                "ÒµÎñ",
+                "ÒµÎñ",
+                operationObject,
+                string.Empty,
+                string.Empty,
+                operation.OperationId,
+                string.IsNullOrWhiteSpace(operation.Description) ? operation.DisplayName : operation.Description,
+                operation.Parameters.Count);
+        }
 
-            string operationObject = EditingOperationObject.Trim();
-            foreach (BusinessOperationDescriptor operation in BusinessOperationBindingResolver
-                         .GetOperationsForOperationObject(operationObject)
-                         .OrderBy(operation => operation.DisplayName, StringComparer.OrdinalIgnoreCase)
-                         .ThenBy(operation => operation.OperationId, StringComparer.OrdinalIgnoreCase))
+        HashSet<string> allowedProtocols = new(LoadDeviceSupportedProtocolNames(operationObject), StringComparer.OrdinalIgnoreCase);
+        if (allowedProtocols.Count == 0)
+        {
+            OnPropertyChanged(nameof(OperationMethods));
+            return;
+        }
+
+        IReadOnlyList<ProtocolSelectionItem> protocols = LoadProtocolSelectionItems().ToList();
+        IEnumerable<ProtocolSelectionItem> visibleProtocols = protocols.Where(protocol => allowedProtocols.Contains(protocol.Name));
+
+        foreach (ProtocolSelectionItem protocol in visibleProtocols.OrderBy(protocol => protocol.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (ProtocolCommandSelectionItem command in protocol.Commands.OrderBy(command => command.Name, StringComparer.OrdinalIgnoreCase))
             {
-                AddOperationMethodRow(
-                    "æ¶“æ°¬å§Ÿ",
-                    "æ¶“æ°¬å§Ÿ",
+                AddOperationMethod(
+                    "Ö¸Áî",
+                    "Éè±¸",
                     operationObject,
-                    string.Empty,
-                    string.Empty,
-                    operation.OperationId,
-                    string.IsNullOrWhiteSpace(operation.Description) ? operation.DisplayName : operation.Description,
-                    operation.Parameters.Count);
-            }
-
-            HashSet<string> allowedProtocols = new(LoadDeviceSupportedProtocolNames(operationObject), StringComparer.OrdinalIgnoreCase);
-            if (allowedProtocols.Count == 0)
-            {
-                return;
-            }
-
-            IReadOnlyList<ProtocolSelectionItem> protocols = LoadProtocolSelectionItems().ToList();
-            IEnumerable<ProtocolSelectionItem> visibleProtocols = protocols.Where(protocol => allowedProtocols.Contains(protocol.Name));
-
-            foreach (ProtocolSelectionItem protocol in visibleProtocols.OrderBy(protocol => protocol.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                foreach (ProtocolCommandSelectionItem command in protocol.Commands.OrderBy(command => command.Name, StringComparer.OrdinalIgnoreCase))
-                {
-                    AddOperationMethodRow(
-                        "æŒ‡ä»¤",
-                        "è®¾å¤‡",
-                        operationObject,
-                        protocol.Name,
-                        command.Name,
-                        command.Name,
-                        protocol.Name,
-                        command.Placeholders.Count);
-                }
+                    protocol.Name,
+                    command.Name,
+                    command.Name,
+                    protocol.Name,
+                    command.Placeholders.Count);
             }
         }
-        finally
-        {
-            OperationMethodTable.EndLoadData();
-            OnPropertyChanged(nameof(OperationMethodTable));
-        }
+
+        OnPropertyChanged(nameof(OperationMethods));
     }
 
     /// <summary>
-    /// å‘æ–¹æ³•æŒ‡ä»¤è¡¨è¿½åŠ ä¸€è¡Œå¯é€‰æ“ä½œå®šä¹‰ã€‚
+    /// Ïò·½·¨Ö¸Áî±í×·¼ÓÒ»ĞĞ¿ÉÑ¡²Ù×÷¶¨Òå¡£
     /// </summary>
-    private void AddOperationMethodRow(
+    private void AddOperationMethod(
         string kind,
         string operationType,
         string operationObject,
@@ -2240,21 +2182,22 @@ private static readonly Regex ProtocolPlaceholderRegex =
         string summary,
         int parameterCount)
     {
-        DataRow row = OperationMethodTable.NewRow();
-        row[OperationMethodColumnKind] = kind;
-        row[OperationMethodColumnOperationType] = operationType;
-        row[OperationMethodColumnOperationObject] = operationObject;
-        row[OperationMethodColumnProtocolName] = protocolName;
-        row[OperationMethodColumnCommandName] = commandName;
-        row[OperationMethodColumnInvokeMethod] = invokeMethod;
-        row[OperationMethodColumnSummary] = summary;
-        row[OperationMethodColumnParameterCount] = parameterCount;
-        OperationMethodTable.Rows.Add(row);
+        OperationMethods.Add(new StationOperationMethodItem
+        {
+            Kind = kind,
+            OperationType = operationType,
+            OperationObject = operationObject,
+            ProtocolName = protocolName,
+            CommandName = commandName,
+            InvokeMethod = invokeMethod,
+            Summary = summary,
+            ParameterCount = parameterCount
+        });
     }
 
     /// <summary>
-    /// æ ¹æ®æ–¹æ³•è¡¨ä¸­çš„é€‰é¡¹æ„å»ºé»˜è®¤è¾“å…¥å‚æ•°ã€‚
-    /// ç³»ç»Ÿæ–¹æ³•ã€ä¸šåŠ¡æ–¹æ³•å’Œåè®®æŒ‡ä»¤åˆ†åˆ«èµ°å„è‡ªçš„å‚æ•°ç”Ÿæˆé€»è¾‘ã€‚
+    /// ¸ù¾İ·½·¨±íÖĞµÄÑ¡Ïî¹¹½¨Ä¬ÈÏÊäÈë²ÎÊı¡£
+    /// ÏµÍ³·½·¨¡¢ÒµÎñ·½·¨ºÍĞ­ÒéÖ¸Áî·Ö±ğ×ß¸÷×ÔµÄ²ÎÊıÉú³ÉÂß¼­¡£
     /// </summary>
     private ObservableCollection<WorkStepOperationParameter> CreateOperationParametersFromMethodTableRow(
         string operationObject,
@@ -2290,7 +2233,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             parameters.Add(new WorkStepOperationParameter
             {
                 Sequence = sequence,
-                Name = ParameterTypeOptions.FirstOrDefault() ?? "è®¾ç½®å€¼",
+                Name = ParameterTypeOptions.FirstOrDefault() ?? "ÉèÖÃÖµ",
                 ParameterName = placeholder.Name,
                 Value = placeholder.Value,
                 Remark = placeholder.Name
@@ -2302,7 +2245,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä¸ºæ­¥éª¤é‡æ–°ç”Ÿæˆé»˜è®¤è¾“å…¥å‚æ•°ï¼Œç”¨äºå›å¡«å’Œé‡ç½®ã€‚
+    /// Îª²½ÖèÖØĞÂÉú³ÉÄ¬ÈÏÊäÈë²ÎÊı£¬ÓÃÓÚ»ØÌîºÍÖØÖÃ¡£
     /// </summary>
     public ObservableCollection<WorkStepOperationParameter> CreateDefaultOperationParameters(WorkStepOperation operation)
     {
@@ -2341,7 +2284,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä¸ºå½“å‰æ­¥éª¤æ¨å¯¼è¿”å›å€¼å‚æ•°å®šä¹‰ï¼Œä¾›å·¥æ­¥å‚æ•°æ˜ å°„å’Œç•Œé¢æ˜¾ç¤ºä½¿ç”¨ã€‚
+    /// Îªµ±Ç°²½ÖèÍÆµ¼·µ»ØÖµ²ÎÊı¶¨Òå£¬¹©¹¤²½²ÎÊıÓ³ÉäºÍ½çÃæÏÔÊ¾Ê¹ÓÃ¡£
     /// </summary>
     public ObservableCollection<WorkStepOperationParameter> CreateReturnParametersFromOperation(WorkStepOperation? operation)
     {
@@ -2410,16 +2353,16 @@ private static readonly Regex ProtocolPlaceholderRegex =
         }
 
         string description = IsSystemOperationObject(operationObject)
-            ? "æ–¹æ³•è¿”å›å€¼"
+            ? "·½·¨·µ»ØÖµ"
             : IsJudgeOperationObject(operationObject)
-                ? "åˆ¤æ–­ç»“æœ"
-                : "è¿”å›å‚æ•°";
+                ? "ÅĞ¶Ï½á¹û"
+                : "·µ»Ø²ÎÊı";
 
         return new ObservableCollection<WorkStepOperationParameter>(
             returnKeys.Select((key, index) => new WorkStepOperationParameter
             {
                 Sequence = index + 1,
-                Name = "è¿”å›å€¼",
+                Name = "·µ»ØÖµ",
                 ParameterName = key,
                 Value = key,
                 Remark = description
@@ -2427,7 +2370,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­æ­¥éª¤å½“å‰å‚æ•°æ˜¯å¦åç¦»é»˜è®¤ç”Ÿæˆç»“æœã€‚
+    /// ÅĞ¶Ï²½Öèµ±Ç°²ÎÊıÊÇ·ñÆ«ÀëÄ¬ÈÏÉú³É½á¹û¡£
     /// </summary>
     public bool HasModifiedOperationParameters(
         WorkStepOperation operation,
@@ -2439,7 +2382,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ·æ–°å•æ¡æ­¥éª¤çš„â€œå‚æ•°å·²ä¿®æ”¹â€æ ‡è®°ã€‚
+    /// Ë¢ĞÂµ¥Ìõ²½ÖèµÄ¡°²ÎÊıÒÑĞŞ¸Ä¡±±ê¼Ç¡£
     /// </summary>
     public void RefreshOperationParameterModifiedState(WorkStepOperation operation)
     {
@@ -2447,7 +2390,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ‰¹é‡åˆ·æ–°æ­¥éª¤çš„â€œå‚æ•°å·²ä¿®æ”¹â€æ ‡è®°ã€‚
+    /// ÅúÁ¿Ë¢ĞÂ²½ÖèµÄ¡°²ÎÊıÒÑĞŞ¸Ä¡±±ê¼Ç¡£
     /// </summary>
     public void RefreshOperationParameterModifiedStates(IEnumerable<WorkStepOperation> operations)
     {
@@ -2458,7 +2401,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å°†æ­¥éª¤å‚æ•°æ¢å¤ä¸ºæŒ‰å½“å‰æ–¹æ³•æ¨å¯¼å‡ºçš„é»˜è®¤å€¼ã€‚
+    /// ½«²½Öè²ÎÊı»Ö¸´Îª°´µ±Ç°·½·¨ÍÆµ¼³öµÄÄ¬ÈÏÖµ¡£
     /// </summary>
     public void ResetOperationParametersToDefault(WorkStepOperation operation)
     {
@@ -2472,7 +2415,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ¯”è¾ƒä¸¤ç»„æ­¥éª¤å‚æ•°æ˜¯å¦å®Œå…¨ä¸€è‡´ã€‚
+    /// ±È½ÏÁ½×é²½Öè²ÎÊıÊÇ·ñÍêÈ«Ò»ÖÂ¡£
     /// </summary>
     private static bool HasSameOperationParameters(
         IEnumerable<WorkStepOperationParameter> first,
@@ -2509,7 +2452,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­æ­¥éª¤è¿”å›å€¼ç›¸å…³é…ç½®æ˜¯å¦åç¦»é»˜è®¤å€¼ã€‚
+    /// ÅĞ¶Ï²½Öè·µ»ØÖµÏà¹ØÅäÖÃÊÇ·ñÆ«ÀëÄ¬ÈÏÖµ¡£
     /// </summary>
     private static bool HasModifiedOperationReturnParameters(WorkStepOperation operation)
     {
@@ -2522,7 +2465,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ¨å¯¼å½“å‰æ­¥éª¤é»˜è®¤åº”ä½¿ç”¨çš„è¿”å›å€¼é”®ã€‚
+    /// ÍÆµ¼µ±Ç°²½ÖèÄ¬ÈÏÓ¦Ê¹ÓÃµÄ·µ»ØÖµ¼ü¡£
     /// </summary>
     private static string ResolveDefaultOperationReturnValue(WorkStepOperation operation)
     {
@@ -2542,7 +2485,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®ç³»ç»Ÿæ–¹æ³•å…ƒæ•°æ®ç”Ÿæˆè¾“å…¥å‚æ•°é›†åˆã€‚
+    /// ¸ù¾İÏµÍ³·½·¨ÔªÊı¾İÉú³ÉÊäÈë²ÎÊı¼¯ºÏ¡£
     /// </summary>
     private ObservableCollection<WorkStepOperationParameter> CreateOperationParametersFromSystemMethod(
         SystemMethodSelectionItem? method,
@@ -2560,7 +2503,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             parameters.Add(new WorkStepOperationParameter
             {
                 Sequence = sequence,
-                Name = ParameterTypeOptions.FirstOrDefault() ?? "è®¾ç½®å€¼",
+                Name = ParameterTypeOptions.FirstOrDefault() ?? "ÉèÖÃÖµ",
                 ParameterName = parameterMetadata.Name,
                 ValueType = parameterMetadata.Type,
                 Value = parameterMetadata.DefaultValue,
@@ -2573,8 +2516,8 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®ä¸šåŠ¡æ–¹æ³•æè¿°ç”Ÿæˆè¾“å…¥å‚æ•°é›†åˆã€‚
-    /// è¿è¡Œæ—¶æ³¨å…¥å‚æ•°ä¸ä¼šå‡ºç°åœ¨è¿™é‡Œã€‚
+    /// ¸ù¾İÒµÎñ·½·¨ÃèÊöÉú³ÉÊäÈë²ÎÊı¼¯ºÏ¡£
+    /// ÔËĞĞÊ±×¢Èë²ÎÊı²»»á³öÏÖÔÚÕâÀï¡£
     /// </summary>
     private ObservableCollection<WorkStepOperationParameter> CreateOperationParametersFromBusinessOperation(
         BusinessOperationDescriptor operation)
@@ -2599,17 +2542,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å®‰å…¨è¯»å–æ–¹æ³•æŒ‡ä»¤è¡¨ä¸­çš„å­—ç¬¦ä¸²åˆ—å€¼ã€‚
-    /// </summary>
-    private static string GetOperationMethodTableValue(DataRowView rowView, string columnName)
-    {
-        return rowView.Row.Table.Columns.Contains(columnName)
-            ? rowView.Row[columnName]?.ToString()?.Trim() ?? string.Empty
-            : string.Empty;
-    }
-
-    /// <summary>
-    /// åˆ·æ–°æ“ä½œå¯¹è±¡ä¸‹æ‹‰é¡¹ï¼Œå¹¶å°½é‡ä¿ç•™å½“å‰ç¼–è¾‘é€‰æ‹©ã€‚
+    /// Ë¢ĞÂ²Ù×÷¶ÔÏóÏÂÀ­Ïî£¬²¢¾¡Á¿±£Áôµ±Ç°±à¼­Ñ¡Ôñ¡£
     /// </summary>
     private void RefreshOperationObjectOptions(bool updateStatus)
     {
@@ -2655,12 +2588,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         if (updateStatus)
         {
-            SetPageStatus("å·²åˆ·æ–°æ“ä½œå¯¹è±¡ã€‚", SuccessBrush);
+            SetPageStatus("ÒÑË¢ĞÂ²Ù×÷¶ÔÏó¡£", SuccessBrush);
         }
     }
 
     /// <summary>
-    /// æ ¹æ®å½“å‰æ“ä½œå¯¹è±¡åˆ·æ–°å¯é€‰åè®®åˆ—è¡¨ã€‚
+    /// ¸ù¾İµ±Ç°²Ù×÷¶ÔÏóË¢ĞÂ¿ÉÑ¡Ğ­ÒéÁĞ±í¡£
     /// </summary>
     private void RefreshProtocolOptions(bool updateStatus)
     {
@@ -2693,12 +2626,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         if (updateStatus)
         {
-            SetPageStatus("å·²åˆ·æ–°åè®®åˆ—è¡¨ã€‚", SuccessBrush);
+            SetPageStatus("ÒÑË¢ĞÂĞ­ÒéÁĞ±í¡£", SuccessBrush);
         }
     }
 
     /// <summary>
-    /// æ ¹æ®å½“å‰åè®®åˆ·æ–°å¯é€‰æŒ‡ä»¤åˆ—è¡¨ã€‚
+    /// ¸ù¾İµ±Ç°Ğ­ÒéË¢ĞÂ¿ÉÑ¡Ö¸ÁîÁĞ±í¡£
     /// </summary>
     private void RefreshCommandOptions(bool updateStatus)
     {
@@ -2731,12 +2664,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         if (updateStatus)
         {
-            SetPageStatus($"å·²æŒ‰åè®®â€œ{EditingProtocolName}â€åˆ·æ–°æŒ‡ä»¤ã€‚", SuccessBrush);
+            SetPageStatus($"ÒÑ°´Ğ­Òé¡°{EditingProtocolName}¡±Ë¢ĞÂÖ¸Áî¡£", SuccessBrush);
         }
     }
 
     /// <summary>
-    /// æ ¹æ®å½“å‰åè®®æŒ‡ä»¤åˆ·æ–°å ä½ç¬¦å‚æ•°åˆ—è¡¨ã€‚
+    /// ¸ù¾İµ±Ç°Ğ­ÒéÖ¸ÁîË¢ĞÂÕ¼Î»·û²ÎÊıÁĞ±í¡£
     /// </summary>
     private void RefreshInvokeParametersFromSelectedCommand()
     {
@@ -2787,7 +2720,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 parameter = new WorkStepOperationParameter
                 {
                     Sequence = sequence,
-                    Name = ParameterTypeOptions.FirstOrDefault() ?? "è®¾ç½®å€¼",
+                    Name = ParameterTypeOptions.FirstOrDefault() ?? "ÉèÖÃÖµ",
                     ParameterName = placeholder.Name,
                     Value = placeholder.Value,
                     Remark = placeholder.Name
@@ -2808,7 +2741,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®å½“å‰ç³»ç»Ÿæ–¹æ³•åˆ·æ–°å‚æ•°åˆ—è¡¨ã€‚
+    /// ¸ù¾İµ±Ç°ÏµÍ³·½·¨Ë¢ĞÂ²ÎÊıÁĞ±í¡£
     /// </summary>
     private void RefreshInvokeParametersFromSelectedSystemMethod(bool clearWhenNoMetadata)
     {
@@ -2836,7 +2769,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             EditingInvokeParameters.Add(new WorkStepOperationParameter
             {
                 Sequence = sequence,
-                Name = ParameterTypeOptions.FirstOrDefault() ?? "è®¾ç½®å€¼",
+                Name = ParameterTypeOptions.FirstOrDefault() ?? "ÉèÖÃÖµ",
                 ParameterName = parameterMetadata.Name,
                 ValueType = parameterMetadata.Type,
                 Value = parameterMetadata.DefaultValue,
@@ -2851,7 +2784,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®å½“å‰åˆ¤æ–­æ–¹æ³•åˆ·æ–°å‚æ•°åˆ—è¡¨ã€‚
+    /// ¸ù¾İµ±Ç°ÅĞ¶Ï·½·¨Ë¢ĞÂ²ÎÊıÁĞ±í¡£
     /// </summary>
     private void RefreshInvokeParametersFromSelectedJudgeMethod(bool clearWhenNoMetadata)
     {
@@ -2879,7 +2812,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             EditingInvokeParameters.Add(new WorkStepOperationParameter
             {
                 Sequence = sequence,
-                Name = ParameterTypeOptions.FirstOrDefault() ?? "è®¾ç½®å€¼",
+                Name = ParameterTypeOptions.FirstOrDefault() ?? "ÉèÖÃÖµ",
                 ParameterName = parameterMetadata.Name,
                 ValueType = parameterMetadata.Type,
                 Value = parameterMetadata.DefaultValue,
@@ -2894,7 +2827,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å°†ç³»ç»Ÿæ–¹æ³•æ‘˜è¦åŒæ­¥åˆ°æ–¹æ³•è¯´æ˜ç¼–è¾‘é¡¹ã€‚
+    /// ½«ÏµÍ³·½·¨ÕªÒªÍ¬²½µ½·½·¨ËµÃ÷±à¼­Ïî¡£
     /// </summary>
     private void SyncSystemInvokeMethodRemarkFromMethod()
     {
@@ -2918,7 +2851,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å°†åˆ¤æ–­æ–¹æ³•æ‘˜è¦åŒæ­¥åˆ°æ–¹æ³•è¯´æ˜ç¼–è¾‘é¡¹ã€‚
+    /// ½«ÅĞ¶Ï·½·¨ÕªÒªÍ¬²½µ½·½·¨ËµÃ÷±à¼­Ïî¡£
     /// </summary>
     private void SyncJudgeInvokeMethodRemarkFromMethod()
     {
@@ -2942,7 +2875,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®ç³»ç»Ÿæ–¹æ³•è¯´æ˜åå‘åŒ¹é…æ–¹æ³•åç§°ã€‚
+    /// ¸ù¾İÏµÍ³·½·¨ËµÃ÷·´ÏòÆ¥Åä·½·¨Ãû³Æ¡£
     /// </summary>
     private void SyncSystemInvokeMethodFromRemark()
     {
@@ -2975,7 +2908,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®åˆ¤æ–­æ–¹æ³•è¯´æ˜åå‘åŒ¹é…æ–¹æ³•åç§°ã€‚
+    /// ¸ù¾İÅĞ¶Ï·½·¨ËµÃ÷·´ÏòÆ¥Åä·½·¨Ãû³Æ¡£
     /// </summary>
     private void SyncJudgeInvokeMethodFromRemark()
     {
@@ -3008,7 +2941,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰å½“å‰æ“ä½œå¯¹è±¡åˆ·æ–°å¯é€‰è°ƒç”¨æ–¹æ³•åŠè¯´æ˜åˆ—è¡¨ã€‚
+    /// °´µ±Ç°²Ù×÷¶ÔÏóË¢ĞÂ¿ÉÑ¡µ÷ÓÃ·½·¨¼°ËµÃ÷ÁĞ±í¡£
     /// </summary>
     private void RefreshInvokeMethodOptions(bool updateStatus)
     {
@@ -3064,7 +2997,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
             if (updateStatus)
             {
-                SetPageStatus($"å·²æŒ‰â€œ{EditingOperationObject}â€åˆ·æ–°è°ƒç”¨æ–¹æ³•ã€‚", SuccessBrush);
+                SetPageStatus($"ÒÑ°´¡°{EditingOperationObject}¡±Ë¢ĞÂµ÷ÓÃ·½·¨¡£", SuccessBrush);
             }
 
             return;
@@ -3194,12 +3127,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         if (updateStatus)
         {
-            SetPageStatus($"å·²æŒ‰â€œ{EditingOperationObject}â€åˆ·æ–°è°ƒç”¨æ–¹æ³•ã€‚", SuccessBrush);
+            SetPageStatus($"ÒÑ°´¡°{EditingOperationObject}¡±Ë¢ĞÂµ÷ÓÃ·½·¨¡£", SuccessBrush);
         }
     }
 
     /// <summary>
-    /// æŒ‰åç§°æŸ¥æ‰¾ç³»ç»Ÿæ–¹æ³•å®šä¹‰ã€‚
+    /// °´Ãû³Æ²éÕÒÏµÍ³·½·¨¶¨Òå¡£
     /// </summary>
     private static SystemMethodSelectionItem? FindSystemMethodByName(string methodName)
     {
@@ -3213,7 +3146,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰åç§°æŸ¥æ‰¾åˆ¤æ–­æ–¹æ³•å®šä¹‰ã€‚
+    /// °´Ãû³Æ²éÕÒÅĞ¶Ï·½·¨¶¨Òå¡£
     /// </summary>
     private static SystemMethodSelectionItem? FindJudgeMethodByName(string methodName)
     {
@@ -3227,65 +3160,65 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½å†…ç½®åˆ¤æ–­æ–¹æ³•çš„é€‰æ‹©é¡¹å®šä¹‰ã€‚
+    /// ¼ÓÔØÄÚÖÃÅĞ¶Ï·½·¨µÄÑ¡ÔñÏî¶¨Òå¡£
     /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> LoadJudgeMethodSelectionItems()
     {
         return new[]
         {
             CreateJudgeMethod(
-                "ç­‰äºåˆ¤æ–­",
-                "åˆ¤æ–­ä¸¤ä¸ªå€¼æ˜¯å¦ç›¸ç­‰",
-                ("å·¦å€¼", "å·¦ä¾§å¾…æ¯”è¾ƒçš„å€¼"),
-                ("å³å€¼", "å³ä¾§å¾…æ¯”è¾ƒçš„å€¼")),
+                "µÈÓÚÅĞ¶Ï",
+                "ÅĞ¶ÏÁ½¸öÖµÊÇ·ñÏàµÈ",
+                ("×óÖµ", "×ó²à´ı±È½ÏµÄÖµ"),
+                ("ÓÒÖµ", "ÓÒ²à´ı±È½ÏµÄÖµ")),
             CreateJudgeMethod(
-                "ä¸ç­‰åˆ¤æ–­",
-                "åˆ¤æ–­ä¸¤ä¸ªå€¼æ˜¯å¦ä¸ç›¸ç­‰",
-                ("å·¦å€¼", "å·¦ä¾§å¾…æ¯”è¾ƒçš„å€¼"),
-                ("å³å€¼", "å³ä¾§å¾…æ¯”è¾ƒçš„å€¼")),
+                "²»µÈÅĞ¶Ï",
+                "ÅĞ¶ÏÁ½¸öÖµÊÇ·ñ²»ÏàµÈ",
+                ("×óÖµ", "×ó²à´ı±È½ÏµÄÖµ"),
+                ("ÓÒÖµ", "ÓÒ²à´ı±È½ÏµÄÖµ")),
             CreateJudgeMethod(
-                "å¤§äºåˆ¤æ–­",
-                "åˆ¤æ–­å·¦å€¼æ˜¯å¦å¤§äºå³å€¼",
-                ("å·¦å€¼", "å·¦ä¾§å¾…æ¯”è¾ƒçš„å€¼"),
-                ("å³å€¼", "å³ä¾§å¾…æ¯”è¾ƒçš„å€¼")),
+                "´óÓÚÅĞ¶Ï",
+                "ÅĞ¶Ï×óÖµÊÇ·ñ´óÓÚÓÒÖµ",
+                ("×óÖµ", "×ó²à´ı±È½ÏµÄÖµ"),
+                ("ÓÒÖµ", "ÓÒ²à´ı±È½ÏµÄÖµ")),
             CreateJudgeMethod(
-                "å¤§äºç­‰äºåˆ¤æ–­",
-                "åˆ¤æ–­å·¦å€¼æ˜¯å¦å¤§äºç­‰äºå³å€¼",
-                ("å·¦å€¼", "å·¦ä¾§å¾…æ¯”è¾ƒçš„å€¼"),
-                ("å³å€¼", "å³ä¾§å¾…æ¯”è¾ƒçš„å€¼")),
+                "´óÓÚµÈÓÚÅĞ¶Ï",
+                "ÅĞ¶Ï×óÖµÊÇ·ñ´óÓÚµÈÓÚÓÒÖµ",
+                ("×óÖµ", "×ó²à´ı±È½ÏµÄÖµ"),
+                ("ÓÒÖµ", "ÓÒ²à´ı±È½ÏµÄÖµ")),
             CreateJudgeMethod(
-                "å°äºåˆ¤æ–­",
-                "åˆ¤æ–­å·¦å€¼æ˜¯å¦å°äºå³å€¼",
-                ("å·¦å€¼", "å·¦ä¾§å¾…æ¯”è¾ƒçš„å€¼"),
-                ("å³å€¼", "å³ä¾§å¾…æ¯”è¾ƒçš„å€¼")),
+                "Ğ¡ÓÚÅĞ¶Ï",
+                "ÅĞ¶Ï×óÖµÊÇ·ñĞ¡ÓÚÓÒÖµ",
+                ("×óÖµ", "×ó²à´ı±È½ÏµÄÖµ"),
+                ("ÓÒÖµ", "ÓÒ²à´ı±È½ÏµÄÖµ")),
             CreateJudgeMethod(
-                "å°äºç­‰äºåˆ¤æ–­",
-                "åˆ¤æ–­å·¦å€¼æ˜¯å¦å°äºç­‰äºå³å€¼",
-                ("å·¦å€¼", "å·¦ä¾§å¾…æ¯”è¾ƒçš„å€¼"),
-                ("å³å€¼", "å³ä¾§å¾…æ¯”è¾ƒçš„å€¼")),
+                "Ğ¡ÓÚµÈÓÚÅĞ¶Ï",
+                "ÅĞ¶Ï×óÖµÊÇ·ñĞ¡ÓÚµÈÓÚÓÒÖµ",
+                ("×óÖµ", "×ó²à´ı±È½ÏµÄÖµ"),
+                ("ÓÒÖµ", "ÓÒ²à´ı±È½ÏµÄÖµ")),
             CreateJudgeMethod(
-                "åŒ…å«åˆ¤æ–­",
-                "åˆ¤æ–­æ–‡æœ¬æ˜¯å¦åŒ…å«æŒ‡å®šå…³é”®å­—",
-                ("å¾…åˆ¤æ–­å€¼", "å¾…æ£€æŸ¥çš„æ–‡æœ¬"),
-                ("å…³é”®å­—", "ç”¨äºåŒ¹é…çš„å…³é”®å­—")),
+                "°üº¬ÅĞ¶Ï",
+                "ÅĞ¶ÏÎÄ±¾ÊÇ·ñ°üº¬Ö¸¶¨¹Ø¼ü×Ö",
+                ("´ıÅĞ¶ÏÖµ", "´ı¼ì²éµÄÎÄ±¾"),
+                ("¹Ø¼ü×Ö", "ÓÃÓÚÆ¥ÅäµÄ¹Ø¼ü×Ö")),
             CreateJudgeMethod(
-                "ä¸åŒ…å«åˆ¤æ–­",
-                "åˆ¤æ–­æ–‡æœ¬æ˜¯å¦ä¸åŒ…å«æŒ‡å®šå…³é”®å­—",
-                ("å¾…åˆ¤æ–­å€¼", "å¾…æ£€æŸ¥çš„æ–‡æœ¬"),
-                ("å…³é”®å­—", "ç”¨äºåŒ¹é…çš„å…³é”®å­—")),
+                "²»°üº¬ÅĞ¶Ï",
+                "ÅĞ¶ÏÎÄ±¾ÊÇ·ñ²»°üº¬Ö¸¶¨¹Ø¼ü×Ö",
+                ("´ıÅĞ¶ÏÖµ", "´ı¼ì²éµÄÎÄ±¾"),
+                ("¹Ø¼ü×Ö", "ÓÃÓÚÆ¥ÅäµÄ¹Ø¼ü×Ö")),
             CreateJudgeMethod(
-                "ä¸ºç©ºåˆ¤æ–­",
-                "åˆ¤æ–­æŒ‡å®šå€¼æ˜¯å¦ä¸ºç©º",
-                ("å¾…åˆ¤æ–­å€¼", "å¾…æ£€æŸ¥çš„å€¼")),
+                "Îª¿ÕÅĞ¶Ï",
+                "ÅĞ¶ÏÖ¸¶¨ÖµÊÇ·ñÎª¿Õ",
+                ("´ıÅĞ¶ÏÖµ", "´ı¼ì²éµÄÖµ")),
             CreateJudgeMethod(
-                "ä¸ä¸ºç©ºåˆ¤æ–­",
-                "åˆ¤æ–­æŒ‡å®šå€¼æ˜¯å¦ä¸ä¸ºç©º",
-                ("å¾…åˆ¤æ–­å€¼", "å¾…æ£€æŸ¥çš„å€¼"))
+                "²»Îª¿ÕÅĞ¶Ï",
+                "ÅĞ¶ÏÖ¸¶¨ÖµÊÇ·ñ²»Îª¿Õ",
+                ("´ıÅĞ¶ÏÖµ", "´ı¼ì²éµÄÖµ"))
         };
     }
 
     /// <summary>
-    /// åˆ›å»ºå•ä¸ªåˆ¤æ–­æ–¹æ³•çš„å…ƒæ•°æ®å®šä¹‰ã€‚
+    /// ´´½¨µ¥¸öÅĞ¶Ï·½·¨µÄÔªÊı¾İ¶¨Òå¡£
     /// </summary>
     private static SystemMethodSelectionItem CreateJudgeMethod(
         string name,
@@ -3302,7 +3235,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½ç³»ç»Ÿæ–¹æ³•çš„é€‰æ‹©é¡¹å®šä¹‰ã€‚
+    /// ¼ÓÔØÏµÍ³·½·¨µÄÑ¡ÔñÏî¶¨Òå¡£
     /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> LoadSystemMethodSelectionItems()
     {
@@ -3310,7 +3243,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å°†ä¸šåŠ¡ç›®å½•ä¸­çš„æ–¹æ³•æè¿°æ˜ å°„æˆç³»ç»Ÿæ–¹æ³•é€‰æ‹©é¡¹æ¨¡å‹ã€‚
+    /// ½«ÒµÎñÄ¿Â¼ÖĞµÄ·½·¨ÃèÊöÓ³Éä³ÉÏµÍ³·½·¨Ñ¡ÔñÏîÄ£ĞÍ¡£
     /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> LoadBusinessMethodSelectionItems(string deviceId)
     {
@@ -3327,7 +3260,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æšä¸¾ç³»ç»Ÿæ–¹æ³•æºç çš„å€™é€‰æ–‡ä»¶è·¯å¾„ã€‚
+    /// Ã¶¾ÙÏµÍ³·½·¨Ô´ÂëµÄºòÑ¡ÎÄ¼şÂ·¾¶¡£
     /// </summary>
     private static IEnumerable<string> GetSystemMethodSourceFileCandidates()
     {
@@ -3359,7 +3292,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä»æºç æ–‡æœ¬ä¸­è§£æç³»ç»Ÿæ–¹æ³•åˆ—è¡¨ã€‚
+    /// ´ÓÔ´ÂëÎÄ±¾ÖĞ½âÎöÏµÍ³·½·¨ÁĞ±í¡£
     /// </summary>
     private static IReadOnlyList<SystemMethodSelectionItem> ParseSystemMethodSelectionItems(string sourceText)
     {
@@ -3410,7 +3343,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä»å½“å‰è¡Œå¼€å§‹è¯»å–å®Œæ•´çš„æ–¹æ³•ç­¾åæ–‡æœ¬ã€‚
+    /// ´Óµ±Ç°ĞĞ¿ªÊ¼¶ÁÈ¡ÍêÕûµÄ·½·¨Ç©ÃûÎÄ±¾¡£
     /// </summary>
     private static bool TryReadSystemMethodSignature(string[] lines, ref int index, out Match match)
     {
@@ -3436,7 +3369,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç»Ÿè®¡æ–‡æœ¬ä¸­åœ†æ‹¬å·çš„æ·±åº¦å˜åŒ–ã€‚
+    /// Í³¼ÆÎÄ±¾ÖĞÔ²À¨ºÅµÄÉî¶È±ä»¯¡£
     /// </summary>
     private static int CountParenthesisDepth(string text)
     {
@@ -3457,7 +3390,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è§£æç³»ç»Ÿæ–¹æ³• XML æ–‡æ¡£æ‘˜è¦å’Œå‚æ•°è¯´æ˜ã€‚
+    /// ½âÎöÏµÍ³·½·¨ XML ÎÄµµÕªÒªºÍ²ÎÊıËµÃ÷¡£
     /// </summary>
     private static (string Summary, Dictionary<string, string> ParameterDescriptions) ParseSystemMethodDocumentation(string documentationText)
     {
@@ -3491,7 +3424,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// XML è§£æå¤±è´¥æ—¶ç”¨æ­£åˆ™å›é€€è§£ææ–¹æ³•æ–‡æ¡£ã€‚
+    /// XML ½âÎöÊ§°ÜÊ±ÓÃÕıÔò»ØÍË½âÎö·½·¨ÎÄµµ¡£
     /// </summary>
     private static (string Summary, Dictionary<string, string> ParameterDescriptions) ParseSystemMethodDocumentationFallback(string xmlText)
     {
@@ -3517,7 +3450,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è§£æç³»ç»Ÿæ–¹æ³•ç­¾åä¸­çš„å‚æ•°åˆ—è¡¨ã€‚
+    /// ½âÎöÏµÍ³·½·¨Ç©ÃûÖĞµÄ²ÎÊıÁĞ±í¡£
     /// </summary>
     private static IReadOnlyList<SystemMethodParameterSelectionItem> ParseSystemMethodParameters(
         string parameterText,
@@ -3567,7 +3500,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æŒ‰é€—å·æ‹†åˆ†æ–¹æ³•å‚æ•°æ–‡æœ¬ï¼ŒåŒæ—¶å¤„ç†æ³›å‹åµŒå¥—åœºæ™¯ã€‚
+    /// °´¶ººÅ²ğ·Ö·½·¨²ÎÊıÎÄ±¾£¬Í¬Ê±´¦Àí·ºĞÍÇ¶Ì×³¡¾°¡£
     /// </summary>
     private static IEnumerable<string> SplitSystemMethodParameters(string parameterText)
     {
@@ -3600,7 +3533,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­æ ‡è®°æ˜¯å¦å±äºå‚æ•°ä¿®é¥°ç¬¦ã€‚
+    /// ÅĞ¶Ï±ê¼ÇÊÇ·ñÊôÓÚ²ÎÊıĞŞÊÎ·û¡£
     /// </summary>
     private static bool IsParameterModifier(string value)
     {
@@ -3608,7 +3541,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è§„èŒƒåŒ–æ–‡æ¡£æ–‡æœ¬ï¼Œå»é™¤æ ‡ç­¾å’Œå¤šä½™ç©ºç™½ã€‚
+    /// ¹æ·¶»¯ÎÄµµÎÄ±¾£¬È¥³ı±êÇ©ºÍ¶àÓà¿Õ°×¡£
     /// </summary>
     private static string NormalizeDocumentationText(string? value)
     {
@@ -3617,7 +3550,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä»¥å¿½ç•¥å¤§å°å†™å’Œé¦–å°¾ç©ºç™½çš„æ–¹å¼æ¯”è¾ƒæ–‡æœ¬ã€‚
+    /// ÒÔºöÂÔ´óĞ¡Ğ´ºÍÊ×Î²¿Õ°×µÄ·½Ê½±È½ÏÎÄ±¾¡£
     /// </summary>
     private static bool TextEquals(string? left, string? right)
     {
@@ -3625,7 +3558,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è¯»å–è®¾å¤‡æ“ä½œå¯¹è±¡ä¸‹æ‹‰é¡¹ï¼›å½“å‰åªè¿”å›é€šä¿¡é…ç½®ä¸­çš„è®¾å¤‡åç§°ã€‚
+    /// ¶ÁÈ¡Éè±¸²Ù×÷¶ÔÏóÏÂÀ­Ïî£»µ±Ç°Ö»·µ»ØÍ¨ĞÅÅäÖÃÖĞµÄÉè±¸Ãû³Æ¡£
     /// </summary>
     private static IEnumerable<string> LoadDeviceOperationObjectOptions()
     {
@@ -3652,7 +3585,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             }
             catch
             {
-                // å¿½ç•¥æŸåæˆ–éé€šä¿¡é…ç½® JSONï¼Œåˆ·æ–°ä¸‹æ‹‰æ—¶ä¸é˜»æ–­ç¼–è¾‘æµç¨‹ã€‚
+                // ºöÂÔËğ»µ»ò·ÇÍ¨ĞÅÅäÖÃ JSON£¬Ë¢ĞÂÏÂÀ­Ê±²»×è¶Ï±à¼­Á÷³Ì¡£
             }
         }
 
@@ -3663,7 +3596,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è¯»å–æŒ‡å®šè®¾å¤‡åœ¨é€šä¿¡é…ç½®ä¸­å£°æ˜çš„æ”¯æŒåè®®åç§°ã€‚
+    /// ¶ÁÈ¡Ö¸¶¨Éè±¸ÔÚÍ¨ĞÅÅäÖÃÖĞÉùÃ÷µÄÖ§³ÖĞ­ÒéÃû³Æ¡£
     /// </summary>
     private static IEnumerable<string> LoadDeviceSupportedProtocolNames(string operationObject)
     {
@@ -3709,7 +3642,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             }
             catch
             {
-                // å¿½ç•¥æŸåæˆ–éé€šä¿¡é…ç½® JSONï¼Œé¿å…é˜»æ–­æ­¥éª¤ç¼–è¾‘ã€‚
+                // ºöÂÔËğ»µ»ò·ÇÍ¨ĞÅÅäÖÃ JSON£¬±ÜÃâ×è¶Ï²½Öè±à¼­¡£
             }
         }
 
@@ -3720,7 +3653,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½å…¨éƒ¨åè®®åç§°é€‰é¡¹ã€‚
+    /// ¼ÓÔØÈ«²¿Ğ­ÒéÃû³ÆÑ¡Ïî¡£
     /// </summary>
     private static IEnumerable<string> LoadProtocolOptions()
     {
@@ -3732,7 +3665,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½æŒ‡å®šåè®®ä¸‹çš„å…¨éƒ¨æŒ‡ä»¤åç§°ã€‚
+    /// ¼ÓÔØÖ¸¶¨Ğ­ÒéÏÂµÄÈ«²¿Ö¸ÁîÃû³Æ¡£
     /// </summary>
     private static IEnumerable<string> LoadProtocolCommandOptions(string protocolName)
     {
@@ -3745,7 +3678,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½æŒ‡å®šåè®®æŒ‡ä»¤çš„å ä½ç¬¦å®šä¹‰ã€‚
+    /// ¼ÓÔØÖ¸¶¨Ğ­ÒéÖ¸ÁîµÄÕ¼Î»·û¶¨Òå¡£
     /// </summary>
     private static IReadOnlyList<ProtocolPlaceholderSelectionItem> LoadProtocolCommandPlaceholders(
         string protocolName,
@@ -3767,7 +3700,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åŠ è½½æŒ‡å®šåè®®æŒ‡ä»¤æ”¯æŒçš„è¿”å›å€¼é”®ã€‚
+    /// ¼ÓÔØÖ¸¶¨Ğ­ÒéÖ¸ÁîÖ§³ÖµÄ·µ»ØÖµ¼ü¡£
     /// </summary>
     private static IReadOnlyList<string> LoadProtocolCommandReturnValueKeys(
         string protocolName,
@@ -3789,7 +3722,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ¨å¯¼åè®®æŒ‡ä»¤é»˜è®¤çš„è¿”å›å€¼é”®ã€‚
+    /// ÍÆµ¼Ğ­ÒéÖ¸ÁîÄ¬ÈÏµÄ·µ»ØÖµ¼ü¡£
     /// </summary>
     private static string ResolveDefaultProtocolCommandReturnValueKey(
         string protocolName,
@@ -3800,7 +3733,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä»åè®®é…ç½®ç›®å½•åŠ è½½åè®®åŠæŒ‡ä»¤å®šä¹‰ã€‚
+    /// ´ÓĞ­ÒéÅäÖÃÄ¿Â¼¼ÓÔØĞ­Òé¼°Ö¸Áî¶¨Òå¡£
     /// </summary>
     private static IEnumerable<ProtocolSelectionItem> LoadProtocolSelectionItems()
     {
@@ -3853,7 +3786,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
                 if (commands.Count == 0)
                 {
                     commands.Add(new ProtocolCommandSelectionItem(
-                        "æŒ‡ä»¤ 1",
+                        "Ö¸Áî 1",
                         BuildProtocolPlaceholderSelectionItems(
                             GetJsonString(document.RootElement, "ContentTemplate"),
                             GetJsonString(document.RootElement, "PlaceholderValuesText")),
@@ -3864,7 +3797,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
             }
             catch
             {
-                // å¿½ç•¥æŸåæˆ–æ— æ³•è§£å¯†çš„åè®®é…ç½®ï¼Œé¿å…é˜»æ–­å·¥æ­¥ç¼–è¾‘ã€‚
+                // ºöÂÔËğ»µ»òÎŞ·¨½âÃÜµÄĞ­ÒéÅäÖÃ£¬±ÜÃâ×è¶Ï¹¤²½±à¼­¡£
             }
         }
 
@@ -3872,7 +3805,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è¯»å–åè®®é…ç½®å†…å®¹ï¼Œå…¼å®¹åŠ å¯†å’Œæ˜æ–‡ä¸¤ç§æ ¼å¼ã€‚
+    /// ¶ÁÈ¡Ğ­ÒéÅäÖÃÄÚÈİ£¬¼æÈİ¼ÓÃÜºÍÃ÷ÎÄÁ½ÖÖ¸ñÊ½¡£
     /// </summary>
     private static string TryReadProtocolJson(string storageText)
     {
@@ -3887,7 +3820,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä» JSON å…ƒç´ ä¸­å®‰å…¨è¯»å–å­—ç¬¦ä¸²å±æ€§ã€‚
+    /// ´Ó JSON ÔªËØÖĞ°²È«¶ÁÈ¡×Ö·û´®ÊôĞÔ¡£
     /// </summary>
     private static string GetJsonString(JsonElement element, string propertyName)
     {
@@ -3897,7 +3830,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä» JSON å…ƒç´ ä¸­å®‰å…¨è¯»å–å­—ç¬¦ä¸²æ•°ç»„å±æ€§ã€‚
+    /// ´Ó JSON ÔªËØÖĞ°²È«¶ÁÈ¡×Ö·û´®Êı×éÊôĞÔ¡£
     /// </summary>
     private static IReadOnlyList<string> GetJsonStringArray(JsonElement element, string propertyName)
     {
@@ -3919,7 +3852,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// æ ¹æ®æ¨¡æ¿æ–‡æœ¬å’Œé»˜è®¤å€¼æ„å»ºå ä½ç¬¦é€‰æ‹©é¡¹ã€‚
+    /// ¸ù¾İÄ£°åÎÄ±¾ºÍÄ¬ÈÏÖµ¹¹½¨Õ¼Î»·ûÑ¡ÔñÏî¡£
     /// </summary>
     private static IReadOnlyList<ProtocolPlaceholderSelectionItem> BuildProtocolPlaceholderSelectionItems(
         string contentTemplate,
@@ -3937,7 +3870,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ä»åè®®æ¨¡æ¿ä¸­æå–å ä½ç¬¦åç§°ã€‚
+    /// ´ÓĞ­ÒéÄ£°åÖĞÌáÈ¡Õ¼Î»·ûÃû³Æ¡£
     /// </summary>
     private static IEnumerable<string> ExtractProtocolPlaceholderNames(string contentTemplate)
     {
@@ -3953,7 +3886,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è§£æå ä½ç¬¦é»˜è®¤å€¼é…ç½®æ–‡æœ¬ã€‚
+    /// ½âÎöÕ¼Î»·ûÄ¬ÈÏÖµÅäÖÃÎÄ±¾¡£
     /// </summary>
     private static Dictionary<string, string> ParseProtocolPlaceholderValues(string placeholderValuesText)
     {
@@ -3989,7 +3922,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç¡®ä¿æŒ‡å®šæ“ä½œå¯¹è±¡å­˜åœ¨äºå½“å‰ä¸‹æ‹‰é€‰é¡¹ä¸­ã€‚
+    /// È·±£Ö¸¶¨²Ù×÷¶ÔÏó´æÔÚÓÚµ±Ç°ÏÂÀ­Ñ¡ÏîÖĞ¡£
     /// </summary>
     private void EnsureOperationObjectOption(string operationObject)
     {
@@ -4002,7 +3935,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç¡®ä¿æŒ‡å®šåè®®åå­˜åœ¨äºå½“å‰åè®®é€‰é¡¹ä¸­ï¼Œå¹¶åŒæ­¥ç¼–è¾‘å€¼ã€‚
+    /// È·±£Ö¸¶¨Ğ­ÒéÃû´æÔÚÓÚµ±Ç°Ğ­ÒéÑ¡ÏîÖĞ£¬²¢Í¬²½±à¼­Öµ¡£
     /// </summary>
     private void EnsureProtocolOption(string protocolName)
     {
@@ -4020,7 +3953,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// ç¡®ä¿æŒ‡å®šæŒ‡ä»¤åå­˜åœ¨äºå½“å‰æŒ‡ä»¤é€‰é¡¹ä¸­ï¼Œå¹¶åŒæ­¥ç¼–è¾‘å€¼ã€‚
+    /// È·±£Ö¸¶¨Ö¸ÁîÃû´æÔÚÓÚµ±Ç°Ö¸ÁîÑ¡ÏîÖĞ£¬²¢Í¬²½±à¼­Öµ¡£
     /// </summary>
     private void EnsureCommandOption(string commandName)
     {
@@ -4038,7 +3971,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è§£ææ­¥éª¤åœ¨ç¼–è¾‘æ€ä¸‹åº”æ˜¾ç¤ºçš„æ“ä½œå¯¹è±¡åç§°ã€‚
+    /// ½âÎö²½ÖèÔÚ±à¼­Ì¬ÏÂÓ¦ÏÔÊ¾µÄ²Ù×÷¶ÔÏóÃû³Æ¡£
     /// </summary>
     private static string ResolveOperationObjectForEditing(WorkStepOperation operation)
     {
@@ -4066,30 +3999,30 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­æ“ä½œç±»å‹æ˜¯å¦ä¸ºæ—§ç‰ˆç³»ç»Ÿç±»å‹æ ‡è®°ã€‚
+    /// ÅĞ¶Ï²Ù×÷ÀàĞÍÊÇ·ñÎª¾É°æÏµÍ³ÀàĞÍ±ê¼Ç¡£
     /// </summary>
     private static bool IsLegacySystemOperationType(string? operationType)
     {
-        return string.Equals(operationType?.Trim(), "ç³»ç»Ÿ", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(operationType?.Trim(), "ÏµÍ³", StringComparison.OrdinalIgnoreCase);
     }
 
     internal const string SystemOperationObjectName = "System";
 
-    internal const string JudgeOperationObjectName = "åˆ¤æ–­";
+    internal const string JudgeOperationObjectName = "ÅĞ¶Ï";
 
     internal const string LuaOperationObjectName = "Lua";
 
     /// <summary>
-    /// åˆ¤æ–­æ“ä½œå¯¹è±¡æ˜¯å¦ä¸ºç³»ç»Ÿå¯¹è±¡ã€‚
+    /// ÅĞ¶Ï²Ù×÷¶ÔÏóÊÇ·ñÎªÏµÍ³¶ÔÏó¡£
     /// </summary>
     internal static bool IsSystemOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), SystemOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operationObject?.Trim(), "ç³»ç»Ÿ", StringComparison.OrdinalIgnoreCase);
+               string.Equals(operationObject?.Trim(), "ÏµÍ³", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// åˆ¤æ–­æ“ä½œå¯¹è±¡æ˜¯å¦ä¸ºåˆ¤æ–­å¯¹è±¡ã€‚
+    /// ÅĞ¶Ï²Ù×÷¶ÔÏóÊÇ·ñÎªÅĞ¶Ï¶ÔÏó¡£
     /// </summary>
     internal static bool IsJudgeOperationObject(string? operationObject)
     {
@@ -4097,7 +4030,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­æ“ä½œå¯¹è±¡æ˜¯å¦ä¸º Lua å¯¹è±¡ã€‚
+    /// ÅĞ¶Ï²Ù×÷¶ÔÏóÊÇ·ñÎª Lua ¶ÔÏó¡£
     /// </summary>
     internal static bool IsLuaOperationObject(string? operationObject)
     {
@@ -4105,18 +4038,18 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ¤æ–­è°ƒç”¨æ–¹æ³•æ˜¯å¦ä»ä¸ºå ä½æ–‡æœ¬ã€‚
+    /// ÅĞ¶Ïµ÷ÓÃ·½·¨ÊÇ·ñÈÔÎªÕ¼Î»ÎÄ±¾¡£
     /// </summary>
     private static bool IsPlaceholderInvokeMethod(string? invokeMethod)
     {
         return string.IsNullOrWhiteSpace(invokeMethod) ||
-               string.Equals(invokeMethod.Trim(), "è°ƒç”¨æ–¹æ³•", StringComparison.OrdinalIgnoreCase);
+               string.Equals(invokeMethod.Trim(), "µ÷ÓÃ·½·¨", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class SystemMethodSelectionItem
     {
         /// <summary>
-        /// åˆ›å»ºç³»ç»Ÿæ–¹æ³•é€‰æ‹©é¡¹ã€‚
+        /// ´´½¨ÏµÍ³·½·¨Ñ¡ÔñÏî¡£
         /// </summary>
         public SystemMethodSelectionItem(
             string name,
@@ -4138,7 +4071,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     private sealed class SystemMethodParameterSelectionItem
     {
         /// <summary>
-        /// åˆ›å»ºç³»ç»Ÿæ–¹æ³•å‚æ•°é€‰æ‹©é¡¹ã€‚
+        /// ´´½¨ÏµÍ³·½·¨²ÎÊıÑ¡ÔñÏî¡£
         /// </summary>
         public SystemMethodParameterSelectionItem(string name, string type, string description, string defaultValue = "")
         {
@@ -4160,7 +4093,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     private sealed class ProtocolSelectionItem
     {
         /// <summary>
-        /// åˆ›å»ºåè®®é€‰æ‹©é¡¹ã€‚
+        /// ´´½¨Ğ­ÒéÑ¡ÔñÏî¡£
         /// </summary>
         public ProtocolSelectionItem(string name, IEnumerable<ProtocolCommandSelectionItem> commands)
         {
@@ -4176,7 +4109,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     private sealed class ProtocolCommandSelectionItem
     {
         /// <summary>
-        /// åˆ›å»ºåè®®æŒ‡ä»¤é€‰æ‹©é¡¹ã€‚
+        /// ´´½¨Ğ­ÒéÖ¸ÁîÑ¡ÔñÏî¡£
         /// </summary>
         public ProtocolCommandSelectionItem(
             string name,
@@ -4203,7 +4136,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     private sealed class ProtocolPlaceholderSelectionItem
     {
         /// <summary>
-        /// åˆ›å»ºåè®®å ä½ç¬¦é€‰æ‹©é¡¹ã€‚
+        /// ´´½¨Ğ­ÒéÕ¼Î»·ûÑ¡ÔñÏî¡£
         /// </summary>
         public ProtocolPlaceholderSelectionItem(string name, string value)
         {
@@ -4217,7 +4150,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ·æ–°æ‰€æœ‰é¡µé¢å‘½ä»¤çš„å¯æ‰§è¡ŒçŠ¶æ€ã€‚
+    /// Ë¢ĞÂËùÓĞÒ³ÃæÃüÁîµÄ¿ÉÖ´ĞĞ×´Ì¬¡£
     /// </summary>
     private void RaiseCommandStatesChanged()
     {
@@ -4235,7 +4168,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å¦‚æœå‘½ä»¤æ˜¯ <see cref="RelayCommand"/>ï¼Œåˆ™è§¦å‘å…¶å¯æ‰§è¡ŒçŠ¶æ€åˆ·æ–°ã€‚
+    /// Èç¹ûÃüÁîÊÇ <see cref="RelayCommand"/>£¬Ôò´¥·¢Æä¿ÉÖ´ĞĞ×´Ì¬Ë¢ĞÂ¡£
     /// </summary>
     private static void RaiseCommandState(ICommand? command)
     {
@@ -4249,18 +4182,18 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
 
     /// <summary>
-    /// ä»¥ç‹¬ç«‹ç¼–è¾‘æ¨¡å¼æ‰“å¼€å•æ¡æ­¥éª¤ï¼Œä¸å½±å“å®¿ä¸»é¡µé¢çš„æ•°æ®ä¸Šä¸‹æ–‡ã€‚
+    /// ÒÔ¶ÀÁ¢±à¼­Ä£Ê½´ò¿ªµ¥Ìõ²½Öè£¬²»Ó°ÏìËŞÖ÷Ò³ÃæµÄÊı¾İÉÏÏÂÎÄ¡£
     /// </summary>
     public void BeginStandaloneOperationEdit(
         WorkStepOperation? operation,
-        string stepName = "æµç¨‹å›¾å¤„ç†å—",
+        string stepName = "Á÷³ÌÍ¼´¦Àí¿é",
         bool isDecisionOperationMode = false)
     {
         _isDecisionOperationMode = isDecisionOperationMode;
         _isStandaloneOperationEditMode = true;
         WorkStepProfile temporaryWorkStep = new()
         {
-            StepName = string.IsNullOrWhiteSpace(stepName) ? "æµç¨‹å›¾å¤„ç†å—" : stepName.Trim(),
+            StepName = string.IsNullOrWhiteSpace(stepName) ? "Á÷³ÌÍ¼´¦Àí¿é" : stepName.Trim(),
             Steps = new ObservableCollection<WorkStepOperation>()
         };
 
@@ -4285,12 +4218,12 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         BeginOperationDrawer(editingOperation, isNewOperation: true);
         SetPageStatus(
-            _isDecisionOperationMode ? "æ­£åœ¨ç¼–è¾‘æµç¨‹å›¾åˆ¤æ–­å—ã€‚" : "æ­£åœ¨ç¼–è¾‘æµç¨‹å›¾å¤„ç†å—ã€‚",
+            _isDecisionOperationMode ? "ÕıÔÚ±à¼­Á÷³ÌÍ¼ÅĞ¶Ï¿é¡£" : "ÕıÔÚ±à¼­Á÷³ÌÍ¼´¦Àí¿é¡£",
             NeutralBrush);
     }
 
     /// <summary>
-    /// è®¾ç½®ç‹¬ç«‹ç¼–è¾‘æ¨¡å¼å¯å¼•ç”¨çš„å¤–éƒ¨è¿”å›å€¼ï¼Œä¾‹å¦‚æµç¨‹å›¾å…¶å®ƒèŠ‚ç‚¹çš„è¿”å›å€¼ã€‚
+    /// ÉèÖÃ¶ÀÁ¢±à¼­Ä£Ê½¿ÉÒıÓÃµÄÍâ²¿·µ»ØÖµ£¬ÀıÈçÁ÷³ÌÍ¼ÆäËü½ÚµãµÄ·µ»ØÖµ¡£
     /// </summary>
     public void SetStandaloneReturnValueOptions(IEnumerable<string> returnValues)
     {
@@ -4300,7 +4233,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å°è¯•ä¿å­˜å½“å‰ç‹¬ç«‹ç¼–è¾‘çš„æ­¥éª¤ï¼›è‹¥æ ¡éªŒå¤±è´¥åˆ™ä¿æŒç¼–è¾‘çŠ¶æ€ã€‚
+    /// ³¢ÊÔ±£´æµ±Ç°¶ÀÁ¢±à¼­µÄ²½Öè£»ÈôĞ£ÑéÊ§°ÜÔò±£³Ö±à¼­×´Ì¬¡£
     /// </summary>
     public bool TrySaveStandaloneOperationEdit()
     {
@@ -4314,7 +4247,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// å–æ¶ˆå½“å‰ç‹¬ç«‹ç¼–è¾‘ã€‚
+    /// È¡Ïûµ±Ç°¶ÀÁ¢±à¼­¡£
     /// </summary>
     public void CancelStandaloneOperationEdit()
     {
@@ -4327,7 +4260,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// è·å–ç‹¬ç«‹ç¼–è¾‘åçš„å½“å‰æ­¥éª¤å¿«ç…§ã€‚
+    /// »ñÈ¡¶ÀÁ¢±à¼­ºóµÄµ±Ç°²½Öè¿ìÕÕ¡£
     /// </summary>
     public WorkStepOperation? CreateEditedOperationSnapshot()
     {
@@ -4336,7 +4269,7 @@ private static readonly Regex ProtocolPlaceholderRegex =
     }
 
     /// <summary>
-    /// åˆ›å»ºç‹¬ç«‹ç¼–è¾‘æ¨¡å¼ä¸‹ä½¿ç”¨çš„é»˜è®¤æ­¥éª¤æ¨¡æ¿ã€‚
+    /// ´´½¨¶ÀÁ¢±à¼­Ä£Ê½ÏÂÊ¹ÓÃµÄÄ¬ÈÏ²½ÖèÄ£°å¡£
     /// </summary>
     private static WorkStepOperation CreateDefaultStandaloneOperation()
     {

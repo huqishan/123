@@ -1,7 +1,6 @@
 ﻿using RabbitMQ.Client.Events;
 using RabbitMQ.Client;
 using Shared.Abstractions.Enum;
-using Shared.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,48 +8,30 @@ using System.Text;
 using System.Threading.Tasks;
 using Shared.Models.Communication;
 using Shared.Models.Log;
+using Shared.Abstractions.ICommunication;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class RabbitMQRPCServer : ICommunication
+    [CommunicationAdapter(typeof(RabbitMqRpcServerRuntimeConfig))]
+    public class RabbitMQRPCServer : CommunicationBase, ICommunication
     {
         #region Propertys
         private IConnection _Connection;
         private IModel _Channel;
         private EventingBasicConsumer _Consumer;
         private ConnectionFactory _Factory;
-        public string LocalName { get; }
-        private ConnectState _IsConnected = ConnectState.DisConnected;
-        public ConnectState IsConnected
-        {
-            get
-            {
-                if (_Factory == null)
-                    return ConnectState.DisConnected;
-                else
-                    return _IsConnected;
-            }
-            private set
-            {
-                if (_IsConnected != value)
-                {
-                    _IsConnected = value;
-                    SendState(value);
-                }
-            }
-        }
 
 
         #endregion
         #region 构造
-        public RabbitMQRPCServer(CommuniactionConfigModel config)
+        public RabbitMQRPCServer(RabbitMqRpcServerRuntimeConfig config)
         {
             LocalName = config.LocalName;
-            _Factory = new ConnectionFactory() { HostName = config.RemoteIPAddress, Port = config.RemotePort, UserName = config.UserName, Password = config.PassWord };
+            _Factory = new ConnectionFactory() { HostName = config.RemoteIpAddress, Port = config.RemotePort, UserName = config.UserName, Password = config.Password };
         }
         #endregion
         #region 方法
-        public bool Close()
+        public override bool Close()
         {
             if (_Connection != null && _Connection.IsOpen)
             {
@@ -64,7 +45,7 @@ namespace Shared.Infrastructure.Communication
 
 
 
-        public bool Start()
+        public override bool Start()
         {
             _Connection = _Factory.CreateConnection();
             _Channel = _Connection.CreateModel();
@@ -85,7 +66,7 @@ namespace Shared.Infrastructure.Communication
                     {
                         var message = Encoding.UTF8.GetString(body.ToArray());
                         WriteLog(new LogMessageModel() { Message = $"ClientId:{props.CorrelationId}-->Server:{message}", Type = Abstractions.Enum.LogType.INFO });
-                        response = OnReceive?.Invoke(message, props.CorrelationId);
+                        response = RaiseReceive(message, props.CorrelationId);
                     }
                     catch (Exception e)
                     {
@@ -139,18 +120,6 @@ namespace Shared.Infrastructure.Communication
         }
         #endregion
         #region 事件
-        public event ReceiveData OnReceive;
-        public event Action<LogMessageModel> OnLog;
-        public event StateChanged StateChange;
-
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => { OnLog?.Invoke(message); });
-        }
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => { StateChange?.Invoke(connectState, LocalName); });
-        }
         #endregion
     }
 }

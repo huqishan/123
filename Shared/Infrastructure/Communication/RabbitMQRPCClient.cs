@@ -1,5 +1,4 @@
 ﻿using Shared.Abstractions.Enum;
-using Shared.Abstractions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,10 +9,12 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Shared.Models.Communication;
 using Shared.Models.Log;
+using Shared.Abstractions.ICommunication;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class RabbitMQRPCClient : ICommunication
+    [CommunicationAdapter(typeof(RabbitMqRpcClientRuntimeConfig))]
+    public class RabbitMQRPCClient : CommunicationBase, ICommunication
     {
         #region Propertys
         private IConnection _Connection;
@@ -23,37 +24,17 @@ namespace Shared.Infrastructure.Communication
         private BlockingCollection<string> _RespQueue = new BlockingCollection<string>();
         private IBasicProperties _Props;
         private ConnectionFactory _Factory;
-        public string LocalName { get; }
-        private ConnectState _IsConnected = ConnectState.DisConnected;
-        public ConnectState IsConnected
-        {
-            get
-            {
-                if (_Connection == null)
-                    return ConnectState.DisConnected;
-                else
-                    return _IsConnected;
-            }
-            private set
-            {
-                if (_IsConnected != value)
-                {
-                    _IsConnected = value;
-                    SendState(value);
-                }
-            }
-        }
         #endregion
         #region 构造
-        public RabbitMQRPCClient(CommuniactionConfigModel config)
+        public RabbitMQRPCClient(RabbitMqRpcClientRuntimeConfig config)
         {
             LocalName = config.LocalName;
-            _Factory = new ConnectionFactory() { HostName = config.RemoteIPAddress, UserName = config.UserName, Password = config.PassWord };
+            _Factory = new ConnectionFactory() { HostName = config.RemoteIpAddress, Port = config.RemotePort, UserName = config.UserName, Password = config.Password };
 
         }
         #endregion
         #region 方法
-        public bool Close()
+        public override bool Close()
         {
             _Connection?.Close();
             _Connection?.Dispose();
@@ -67,7 +48,7 @@ namespace Shared.Infrastructure.Communication
             return true;
         }
 
-        public bool Start()
+        public override bool Start()
         {
             _Connection = _Factory.CreateConnection();
             _Channel = _Connection.CreateModel();
@@ -106,7 +87,7 @@ namespace Shared.Infrastructure.Communication
                 }
                 else
                 {
-                    OnReceive?.Invoke(_RespQueue.Take());
+                    RaiseReceive(_RespQueue.Take());
                 }
             }
             catch (Exception ex)
@@ -125,18 +106,6 @@ namespace Shared.Infrastructure.Communication
         }
         #endregion
         #region 事件
-        public event ReceiveData OnReceive;
-        public event Action<LogMessageModel> OnLog;
-        public event StateChanged StateChange;
-
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => { OnLog?.Invoke(message); });
-        }
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => { StateChange?.Invoke(connectState, LocalName); });
-        }
         #endregion
     }
 }

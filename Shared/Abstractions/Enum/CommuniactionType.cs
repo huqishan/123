@@ -10,12 +10,12 @@ namespace Shared.Abstractions.Enum
     {
         TCPClient,
         TCPServer,
-        MX,
         UDP,
         UDPServer,
         COM,
         RabbitMQRPCServer,
         RabbitMQRPCClient,
-        PLC
+        PLC,
+        CAN
     }
 }

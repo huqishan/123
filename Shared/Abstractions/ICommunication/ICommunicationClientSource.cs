@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared.Abstractions
+namespace Shared.Abstractions.ICommunication
 {
     /// <summary>
     /// 单个已连接客户端的只读快照，供界面展示和定向发送使用。

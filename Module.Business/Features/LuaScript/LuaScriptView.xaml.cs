@@ -1,8 +1,7 @@
-using Module.Business.ViewModels;
 using System;
 using System.Windows.Controls;
 
-namespace Module.Business.Views;
+namespace Module.Business.Features.LuaScript;
 
 /// <summary>
 /// Lua script editor view.

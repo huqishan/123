@@ -1,6 +1,6 @@
 using ControlLibrary;
 using ControlLibrary.Controls.FlowchartEditor.Models;
-using Module.Business.ViewModels;
+using Module.Business.Features.StationConfiguration;
 using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 

@@ -1,7 +1,6 @@
 using ControlLibrary;
 using ControlLibrary.Models.MediatorModels.Communication;
 using Module.Communication.Models;
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
 using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Extensions;
@@ -18,6 +17,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Module.Communication.ViewModels.PropertyVMs;
+using Shared.Abstractions.ICommunication;
 
 namespace Module.Communication.Services
 {
@@ -190,7 +190,14 @@ namespace Module.Communication.Services
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                bool isSuccess = await context.Communication.SendAsync(readWriteModel).ConfigureAwait(false);
+                if (context.Communication is not ICommunication messageCommunication)
+                {
+                    return DeviceExecutionActionResult.CreateFailure(
+                        $"Device '{context.DeviceName}' does not support message send.",
+                        context.DeviceName);
+                }
+
+                bool isSuccess = await messageCommunication.SendAsync(readWriteModel).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
                 return DeviceExecutionActionResult.Create(
@@ -248,7 +255,7 @@ namespace Module.Communication.Services
         /// <returns>初始化结果。</returns>
         private DeviceExecutionActionResult InitializeDevice(DeviceCommunicationProfile profile)
         {
-            if (!TryBuildRuntimeConfig(profile, out CommuniactionConfigModel? config, out DeviceExecutionActionResult failure))
+            if (!TryBuildRuntimeConfig(profile, out ICommunicationRuntimeConfig? config, out DeviceExecutionActionResult failure))
             {
                 return failure;
             }
@@ -282,13 +289,13 @@ namespace Module.Communication.Services
         /// <returns>是否构建成功。</returns>
         private static bool TryBuildRuntimeConfig(
             DeviceCommunicationProfile profile,
-            out CommuniactionConfigModel config,
+            out ICommunicationRuntimeConfig config,
             out DeviceExecutionActionResult failure)
         {
             config = null!;
             failure = default!;
 
-            if (profile.TryBuildRuntimeConfig(out CommuniactionConfigModel? runtimeConfig, out string validationMessage) &&
+            if (profile.TryBuildRuntimeConfig(out ICommunicationRuntimeConfig? runtimeConfig, out string validationMessage) &&
                 runtimeConfig is not null)
             {
                 config = runtimeConfig;
@@ -309,7 +316,7 @@ namespace Module.Communication.Services
         /// <returns>是否创建成功。</returns>
         private bool TryCreateRuntimeContext(
             DeviceCommunicationProfile profile,
-            CommuniactionConfigModel config,
+            ICommunicationRuntimeConfig config,
             out DeviceRuntimeContext context,
             out DeviceExecutionActionResult failure)
         {
@@ -317,14 +324,14 @@ namespace Module.Communication.Services
             failure = default!;
 
             DeviceRuntimeContext? oldContext = RemoveExistingRuntimeContext(config.LocalName);
-            ICommunication? communication = null;
+            CommunicationBase? communication = null;
 
             try
             {
                 DisposeRuntimeContext(oldContext);
                 CommunicationFactory.Remove(config.LocalName);
 
-                communication = CommunicationFactory.CreateCommuniactionProtocol(config);
+                communication = CommunicationFactory.CreateCommunicationProtocol(config);
                 context = new DeviceRuntimeContext(profile.Clone(config.LocalName), communication, config.Type);
                 AttachCommunicationEvents(context);
                 return true;
@@ -357,7 +364,7 @@ namespace Module.Communication.Services
         /// <param name="communication">通信实例。</param>
         /// <param name="deviceName">设备名称。</param>
         /// <returns>启动结果。</returns>
-        private static DeviceExecutionActionResult StartDevice(ICommunication communication, string deviceName)
+        private static DeviceExecutionActionResult StartDevice(CommunicationBase communication, string deviceName)
         {
             bool started = communication.Start();
 
@@ -888,7 +895,14 @@ namespace Module.Communication.Services
             try
             {
                 SendReceiveModel model = readWriteModel;
-                bool isSuccess = context.Communication.Send(ref model, isWait);
+                if (context.Communication is not ICommunication messageCommunication)
+                {
+                    return DeviceExecutionActionResult.CreateFailure(
+                        $"Device '{context.DeviceName}' does not support message send.",
+                        context.DeviceName);
+                }
+
+                bool isSuccess = messageCommunication.Send(ref model, isWait);
 
                 return DeviceExecutionActionResult.Create(
                     isSuccess,
@@ -992,7 +1006,7 @@ namespace Module.Communication.Services
             /// <param name="communicationType">通信类型。</param>
             public DeviceRuntimeContext(
                 DeviceCommunicationProfile profile,
-                ICommunication communication,
+                CommunicationBase communication,
                 CommuniactionType communicationType)
             {
                 Profile = profile;
@@ -1009,7 +1023,7 @@ namespace Module.Communication.Services
             /// <summary>
             /// 当前通信实例。
             /// </summary>
-            public ICommunication Communication { get; }
+            public CommunicationBase Communication { get; }
 
             /// <summary>
             /// 当前通信类型。

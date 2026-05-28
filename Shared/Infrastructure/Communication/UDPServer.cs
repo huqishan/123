@@ -1,5 +1,5 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
+using Shared.Abstractions.ICommunication;
 using Shared.Infrastructure.Extensions;
 using Shared.Models.Communication;
 using Shared.Models.Log;
@@ -13,7 +13,8 @@ using System.Threading.Tasks;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class UDPServer : ICommunication
+    [CommunicationAdapter(typeof(UdpServerRuntimeConfig))]
+    public class UDPServer : CommunicationBase, ICommunication
     {
         private readonly ConcurrentDictionary<string, IPEndPoint> _remoteEndpoints = new ConcurrentDictionary<string, IPEndPoint>();
         private readonly BlockingCollection<string> _responseQueue = new BlockingCollection<string>();
@@ -23,7 +24,6 @@ namespace Shared.Infrastructure.Communication
         private CancellationTokenSource? _lifetimeCts;
         private Task? _receiveTask;
         private bool _lastSendIsHex;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
         /// <summary>
         /// 服务器 IP。
@@ -37,38 +37,15 @@ namespace Shared.Infrastructure.Communication
 
         public string LocalClientName { get; private set; } = string.Empty;
 
-        public string LocalName { get; }
-
-        public ConnectState IsConnected
+        public UDPServer(UdpServerRuntimeConfig config)
         {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                SendState(value);
-            }
-        }
-
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event StateChanged StateChange = delegate { };
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public UDPServer(CommuniactionConfigModel config)
-        {
-            LocalAddress = config.LocalIPAddress;
+            LocalAddress = config.LocalIpAddress;
             LocalPort = Convert.ToUInt16(config.LocalPort);
             LocalName = config.LocalName;
             LocalClientName = config.LocalName;
         }
 
-        public bool Start()
+        public override bool Start()
         {
             if (!CheckIpAddressAndPort(LocalAddress, LocalPort.ToString()))
             {
@@ -101,7 +78,7 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Close()
+        public override bool Close()
         {
             try
             {
@@ -248,7 +225,7 @@ namespace Shared.Infrastructure.Communication
                     string command = OnReceiveHandler(result.Buffer);
                     _responseQueue.Add(command);
                     WriteLog(new LogMessageModel { Message = $"UdpClient({key})-->{LocalName}:{command}", Type = LogType.INFO });
-                    _ = Task.Run(() => OnReceive(command, key, result.RemoteEndPoint.Address.ToString(), result.RemoteEndPoint.Port), token);
+                    _ = Task.Run(() => RaiseReceive(command, key, result.RemoteEndPoint.Address.ToString(), result.RemoteEndPoint.Port), token);
                 }
             }
             catch (OperationCanceledException)
@@ -314,14 +291,5 @@ namespace Shared.Infrastructure.Communication
                    portNumber <= ushort.MaxValue;
         }
 
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => OnLog(message));
-        }
-
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => StateChange(connectState, LocalName));
-        }
     }
 }

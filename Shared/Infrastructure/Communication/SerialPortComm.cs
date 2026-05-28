@@ -1,15 +1,16 @@
 ﻿using Shared.Abstractions.Enum;
-using Shared.Abstractions;
 using System.Collections.Concurrent;
 using System.Text;
 using Shared.Models.Communication;
 using Shared.Models.Log;
 using System.IO.Ports;
 using Shared.Infrastructure.Extensions;
+using Shared.Abstractions.ICommunication;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class SerialPortComm : ICommunication
+    [CommunicationAdapter(typeof(SerialPortRuntimeConfig))]
+    public class SerialPortComm : CommunicationBase, ICommunication
     {
         #region Propertys
         private SerialPort _SerialPort = new SerialPort();
@@ -17,33 +18,10 @@ namespace Shared.Infrastructure.Communication
         private AutoResetEvent IsWhile = new AutoResetEvent(false);
         private BlockingCollection<string> _RespQueue = new BlockingCollection<string>();
         private bool _lastSendIsHex;
-        private ConnectState _IsConnected = ConnectState.DisConnected;
-        /// <summary>
-        /// TCP 客户端连接状态
-        /// </summary>  
-        public ConnectState IsConnected
-        {
-            get
-            {
-                if (_SerialPort == null)
-                    return ConnectState.DisConnected;
-                else
-                    return _IsConnected;
-            }
-            private set
-            {
-                if (_IsConnected != value)
-                {
-                    _IsConnected = value;
-                    SendState(value);
-                }
-            }
-        }
-        public string LocalName { get; }
         #endregion
 
         #region 构造
-        public SerialPortComm(CommuniactionConfigModel config)
+        public SerialPortComm(SerialPortRuntimeConfig config)
         {
             LocalName = config.LocalName;
             _SerialPort.PortName = config.PortName;
@@ -56,7 +34,7 @@ namespace Shared.Infrastructure.Communication
         #endregion
 
         #region 方法
-        public bool Close()
+        public override bool Close()
         {
             IsWhile.Set();
             if (_SerialPort.IsOpen)
@@ -74,7 +52,7 @@ namespace Shared.Infrastructure.Communication
             throw new NotImplementedException();
         }
 
-        public bool Start()
+        public override bool Start()
         {
             if (!_SerialPort.IsOpen)
                 _SerialPort.Open();
@@ -119,10 +97,6 @@ namespace Shared.Infrastructure.Communication
         #endregion
 
         #region 事件
-        public event ReceiveData OnReceive;
-        public event Action<LogMessageModel> OnLog;
-        public event StateChanged StateChange;
-
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             byte[] reDatas = new byte[_SerialPort.BytesToRead];
@@ -130,7 +104,7 @@ namespace Shared.Infrastructure.Communication
             _RespQueue.Add(_lastSendIsHex
                 ? BitConverter.ToString(reDatas).Replace("-", string.Empty)
                 : Encoding.UTF8.GetString(reDatas));
-            Task.Run(() => OnReceive?.Invoke(reDatas));
+            Task.Run(() => RaiseReceive(reDatas));
         }
 
         private byte[] BuildSendBytes(string message)
@@ -158,14 +132,6 @@ namespace Shared.Infrastructure.Communication
             return normalized.Trim();
         }
 
-        private void WriteLog(LogMessageModel log)
-        {
-            Task.Run(() => OnLog?.Invoke(log));
-        }
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => { StateChange?.Invoke(connectState, LocalName); });
-        }
         #endregion
     }
 }

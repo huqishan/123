@@ -1,7 +1,7 @@
 using ControlLibrary.Controls.FlowchartEditor.Models;
 using Module.Business.Models;
-using Module.Business.ViewModels;
-using Module.Business.ViewModels.PropertyVMs;
+using Module.Business.Features.StationConfiguration;
+using Module.Business.Features.SchemeConfiguration;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -18,7 +18,6 @@ namespace Module.Business.Services;
 public static class FlowchartExecutionService
 {
     #region 常量与运行状态字段
-
     // 执行步数上限用于兜底阻断错误连线形成的无限循环。
     private const int MaxExecutionSteps = 500;
 
@@ -31,7 +30,6 @@ public static class FlowchartExecutionService
     #endregion
 
     #region 流程图执行生命周期事件
-
     /// <summary>
     /// 流程图执行前事件，可通过 <see cref="FlowchartExecutionEventArgs.Cancel"/> 取消执行。
     /// </summary>
@@ -65,7 +63,6 @@ public static class FlowchartExecutionService
     #endregion
 
     #region 对外执行与控制入口
-
     /// <summary>
     /// 根据工位名称和流程图名称读取流程图文件并执行；同一工位同时只允许一个流程图运行。
     /// </summary>
@@ -163,7 +160,7 @@ public static class FlowchartExecutionService
     }
 
     /// <summary>
-    /// 暂停指定工位正在运行的流程图。
+    /// 暂停指定工位当前正在运行的流程图。
     /// </summary>
     public static FlowchartExecutionControlActionResult Pause(string stationName)
     {
@@ -193,7 +190,7 @@ public static class FlowchartExecutionService
     }
 
     /// <summary>
-    /// 停止指定工位正在运行的流程图。
+    /// 请求停止指定工位当前正在运行的流程图。
     /// </summary>
     public static FlowchartExecutionControlActionResult Stop(string stationName)
     {
@@ -208,7 +205,7 @@ public static class FlowchartExecutionService
     }
 
     /// <summary>
-    /// 获取当前正在运行的流程图快照。
+    /// 获取当前所有正在运行的流程图快照。
     /// </summary>
     public static IReadOnlyList<FlowchartExecutionSnapshot> GetActiveExecutions()
     {
@@ -223,6 +220,9 @@ public static class FlowchartExecutionService
 
     #region 流程图与节点执行编排
 
+    /// <summary>
+    /// 编排单个流程图的完整执行过程。
+    /// </summary>
     private static async Task<FlowchartExecutionServiceResult> ExecuteFlowchartAsync(
         FlowchartExecutionContext context,
         string flowchartName,
@@ -318,6 +318,9 @@ public static class FlowchartExecutionService
         return FinishFlowchart(context, flowchartName, false, $"Flowchart stopped after reaching max step count {MaxExecutionSteps}.", startTime);
     }
 
+    /// <summary>
+    /// 执行单个流程图节点并生成节点执行结果。
+    /// </summary>
     private static async Task<FlowchartNodeExecutionResult> ExecuteNodeAsync(
         FlowchartExecutionContext context,
         string flowchartName,
@@ -399,7 +402,9 @@ public static class FlowchartExecutionService
     #endregion
 
     #region 节点连线与判断规则
-
+    /// <summary>
+    /// 获取流程图执行入口节点。
+    /// </summary>
     private static FlowchartNodeDocument? GetExecutionStartNode(FlowchartDocument document)
     {
         return document.Nodes
@@ -409,6 +414,9 @@ public static class FlowchartExecutionService
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// 根据节点类型和判断结果选择下一条连线。
+    /// </summary>
     private static FlowchartConnectionDocument? GetNextExecutionConnection(
         FlowchartNodeDocument node,
         IReadOnlyList<FlowchartConnectionDocument> connections,
@@ -453,6 +461,9 @@ public static class FlowchartExecutionService
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// 尝试执行操作并返回是否成功。
+    /// </summary>
     private static bool TryEvaluateDecisionOperation(
         WorkStepOperation operation,
         IReadOnlyDictionary<string, string> returnValues,
@@ -490,6 +501,9 @@ public static class FlowchartExecutionService
 
     #region 操作解析与通用工具
 
+    /// <summary>
+    /// 结束流程图执行并触发完成事件。
+    /// </summary>
     private static FlowchartExecutionServiceResult FinishFlowchart(
         FlowchartExecutionContext context,
         string flowchartName,
@@ -518,6 +532,9 @@ public static class FlowchartExecutionService
             : FlowchartExecutionServiceResult.CreateFailure(message, context.LogsSnapshot, startTime, endTime);
     }
 
+    /// <summary>
+    /// 尝试执行操作并返回是否成功。
+    /// </summary>
     private static bool TryReadNodeOperation(FlowchartNodeDocument node, out WorkStepOperation operation)
     {
         operation = new WorkStepOperation();
@@ -543,6 +560,9 @@ public static class FlowchartExecutionService
         }
     }
 
+    /// <summary>
+    /// 解析并返回对应的业务值。
+    /// </summary>
     private static string ResolveParameterValue(
         WorkStepOperationParameter parameter,
         IReadOnlyDictionary<string, string> returnValues)
@@ -557,12 +577,18 @@ public static class FlowchartExecutionService
         };
     }
 
+    /// <summary>
+    /// 判断是否满足指定业务条件。
+    /// </summary>
     private static bool IsJudgeOperation(WorkStepOperation operation)
     {
         return string.Equals(operation.OperationObject?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(operation.OperationType?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 判断是否满足指定业务条件。
+    /// </summary>
     private static bool IsSupportedJudgeMethod(string methodName)
     {
         return methodName.Trim() switch
@@ -581,6 +607,9 @@ public static class FlowchartExecutionService
         };
     }
 
+    /// <summary>
+    /// 将两个文本按数值方式比较。
+    /// </summary>
     private static int CompareNumbers(string left, string right)
     {
         decimal leftValue = decimal.TryParse(left, out decimal parsedLeft) ? parsedLeft : 0m;
@@ -588,16 +617,25 @@ public static class FlowchartExecutionService
         return leftValue.CompareTo(rightValue);
     }
 
+    /// <summary>
+    /// 获取指定索引位置的返回值。
+    /// </summary>
     private static string GetValue(IReadOnlyList<string> values, int index)
     {
         return index >= 0 && index < values.Count ? values[index] : string.Empty;
     }
 
+    /// <summary>
+    /// 按忽略大小写和首尾空白的规则比较文本。
+    /// </summary>
     private static bool TextEquals(string? left, string? right)
     {
         return string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 解析并返回对应的业务值。
+    /// </summary>
     private static string ResolveNodeName(FlowchartNodeDocument node)
     {
         string[] lines = (node.Text ?? string.Empty)
@@ -609,6 +647,9 @@ public static class FlowchartExecutionService
             ?? GetDefaultNodeName(node.Kind);
     }
 
+    /// <summary>
+    /// 获取指定节点类型的默认显示名称。
+    /// </summary>
     private static string GetDefaultNodeName(FlowchartNodeKind nodeKind)
     {
         return nodeKind switch
@@ -620,6 +661,9 @@ public static class FlowchartExecutionService
         };
     }
 
+    /// <summary>
+    /// 尝试执行操作并返回是否成功。
+    /// </summary>
     private static bool TryGetStationContext(
         string stationName,
         out FlowchartExecutionContext context,
@@ -657,6 +701,9 @@ public static class FlowchartExecutionService
         return false;
     }
 
+    /// <summary>
+    /// 解析并返回对应的业务值。
+    /// </summary>
     private static string? ResolveStationName(string stationNameOrCode)
     {
         StationConfigurationCatalog catalog = BusinessConfigurationStore.LoadStationCatalog();
@@ -667,11 +714,17 @@ public static class FlowchartExecutionService
         return station?.StationName;
     }
 
+    /// <summary>
+    /// 触发流程图执行事件。
+    /// </summary>
     private static void Raise(EventHandler<FlowchartExecutionEventArgs>? handler, FlowchartExecutionEventArgs args)
     {
         handler?.Invoke(null, args);
     }
 
+    /// <summary>
+    /// 规范化输入数据并返回可用值。
+    /// </summary>
     private static string NormalizeRequiredText(string? value)
     {
         return value?.Trim() ?? string.Empty;
@@ -680,9 +733,13 @@ public static class FlowchartExecutionService
     #endregion
 
     #region 内部执行上下文
-
     private sealed class FlowchartExecutionKey : IEquatable<FlowchartExecutionKey>
     {
+        /// <summary>
+        /// 创建流程图执行键。
+        /// </summary>
+        /// <param name="stationName">工位名称。</param>
+        /// <param name="flowchartName">流程图名称。</param>
         public FlowchartExecutionKey(string stationName, string flowchartName)
         {
             StationName = stationName;
@@ -693,6 +750,9 @@ public static class FlowchartExecutionService
 
         public string FlowchartName { get; }
 
+        /// <summary>
+        /// 比较当前对象与目标对象是否相等。
+        /// </summary>
         public bool Equals(FlowchartExecutionKey? other)
         {
             return other is not null &&
@@ -700,11 +760,17 @@ public static class FlowchartExecutionService
                    string.Equals(FlowchartName, other.FlowchartName, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// 比较当前对象与目标对象是否相等。
+        /// </summary>
         public override bool Equals(object? obj)
         {
             return Equals(obj as FlowchartExecutionKey);
         }
 
+        /// <summary>
+        /// 获取流程图执行键的哈希码。
+        /// </summary>
         public override int GetHashCode()
         {
             return HashCode.Combine(
@@ -721,6 +787,11 @@ public static class FlowchartExecutionService
         private TaskCompletionSource<bool>? _resumeSignal;
         private bool _isPaused;
 
+        /// <summary>
+        /// 创建流程图执行上下文。
+        /// </summary>
+        /// <param name="key">流程图执行键。</param>
+        /// <param name="startTime">执行开始时间。</param>
         public FlowchartExecutionContext(FlowchartExecutionKey key, DateTime startTime)
         {
             Key = key;
@@ -757,6 +828,9 @@ public static class FlowchartExecutionService
             }
         }
 
+        /// <summary>
+        /// 将执行上下文切换为暂停状态。
+        /// </summary>
         public bool Pause()
         {
             lock (_pauseLock)
@@ -772,6 +846,9 @@ public static class FlowchartExecutionService
             }
         }
 
+        /// <summary>
+        /// 将执行上下文从暂停状态恢复。
+        /// </summary>
         public bool Resume()
         {
             TaskCompletionSource<bool>? resumeSignal;
@@ -791,12 +868,18 @@ public static class FlowchartExecutionService
             return true;
         }
 
+        /// <summary>
+        /// 请求取消当前执行上下文。
+        /// </summary>
         public void Stop()
         {
             CancellationTokenSource.Cancel();
             Resume();
         }
 
+        /// <summary>
+        /// 如果当前处于暂停状态，则等待恢复信号。
+        /// </summary>
         public async Task WaitIfPausedAsync()
         {
             while (true)
@@ -821,11 +904,17 @@ public static class FlowchartExecutionService
             }
         }
 
+        /// <summary>
+        /// 检查当前执行上下文是否已请求取消。
+        /// </summary>
         public void ThrowIfCancellationRequested()
         {
             CancellationToken.ThrowIfCancellationRequested();
         }
 
+        /// <summary>
+        /// 追加一条执行日志。
+        /// </summary>
         public void AddLog(string message)
         {
             lock (_logLock)
@@ -834,6 +923,9 @@ public static class FlowchartExecutionService
             }
         }
 
+        /// <summary>
+        /// 创建当前执行上下文的只读快照。
+        /// </summary>
         public FlowchartExecutionSnapshot CreateSnapshot()
         {
             DateTime snapshotTime = DateTime.Now;
@@ -847,6 +939,9 @@ public static class FlowchartExecutionService
                 LogsSnapshot);
         }
 
+        /// <summary>
+        /// 释放当前对象占用的资源。
+        /// </summary>
         public void Dispose()
         {
             CancellationTokenSource.Dispose();
@@ -875,16 +970,25 @@ public static class FlowchartExecutionService
 
         public FlowchartNodeDecisionState DecisionState { get; }
 
+        /// <summary>
+        /// 创建成功的节点执行结果。
+        /// </summary>
         public static FlowchartNodeExecutionResult Success(string message, FlowchartNodeDecisionState decisionState)
         {
             return new FlowchartNodeExecutionResult(true, false, message, decisionState);
         }
 
+        /// <summary>
+        /// 创建失败的节点执行结果。
+        /// </summary>
         public static FlowchartNodeExecutionResult Failure(string message)
         {
             return new FlowchartNodeExecutionResult(false, false, message, FlowchartNodeDecisionState.NotConfigured);
         }
 
+        /// <summary>
+        /// 创建已取消的节点执行结果。
+        /// </summary>
         public static FlowchartNodeExecutionResult Canceled(string message)
         {
             return new FlowchartNodeExecutionResult(false, true, message, FlowchartNodeDecisionState.NotConfigured);
@@ -960,6 +1064,9 @@ public sealed class FlowchartExecutionEventArgs : EventArgs
 
     public bool Cancel { get; set; }
 
+    /// <summary>
+    /// 创建流程图级执行事件参数。
+    /// </summary>
     internal static FlowchartExecutionEventArgs CreateFlowchart(
         string stationName,
         string flowchartName,
@@ -982,6 +1089,9 @@ public sealed class FlowchartExecutionEventArgs : EventArgs
             endTime);
     }
 
+    /// <summary>
+    /// 创建节点级执行事件参数。
+    /// </summary>
     internal static FlowchartExecutionEventArgs CreateNode(
         string stationName,
         string flowchartName,
@@ -1043,6 +1153,9 @@ public sealed class FlowchartExecutionServiceResult
 
     public TimeSpan? ExecutionTime { get; }
 
+    /// <summary>
+    /// 创建成功的流程图执行结果。
+    /// </summary>
     public static FlowchartExecutionServiceResult CreateSuccess(
         string message,
         IReadOnlyList<string>? steps = null,
@@ -1052,6 +1165,9 @@ public sealed class FlowchartExecutionServiceResult
         return new FlowchartExecutionServiceResult(true, false, message, steps, startTime, endTime);
     }
 
+    /// <summary>
+    /// 创建失败的流程图执行结果。
+    /// </summary>
     public static FlowchartExecutionServiceResult CreateFailure(
         string message,
         IReadOnlyList<string>? steps = null,
@@ -1061,6 +1177,9 @@ public sealed class FlowchartExecutionServiceResult
         return new FlowchartExecutionServiceResult(false, false, message, steps, startTime, endTime);
     }
 
+    /// <summary>
+    /// 创建已取消的流程图执行结果。
+    /// </summary>
     public static FlowchartExecutionServiceResult CreateCanceled(
         string message,
         IReadOnlyList<string>? steps = null,
@@ -1073,6 +1192,11 @@ public sealed class FlowchartExecutionServiceResult
 
 public sealed class FlowchartExecutionControlActionResult
 {
+    /// <summary>
+    /// 创建流程图控制动作结果。
+    /// </summary>
+    /// <param name="isSuccess">控制动作是否成功。</param>
+    /// <param name="message">控制动作消息。</param>
     public FlowchartExecutionControlActionResult(bool isSuccess, string message)
     {
         IsSuccess = isSuccess;
@@ -1083,17 +1207,26 @@ public sealed class FlowchartExecutionControlActionResult
 
     public string Message { get; }
 
+    /// <summary>
+    /// 创建成功的流程图控制结果。
+    /// </summary>
     public static FlowchartExecutionControlActionResult CreateSuccess(string message)
     {
         return new FlowchartExecutionControlActionResult(true, message);
     }
 
+    /// <summary>
+    /// 创建失败的流程图控制结果。
+    /// </summary>
     public static FlowchartExecutionControlActionResult CreateFailure(string message)
     {
         return new FlowchartExecutionControlActionResult(false, message);
     }
 }
 
+/// <summary>
+/// 流程图执行状态快照。
+/// </summary>
 public sealed record FlowchartExecutionSnapshot(
     string StationName,
     string FlowchartName,

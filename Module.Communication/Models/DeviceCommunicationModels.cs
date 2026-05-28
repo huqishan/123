@@ -7,42 +7,86 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
-using System.Net;
 using System.Runtime.CompilerServices;
 
 namespace Module.Communication.Models
 {
+    #region 通用选项模型
+
+    /// <summary>
+    /// 通信类型下拉选项。
+    /// </summary>
     public sealed class CommunicationTypeOption
     {
-        public CommunicationTypeOption(CommuniactionType value, string displayName, string description)
+        /// <summary>
+        /// 创建通信类型选项。
+        /// </summary>
+        /// <param name="value">通信配置类型标识。</param>
+        /// <param name="displayName">显示名称。</param>
+        /// <param name="description">说明文本。</param>
+        public CommunicationTypeOption(string value, string displayName, string description)
         {
             Value = value;
             DisplayName = displayName;
             Description = description;
         }
 
-        public CommuniactionType Value { get; }
+        /// <summary>
+        /// 通信配置类型标识。
+        /// </summary>
+        public string Value { get; }
 
+        /// <summary>
+        /// 显示名称。
+        /// </summary>
         public string DisplayName { get; }
 
+        /// <summary>
+        /// 说明文本。
+        /// </summary>
         public string Description { get; }
+
     }
 
+    /// <summary>
+    /// 通用值与显示文本选项。
+    /// </summary>
     public sealed class SelectionOption
     {
+        /// <summary>
+        /// 创建通用下拉选项。
+        /// </summary>
+        /// <param name="value">选项值。</param>
+        /// <param name="displayName">选项显示文本。</param>
         public SelectionOption(string value, string displayName)
         {
             Value = value;
             DisplayName = displayName;
         }
 
+        /// <summary>
+        /// 选项值。
+        /// </summary>
         public string Value { get; }
 
+        /// <summary>
+        /// 选项显示文本。
+        /// </summary>
         public string DisplayName { get; }
     }
 
+    /// <summary>
+    /// TCP 服务端已连接客户端选项。
+    /// </summary>
     public sealed class ConnectedClientOption
     {
+        /// <summary>
+        /// 创建 TCP 服务端客户端选项。
+        /// </summary>
+        /// <param name="clientId">客户端标识。</param>
+        /// <param name="displayName">显示名称。</param>
+        /// <param name="address">客户端地址。</param>
+        /// <param name="port">客户端端口。</param>
         public ConnectedClientOption(string clientId, string displayName, string address, int port)
         {
             ClientId = clientId;
@@ -51,42 +95,38 @@ namespace Module.Communication.Models
             Port = port;
         }
 
+        /// <summary>
+        /// 客户端标识。
+        /// </summary>
         public string ClientId { get; }
 
+        /// <summary>
+        /// 显示名称。
+        /// </summary>
         public string DisplayName { get; }
 
+        /// <summary>
+        /// 客户端地址。
+        /// </summary>
         public string Address { get; }
 
+        /// <summary>
+        /// 客户端端口。
+        /// </summary>
         public int Port { get; }
     }
 
-    internal sealed class DeviceSupportedProtocolDocument
-    {
-        public string? ProtocolName { get; set; }
-
-        public string? ProtocolFilePath { get; set; }
-
-        public static DeviceSupportedProtocolDocument FromModel(DeviceSupportedProtocol protocol)
-        {
-            return new DeviceSupportedProtocolDocument
-            {
-                ProtocolName = protocol.ProtocolName,
-                ProtocolFilePath = protocol.ProtocolFilePath
-            };
-        }
-
-        public DeviceSupportedProtocol ToModel()
-        {
-            return new DeviceSupportedProtocol
-            {
-                ProtocolName = ProtocolName ?? string.Empty,
-                ProtocolFilePath = ProtocolFilePath ?? string.Empty
-            };
-        }
-    }
-
+    /// <summary>
+    /// 可关联协议选项。
+    /// </summary>
     public sealed class AvailableProtocolOption
     {
+        /// <summary>
+        /// 创建可关联协议选项。
+        /// </summary>
+        /// <param name="name">协议名称。</param>
+        /// <param name="filePath">协议文件路径。</param>
+        /// <param name="summary">协议摘要。</param>
         public AvailableProtocolOption(string name, string filePath, string summary)
         {
             Name = name;
@@ -94,15 +134,37 @@ namespace Module.Communication.Models
             Summary = summary;
         }
 
+        /// <summary>
+        /// 协议名称。
+        /// </summary>
         public string Name { get; }
 
+        /// <summary>
+        /// 协议文件路径。
+        /// </summary>
         public string FilePath { get; }
 
+        /// <summary>
+        /// 协议摘要。
+        /// </summary>
         public string Summary { get; }
     }
 
+    /// <summary>
+    /// 支持协议中的指令选项。
+    /// </summary>
     public sealed class SupportedProtocolCommandOption
     {
+        /// <summary>
+        /// 创建支持协议指令选项。
+        /// </summary>
+        /// <param name="protocolName">协议名称。</param>
+        /// <param name="protocolFilePath">协议文件路径。</param>
+        /// <param name="commandName">指令名称。</param>
+        /// <param name="summary">指令摘要。</param>
+        /// <param name="previewMessage">预览报文。</param>
+        /// <param name="fillMessage">填充报文。</param>
+        /// <param name="canFill">是否允许填充到发送框。</param>
         public SupportedProtocolCommandOption(
             string protocolName,
             string protocolFilePath,
@@ -121,84 +183,139 @@ namespace Module.Communication.Models
             CanFill = canFill;
         }
 
+        /// <summary>
+        /// 协议名称。
+        /// </summary>
         public string ProtocolName { get; }
 
+        /// <summary>
+        /// 协议文件路径。
+        /// </summary>
         public string ProtocolFilePath { get; }
 
+        /// <summary>
+        /// 指令名称。
+        /// </summary>
         public string CommandName { get; }
 
+        /// <summary>
+        /// 指令摘要。
+        /// </summary>
         public string Summary { get; }
 
+        /// <summary>
+        /// 预览报文。
+        /// </summary>
         public string PreviewMessage { get; }
 
+        /// <summary>
+        /// 填充报文。
+        /// </summary>
         public string FillMessage { get; }
 
+        /// <summary>
+        /// 是否允许填充到发送框。
+        /// </summary>
         public bool CanFill { get; }
 
+        /// <summary>
+        /// 指令显示名称。
+        /// </summary>
         public string DisplayName => $"{ProtocolName} / {CommandName}";
     }
 
+    #endregion
+
+    #region 配置文档模型
+
+    /// <summary>
+    /// 设备支持协议的持久化文档模型。
+    /// </summary>
+    internal sealed class DeviceSupportedProtocolDocument
+    {
+        /// <summary>
+        /// 协议名称。
+        /// </summary>
+        public string? ProtocolName { get; set; }
+
+        /// <summary>
+        /// 协议文件路径。
+        /// </summary>
+        public string? ProtocolFilePath { get; set; }
+
+        /// <summary>
+        /// 从界面模型创建持久化文档模型。
+        /// </summary>
+        /// <param name="protocol">设备支持协议界面模型。</param>
+        /// <returns>设备支持协议文档模型。</returns>
+        public static DeviceSupportedProtocolDocument FromModel(DeviceSupportedProtocol protocol)
+        {
+            return new DeviceSupportedProtocolDocument
+            {
+                ProtocolName = protocol.ProtocolName,
+                ProtocolFilePath = protocol.ProtocolFilePath
+            };
+        }
+
+        /// <summary>
+        /// 将持久化文档模型转换为界面模型。
+        /// </summary>
+        /// <returns>设备支持协议界面模型。</returns>
+        public DeviceSupportedProtocol ToModel()
+        {
+            return new DeviceSupportedProtocol
+            {
+                ProtocolName = ProtocolName ?? string.Empty,
+                ProtocolFilePath = ProtocolFilePath ?? string.Empty
+            };
+        }
+    }
+
+    /// <summary>
+    /// 设备通信配置的持久化文档模型。
+    /// </summary>
     internal sealed class DeviceCommunicationProfileDocument
     {
-        public int Version { get; set; } = 2;
+        /// <summary>
+        /// 配置文档版本。
+        /// </summary>
+        public int Version { get; set; } = 3;
 
+        /// <summary>
+        /// 配置名称。
+        /// </summary>
         public string? LocalName { get; set; }
 
-        public CommuniactionType Type { get; set; } = CommuniactionType.TCPClient;
+        /// <summary>
+        /// 通信配置类型标识。
+        /// </summary>
+        public string? TypeId { get; set; }
 
-        public string? LocalIPAddress { get; set; }
+        /// <summary>
+        /// 连接参数字典。
+        /// </summary>
+        public Dictionary<string, string>? Config { get; set; }
 
-        public string? LocalPort { get; set; }
-
-        public string? RemoteIPAddress { get; set; }
-
-        public string? RemotePort { get; set; }
-
-        public string? PortName { get; set; }
-
-        public string? BaudRate { get; set; }
-
-        public string? Parity { get; set; }
-
-        public string? DataBits { get; set; }
-
-        public string? StopBits { get; set; }
-
-        public string? PLCActLogicalStationNumber { get; set; }
-
-        public string? PLCType { get; set; }
-
-        public string? PLCPassword { get; set; }
-
-        public string? PLCS7CpuType { get; set; }
-
-        public string? PLCS7Rack { get; set; }
-
-        public string? PLCS7Slot { get; set; }
-
+        /// <summary>
+        /// 支持协议文档集合。
+        /// </summary>
         public List<DeviceSupportedProtocolDocument>? SupportedProtocols { get; set; }
 
+        /// <summary>
+        /// 从设备通信配置创建持久化文档模型。
+        /// </summary>
+        /// <param name="profile">设备通信配置。</param>
+        /// <returns>设备通信配置文档模型。</returns>
         public static DeviceCommunicationProfileDocument FromProfile(DeviceCommunicationProfile profile)
         {
             return new DeviceCommunicationProfileDocument
             {
                 LocalName = profile.LocalName,
-                Type = profile.Type,
-                LocalIPAddress = profile.LocalIPAddress,
-                LocalPort = profile.LocalPort,
-                RemoteIPAddress = profile.RemoteIPAddress,
-                RemotePort = profile.RemotePort,
-                PortName = profile.PortName,
-                BaudRate = profile.BaudRate,
-                Parity = profile.Parity,
-                DataBits = profile.DataBits,
-                StopBits = profile.StopBits,
-                PLCActLogicalStationNumber = profile.PLCActLogicalStationNumber,
-                PLCType = profile.PLCType,
-                PLCPassword = profile.PLCPassword,
-                PLCS7CpuType = profile.PLCS7CpuType,
-                PLCS7Rack = profile.PLCS7Rack,
-                PLCS7Slot = profile.PLCS7Slot,
+                TypeId = profile.TypeId,
+                Config = profile.Parameters.ToDictionary(
+                    item => item.Key,
+                    item => item.Value,
+                    StringComparer.OrdinalIgnoreCase),
                 SupportedProtocols = profile.SupportedProtocols
                     .Where(protocol => !protocol.IsEmpty)
                     .Select(DeviceSupportedProtocolDocument.FromModel)
@@ -206,36 +323,18 @@ namespace Module.Communication.Models
             };
         }
 
+        /// <summary>
+        /// 将持久化文档模型转换为设备通信配置。
+        /// </summary>
+        /// <returns>设备通信配置。</returns>
         public DeviceCommunicationProfile ToProfile()
         {
-            DeviceCommunicationProfile profile = new DeviceCommunicationProfile
+            DeviceCommunicationProfile profile = new(TypeId)
             {
-                LocalName = string.IsNullOrWhiteSpace(LocalName) ? "通信配置" : LocalName.Trim(),
-                Type = Type
+                LocalName = string.IsNullOrWhiteSpace(LocalName) ? "通信配置" : LocalName.Trim()
             };
-            profile.ResetToCurrentTypeDefaults();
 
-            profile.LocalIPAddress = string.IsNullOrWhiteSpace(LocalIPAddress) ? profile.LocalIPAddress : LocalIPAddress.Trim();
-            profile.LocalPort = string.IsNullOrWhiteSpace(LocalPort) ? profile.LocalPort : LocalPort.Trim();
-            profile.RemoteIPAddress = string.IsNullOrWhiteSpace(RemoteIPAddress) ? profile.RemoteIPAddress : RemoteIPAddress.Trim();
-            profile.RemotePort = string.IsNullOrWhiteSpace(RemotePort) ? profile.RemotePort : RemotePort.Trim();
-            profile.PortName = string.IsNullOrWhiteSpace(PortName) ? profile.PortName : PortName.Trim();
-            profile.BaudRate = string.IsNullOrWhiteSpace(BaudRate) ? profile.BaudRate : BaudRate.Trim();
-            profile.Parity = string.IsNullOrWhiteSpace(Parity) ? profile.Parity : Parity.Trim();
-            profile.DataBits = string.IsNullOrWhiteSpace(DataBits) ? profile.DataBits : DataBits.Trim();
-            profile.StopBits = string.IsNullOrWhiteSpace(StopBits) ? profile.StopBits : StopBits.Trim();
-            profile.PLCActLogicalStationNumber = string.IsNullOrWhiteSpace(PLCActLogicalStationNumber)
-                ? profile.PLCActLogicalStationNumber
-                : PLCActLogicalStationNumber.Trim();
-            profile.PLCType = string.IsNullOrWhiteSpace(PLCType)
-                ? profile.PLCType
-                : PLCType.Trim();
-            profile.PLCPassword = string.IsNullOrWhiteSpace(PLCPassword) ? profile.PLCPassword : PLCPassword.Trim();
-            profile.PLCS7CpuType = string.IsNullOrWhiteSpace(PLCS7CpuType)
-                ? profile.PLCS7CpuType
-                : PLCS7CpuType.Trim();
-            profile.PLCS7Rack = string.IsNullOrWhiteSpace(PLCS7Rack) ? profile.PLCS7Rack : PLCS7Rack.Trim();
-            profile.PLCS7Slot = string.IsNullOrWhiteSpace(PLCS7Slot) ? profile.PLCS7Slot : PLCS7Slot.Trim();
+            profile.ReplaceParameters(Config);
 
             if (SupportedProtocols is { Count: > 0 })
             {
@@ -253,207 +352,159 @@ namespace Module.Communication.Models
         }
     }
 
+    #endregion
+
+    #region 设备通信配置模型
+
+    /// <summary>
+    /// 设备通信配置界面模型。
+    /// </summary>
     public sealed class DeviceCommunicationProfile : INotifyPropertyChanged
     {
-        private string _localName = "TCP客户端 1";
-        private CommuniactionType _type = CommuniactionType.TCPClient;
-        private string _localIpAddress = "127.0.0.1";
-        private string _localPort = "0";
-        private string _remoteIpAddress = "127.0.0.1";
-        private string _remotePort = "502";
-        private string _portName = "COM1";
-        private string _baudRate = "9600";
-        private string _parity = "0";
-        private string _dataBits = "8";
-        private string _stopBits = "1";
-        private string _plcActLogicalStationNumber = "0";
-        private string _plcType = PlcCommunicationTypeNames.MX;
-        private string _plcPassword = string.Empty;
-        private string _plcS7CpuType = S7CpuTypeNames.S71200;
-        private string _plcS7Rack = "0";
-        private string _plcS7Slot = "1";
+        #region 字段
 
+        /// <summary>
+        /// 连接参数字典，键为字段标识。
+        /// </summary>
+        private readonly Dictionary<string, string> _parameters =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 配置名称。
+        /// </summary>
+        private string _localName = "TCP客户端 1";
+
+        /// <summary>
+        /// 当前通信配置类型标识。
+        /// </summary>
+        private string _typeId;
+
+        #endregion
+
+        #region 构造函数与事件
+
+        /// <summary>
+        /// 使用默认通信配置类型创建设备通信配置。
+        /// </summary>
         public DeviceCommunicationProfile()
+            : this(DeviceCommunicationConfigRegistry.Default.DefaultTypeId)
         {
+        }
+
+        /// <summary>
+        /// 使用指定通信配置类型创建设备通信配置。
+        /// </summary>
+        /// <param name="typeId">通信配置类型标识。</param>
+        public DeviceCommunicationProfile(string? typeId)
+        {
+            _typeId = NormalizeTypeId(typeId);
+            ResetParametersToDefaults(raiseChanged: false);
             SupportedProtocols.CollectionChanged += SupportedProtocols_CollectionChanged;
         }
 
+        /// <summary>
+        /// 属性变更通知事件。
+        /// </summary>
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public ObservableCollection<DeviceSupportedProtocol> SupportedProtocols { get; } = new ObservableCollection<DeviceSupportedProtocol>();
+        #endregion
 
+        #region 集合与状态属性
+
+        /// <summary>
+        /// 当前设备支持的协议集合。
+        /// </summary>
+        public ObservableCollection<DeviceSupportedProtocol> SupportedProtocols { get; } = new();
+
+        /// <summary>
+        /// 当前设备通信连接参数。
+        /// </summary>
+        public IReadOnlyDictionary<string, string> Parameters => _parameters;
+
+        /// <summary>
+        /// 配置名称。
+        /// </summary>
         public string LocalName
         {
             get => _localName;
-            set => SetField(ref _localName, value, true);
-        }
-
-        public CommuniactionType Type
-        {
-            get => _type;
             set
             {
-                if (SetField(ref _type, value, false))
+                if (SetField(ref _localName, value?.Trim() ?? string.Empty))
                 {
-                    RaiseTypeStateChanged();
+                    RaiseStateChanged();
                 }
             }
         }
 
-        public string LocalIPAddress
+        /// <summary>
+        /// 通信配置类型标识。
+        /// </summary>
+        public string TypeId
         {
-            get => _localIpAddress;
-            set => SetField(ref _localIpAddress, value, true);
-        }
-
-        public string LocalPort
-        {
-            get => _localPort;
-            set => SetField(ref _localPort, value, true);
-        }
-
-        public string RemoteIPAddress
-        {
-            get => _remoteIpAddress;
-            set => SetField(ref _remoteIpAddress, value, true);
-        }
-
-        public string RemotePort
-        {
-            get => _remotePort;
-            set => SetField(ref _remotePort, value, true);
-        }
-
-        public string PortName
-        {
-            get => _portName;
-            set => SetField(ref _portName, value, true);
-        }
-
-        public string BaudRate
-        {
-            get => _baudRate;
-            set => SetField(ref _baudRate, value, true);
-        }
-
-        public string Parity
-        {
-            get => _parity;
-            set => SetField(ref _parity, value, true);
-        }
-
-        public string DataBits
-        {
-            get => _dataBits;
-            set => SetField(ref _dataBits, value, true);
-        }
-
-        public string StopBits
-        {
-            get => _stopBits;
-            set => SetField(ref _stopBits, value, true);
-        }
-
-        public string PLCActLogicalStationNumber
-        {
-            get => _plcActLogicalStationNumber;
-            set => SetField(ref _plcActLogicalStationNumber, value, true);
-        }
-
-        public string PLCType
-        {
-            get => _plcType;
+            get => _typeId;
             set
             {
-                if (SetField(ref _plcType, PlcCommunicationTypeNames.Normalize(value), true))
+                if (string.IsNullOrWhiteSpace(value))
                 {
-                    ApplyPlcTypeDefaults();
-                    OnPropertyChanged(nameof(IsPlcModbusType));
-                    OnPropertyChanged(nameof(IsPlcMxType));
-                    OnPropertyChanged(nameof(IsPlcS7Type));
-                    OnPropertyChanged(nameof(TypeDescription));
+                    return;
                 }
+
+                string normalizedTypeId = NormalizeTypeId(value);
+                if (string.Equals(_typeId, normalizedTypeId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _typeId = normalizedTypeId;
+                ResetParametersToDefaults(raiseChanged: false);
+                OnPropertyChanged();
+                RaiseTypeStateChanged();
             }
         }
 
-        public string PLCPassword
-        {
-            get => _plcPassword;
-            set => SetField(ref _plcPassword, value, true);
-        }
+        /// <summary>
+        /// 通信配置类型显示名称。
+        /// </summary>
+        public string TypeDisplayName => Descriptor.DisplayName;
 
-        public string PLCS7CpuType
-        {
-            get => _plcS7CpuType;
-            set => SetField(ref _plcS7CpuType, S7CpuTypeNames.Normalize(value), true);
-        }
+        /// <summary>
+        /// 通信配置类型说明文本。
+        /// </summary>
+        public string TypeDescription => Descriptor.Description;
 
-        public string PLCS7Rack
-        {
-            get => _plcS7Rack;
-            set => SetField(ref _plcS7Rack, value, true);
-        }
+        /// <summary>
+        /// 当前配置对应的运行时通信类型。
+        /// </summary>
+        public CommuniactionType RuntimeType => Descriptor.RuntimeType;
 
-        public string PLCS7Slot
-        {
-            get => _plcS7Slot;
-            set => SetField(ref _plcS7Slot, value, true);
-        }
+        /// <summary>
+        /// 当前配置是否为串口通信。
+        /// </summary>
+        public bool IsSerialType => Descriptor.IsSerialPort;
 
-        public bool IsNetworkType => Type is CommuniactionType.TCPClient or CommuniactionType.TCPServer or CommuniactionType.UDP;
+        /// <summary>
+        /// 当前配置是否为 TCP 服务端。
+        /// </summary>
+        public bool IsTcpServerType => Descriptor.RuntimeType == CommuniactionType.TCPServer;
 
-        public bool UsesRemoteEndpoint => Type is CommuniactionType.TCPClient or CommuniactionType.UDP or CommuniactionType.PLC;
+        /// <summary>
+        /// 当前配置是否支持 PLC 读写测试。
+        /// </summary>
+        public bool IsPlcType => Descriptor.SupportsPlcReadWriteTest;
 
-        public bool UsesLocalEndpoint => Type is CommuniactionType.TCPClient or CommuniactionType.TCPServer or CommuniactionType.UDP or CommuniactionType.PLC;
+        /// <summary>
+        /// 当前配置是否支持通用报文发送测试。
+        /// </summary>
+        public bool SupportsGenericSendTest => Descriptor.SupportsGenericSendTest;
 
-        public bool IsSerialType => Type == CommuniactionType.COM;
+        /// <summary>
+        /// 当前配置摘要。
+        /// </summary>
+        public string Summary => Descriptor.BuildSummary(this);
 
-        public bool IsPlcType => Type == CommuniactionType.PLC;
-
-        public bool IsPlcModbusType => IsPlcType && PlcCommunicationTypeNames.IsModbus(PLCType);
-
-        public bool IsPlcMxType => IsPlcType && PlcCommunicationTypeNames.IsMx(PLCType);
-
-        public bool IsPlcS7Type => IsPlcType && PlcCommunicationTypeNames.IsS7(PLCType);
-
-        public string TypeDisplayName => Type switch
-        {
-            CommuniactionType.TCPClient => "TCP客户端",
-            CommuniactionType.TCPServer => "TCP服务端",
-            CommuniactionType.UDP => "UDP",
-            CommuniactionType.COM => "串口",
-            CommuniactionType.PLC => "PLC",
-            _ => Type.ToString()
-        };
-
-        public string TypeDescription => Type switch
-        {
-            CommuniactionType.TCPClient => "主动连接远端设备。",
-            CommuniactionType.TCPServer => "启动本地监听端口并等待客户端接入。",
-            CommuniactionType.UDP => "使用无连接报文进行轻量级设备通信。",
-            CommuniactionType.COM => "用于串口设备通信。",
-            CommuniactionType.PLC => IsPlcModbusType
-                ? "使用 Modbus TCP 的 PLC 通信。"
-                : IsPlcS7Type
-                    ? "使用 Siemens S7 以太网协议的 PLC 通信。"
-                    : "使用三菱 MX 逻辑站模式的 PLC 通信。",
-            _ => "当前通信类型暂无描述。"
-        };
-
-        public string Summary => Type switch
-        {
-            CommuniactionType.TCPClient => $"远端 {RemoteIPAddress}:{RemotePort}  本地 {LocalIPAddress}:{LocalPort}",
-            CommuniactionType.TCPServer => $"监听 {LocalIPAddress}:{LocalPort}",
-            CommuniactionType.UDP => $"远端 {RemoteIPAddress}:{RemotePort}  本地 {LocalIPAddress}:{LocalPort}",
-            CommuniactionType.COM => $"{PortName}  波特率 {BaudRate}bps  校验位 {Parity}  数据位 {DataBits}  停止位 {StopBits}",
-            CommuniactionType.PLC => IsPlcModbusType
-                ? $"PLC {PLCType}  远端 {RemoteIPAddress}:{RemotePort}"
-                : IsPlcS7Type
-                    ? $"PLC {PLCType}  {PLCS7CpuType}  {RemoteIPAddress}  Rack {PLCS7Rack}  Slot {PLCS7Slot}"
-                    : $"PLC {PLCType}  逻辑站号 {PLCActLogicalStationNumber}",
-            _ => "未配置"
-        };
-
+        /// <summary>
+        /// 已关联协议名称摘要。
+        /// </summary>
         public string SupportedProtocolsSummary
         {
             get
@@ -468,30 +519,133 @@ namespace Module.Communication.Models
             }
         }
 
+        /// <summary>
+        /// 已关联协议显示文本。
+        /// </summary>
         public string SupportedProtocolsDisplayText => $"支持协议：{SupportedProtocolsSummary}";
 
+        /// <summary>
+        /// 当前通信配置类型描述符。
+        /// </summary>
+        private DeviceCommunicationConfigDescriptor Descriptor =>
+            DeviceCommunicationConfigRegistry.Default.GetOrDefault(TypeId);
+
+        #endregion
+
+        #region 参数读写
+
+        /// <summary>
+        /// 获取指定连接参数值。
+        /// </summary>
+        /// <param name="key">参数键。</param>
+        /// <returns>参数值；不存在时返回空字符串。</returns>
+        public string GetParameter(string key)
+        {
+            return _parameters.TryGetValue(key, out string? value) ? value : string.Empty;
+        }
+
+        /// <summary>
+        /// 判断指定连接参数是否存在。
+        /// </summary>
+        /// <param name="key">参数键。</param>
+        /// <returns>存在返回 true，否则返回 false。</returns>
+        public bool HasParameter(string key)
+        {
+            return _parameters.ContainsKey(key);
+        }
+
+        /// <summary>
+        /// 设置指定连接参数值。
+        /// </summary>
+        /// <param name="key">参数键。</param>
+        /// <param name="value">参数值。</param>
+        /// <param name="raiseChanged">是否触发状态变更通知。</param>
+        /// <returns>参数发生变化返回 true，否则返回 false。</returns>
+        public bool SetParameter(string key, string value, bool raiseChanged = true)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            value ??= string.Empty;
+            if (_parameters.TryGetValue(key, out string? existing) &&
+                string.Equals(existing, value, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            _parameters[key] = value;
+            if (raiseChanged)
+            {
+                RaiseStateChanged();
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 用指定参数字典替换当前连接参数。
+        /// </summary>
+        /// <param name="parameters">新的连接参数字典。</param>
+        public void ReplaceParameters(IDictionary<string, string>? parameters)
+        {
+            _parameters.Clear();
+            ResetParametersToDefaults(raiseChanged: false);
+
+            if (parameters is not null)
+            {
+                foreach (KeyValuePair<string, string> parameter in parameters)
+                {
+                    _parameters[parameter.Key] = parameter.Value ?? string.Empty;
+                }
+            }
+
+            RaiseStateChanged();
+        }
+
+        /// <summary>
+        /// 将连接参数重置为当前通信配置类型的默认值。
+        /// </summary>
+        public void ResetParametersToDefaults()
+        {
+            ResetParametersToDefaults(raiseChanged: true);
+        }
+
+        /// <summary>
+        /// 将连接参数重置为当前通信配置类型的默认值。
+        /// </summary>
+        /// <param name="raiseChanged">是否触发状态变更通知。</param>
+        private void ResetParametersToDefaults(bool raiseChanged)
+        {
+            _parameters.Clear();
+            foreach (KeyValuePair<string, string> parameter in Descriptor.CreateDefaultParameters())
+            {
+                _parameters[parameter.Key] = parameter.Value;
+            }
+
+            if (raiseChanged)
+            {
+                RaiseStateChanged();
+            }
+        }
+
+        #endregion
+
+        #region 克隆与运行时配置
+
+        /// <summary>
+        /// 克隆当前设备通信配置。
+        /// </summary>
+        /// <param name="localName">克隆后的配置名称。</param>
+        /// <returns>克隆后的设备通信配置。</returns>
         public DeviceCommunicationProfile Clone(string localName)
         {
-            DeviceCommunicationProfile clone = new DeviceCommunicationProfile
+            DeviceCommunicationProfile clone = new(TypeId)
             {
-                LocalName = localName,
-                Type = Type,
-                LocalIPAddress = LocalIPAddress,
-                LocalPort = LocalPort,
-                RemoteIPAddress = RemoteIPAddress,
-                RemotePort = RemotePort,
-                PortName = PortName,
-                BaudRate = BaudRate,
-                Parity = Parity,
-                DataBits = DataBits,
-                StopBits = StopBits,
-                PLCActLogicalStationNumber = PLCActLogicalStationNumber,
-                PLCType = PLCType,
-                PLCPassword = PLCPassword,
-                PLCS7CpuType = PLCS7CpuType,
-                PLCS7Rack = PLCS7Rack,
-                PLCS7Slot = PLCS7Slot
+                LocalName = localName
             };
+            clone.ReplaceParameters(_parameters);
 
             foreach (DeviceSupportedProtocol protocol in SupportedProtocols.Where(item => !item.IsEmpty))
             {
@@ -505,225 +659,39 @@ namespace Module.Communication.Models
             return clone;
         }
 
-        public void ResetToCurrentTypeDefaults()
+        /// <summary>
+        /// 尝试构建运行时通信配置。
+        /// </summary>
+        /// <param name="config">构建成功后的运行时通信配置。</param>
+        /// <param name="validationMessage">验证或构建结果消息。</param>
+        /// <returns>构建成功返回 true，否则返回 false。</returns>
+        public bool TryBuildRuntimeConfig(out ICommunicationRuntimeConfig? config, out string validationMessage)
         {
-            switch (Type)
-            {
-                case CommuniactionType.TCPClient:
-                    LocalIPAddress = "127.0.0.1";
-                    LocalPort = "0";
-                    RemoteIPAddress = "127.0.0.1";
-                    RemotePort = "502";
-                    break;
-                case CommuniactionType.TCPServer:
-                    LocalIPAddress = "127.0.0.1";
-                    LocalPort = "6000";
-                    break;
-                case CommuniactionType.UDP:
-                    LocalIPAddress = "127.0.0.1";
-                    LocalPort = "7001";
-                    RemoteIPAddress = "127.0.0.1";
-                    RemotePort = "7000";
-                    break;
-                case CommuniactionType.COM:
-                    PortName = "COM1";
-                    BaudRate = "9600";
-                    Parity = "0";
-                    DataBits = "8";
-                    StopBits = "1";
-                    break;
-                case CommuniactionType.PLC:
-                    LocalIPAddress = "127.0.0.1";
-                    LocalPort = "0";
-                    RemoteIPAddress = "127.0.0.1";
-                    PLCActLogicalStationNumber = "0";
-                    PLCType = PlcCommunicationTypeNames.Normalize(PLCType);
-                    PLCPassword = string.Empty;
-                    PLCS7CpuType = S7CpuTypeNames.Normalize(PLCS7CpuType);
-                    PLCS7Rack = "0";
-                    PLCS7Slot = "1";
-                    RemotePort = PlcCommunicationTypeNames.IsS7(PLCType) ? "102" : "502";
-                    break;
-            }
+            return Descriptor.TryBuildRuntimeConfig(this, out config, out validationMessage);
         }
 
-        public bool TryBuildRuntimeConfig(out CommuniactionConfigModel? config, out string validationMessage)
-        {
-            config = null;
-            if (string.IsNullOrWhiteSpace(LocalName))
-            {
-                validationMessage = "配置名称不能为空。";
-                return false;
-            }
+        #endregion
 
-            switch (Type)
-            {
-                case CommuniactionType.TCPClient:
-                case CommuniactionType.UDP:
-                    if (!TryValidateIpAddress(RemoteIPAddress, "远端 IP 地址", out validationMessage) ||
-                        !TryValidatePort(RemotePort, "远端端口", true, out int remotePort, out validationMessage) ||
-                        !TryValidateIpAddress(LocalIPAddress, "本地 IP 地址", out validationMessage) ||
-                        !TryValidatePort(LocalPort, "本地端口", false, out int localPort, out validationMessage))
-                    {
-                        return false;
-                    }
+        #region 状态通知
 
-                    config = new CommuniactionConfigModel(
-                        Type == CommuniactionType.UDP,
-                        LocalName.Trim(),
-                        RemoteIPAddress.Trim(),
-                        remotePort,
-                        LocalIPAddress.Trim(),
-                        localPort);
-                    validationMessage = $"{TypeDisplayName}配置有效。";
-                    return true;
-
-                case CommuniactionType.TCPServer:
-                    if (!TryValidateIpAddress(LocalIPAddress, "本地监听 IP 地址", out validationMessage) ||
-                        !TryValidatePort(LocalPort, "本地监听端口", true, out int serverPort, out validationMessage))
-                    {
-                        return false;
-                    }
-
-                    config = new CommuniactionConfigModel(false, LocalName.Trim(), LocalIPAddress.Trim(), (ushort)serverPort);
-                    validationMessage = "TCP服务端配置有效。";
-                    return true;
-
-                case CommuniactionType.COM:
-                    if (string.IsNullOrWhiteSpace(PortName))
-                    {
-                        validationMessage = "端口名称不能为空。";
-                        return false;
-                    }
-
-                    if (!TryValidatePositiveNumber(BaudRate, "波特率", out int baudRate, out validationMessage) ||
-                        !TryValidateNumberInRange(Parity, "校验位", 0, 4, out int parity, out validationMessage) ||
-                        !TryValidatePositiveNumber(DataBits, "数据位", out int dataBits, out validationMessage) ||
-                        !TryValidateNumberInRange(StopBits, "停止位", 0, 3, out int stopBits, out validationMessage))
-                    {
-                        return false;
-                    }
-
-                    config = new CommuniactionConfigModel(LocalName.Trim(), PortName.Trim(), baudRate, parity, dataBits, stopBits);
-                    validationMessage = "串口配置有效。";
-                    return true;
-
-                case CommuniactionType.PLC:
-                    string plcType = PlcCommunicationTypeNames.Normalize(PLCType);
-                    if (PlcCommunicationTypeNames.IsModbus(plcType))
-                    {
-                        if (!TryValidateIpAddress(RemoteIPAddress, "远端 IP 地址", out validationMessage) ||
-                            !TryValidatePort(RemotePort, "远端端口", true, out int plcRemotePort, out validationMessage) ||
-                            !TryValidateIpAddress(LocalIPAddress, "本地 IP 地址", out validationMessage) ||
-                            !TryValidatePort(LocalPort, "本地端口", false, out int plcLocalPort, out validationMessage))
-                        {
-                            return false;
-                        }
-
-                        config = new CommuniactionConfigModel(
-                            CommuniactionType.PLC,
-                            LocalName.Trim(),
-                            RemoteIPAddress.Trim(),
-                            plcRemotePort,
-                            LocalIPAddress.Trim(),
-                            plcLocalPort,
-                            plcType);
-                        validationMessage = "PLC Modbus 配置有效。";
-                        return true;
-                    }
-
-                    if (PlcCommunicationTypeNames.IsS7(plcType))
-                    {
-                        if (!TryValidateIpAddress(RemoteIPAddress, "远端 IP 地址", out validationMessage) ||
-                            !TryValidatePort(RemotePort, "远端端口", true, out int s7RemotePort, out validationMessage))
-                        {
-                            return false;
-                        }
-
-                        if (s7RemotePort != 102)
-                        {
-                            validationMessage = "PLC S7 远端端口必须为 102。";
-                            return false;
-                        }
-
-                        if (!TryValidateNumberInRange(PLCS7Rack, "PLC Rack", 0, 7, out int s7Rack, out validationMessage) ||
-                            !TryValidateNumberInRange(PLCS7Slot, "PLC Slot", 0, 31, out int s7Slot, out validationMessage))
-                        {
-                            return false;
-                        }
-
-                        config = new CommuniactionConfigModel(
-                            CommuniactionType.PLC,
-                            LocalName.Trim(),
-                            RemoteIPAddress.Trim(),
-                            s7RemotePort,
-                            string.IsNullOrWhiteSpace(LocalIPAddress) ? "0.0.0.0" : LocalIPAddress.Trim(),
-                            0,
-                            plcType,
-                            PLCS7CpuType,
-                            s7Rack,
-                            s7Slot);
-                        validationMessage = "PLC S7 配置有效。";
-                        return true;
-                    }
-
-                    if (!TryValidateNumberInRange(
-                            PLCActLogicalStationNumber,
-                            "PLC 逻辑站号",
-                            0,
-                            1023,
-                            out int stationNumber,
-                            out validationMessage))
-                    {
-                        return false;
-                    }
-
-                    config = new CommuniactionConfigModel(
-                        CommuniactionType.MX,
-                        LocalName.Trim(),
-                        stationNumber,
-                        string.IsNullOrWhiteSpace(PLCPassword) ? string.Empty : PLCPassword.Trim());
-                    validationMessage = "PLC MX 配置有效。";
-                    return true;
-
-                default:
-                    validationMessage = "当前通信类型暂不支持。";
-                    return false;
-            }
-        }
-
-        private bool SetField<T>(ref T field, T value, bool raiseStateChanges, [CallerMemberName] string? propertyName = null)
-        {
-            if (Equals(field, value))
-            {
-                return false;
-            }
-
-            field = value;
-            OnPropertyChanged(propertyName);
-            if (raiseStateChanges)
-            {
-                RaiseStateChanged();
-            }
-
-            return true;
-        }
-
+        /// <summary>
+        /// 通知通信配置类型相关属性发生变化。
+        /// </summary>
         private void RaiseTypeStateChanged()
         {
-            RaiseStateChanged();
-            OnPropertyChanged(nameof(IsNetworkType));
-            OnPropertyChanged(nameof(UsesRemoteEndpoint));
-            OnPropertyChanged(nameof(UsesLocalEndpoint));
-            OnPropertyChanged(nameof(IsSerialType));
-            OnPropertyChanged(nameof(IsPlcType));
-            OnPropertyChanged(nameof(IsPlcModbusType));
-            OnPropertyChanged(nameof(IsPlcMxType));
-            OnPropertyChanged(nameof(IsPlcS7Type));
             OnPropertyChanged(nameof(TypeDisplayName));
             OnPropertyChanged(nameof(TypeDescription));
+            OnPropertyChanged(nameof(RuntimeType));
+            OnPropertyChanged(nameof(IsSerialType));
+            OnPropertyChanged(nameof(IsTcpServerType));
+            OnPropertyChanged(nameof(IsPlcType));
+            OnPropertyChanged(nameof(SupportsGenericSendTest));
+            RaiseStateChanged();
         }
 
+        /// <summary>
+        /// 通知摘要和协议显示状态发生变化。
+        /// </summary>
         private void RaiseStateChanged()
         {
             OnPropertyChanged(nameof(Summary));
@@ -731,44 +699,11 @@ namespace Module.Communication.Models
             OnPropertyChanged(nameof(SupportedProtocolsDisplayText));
         }
 
-        private void ApplyPlcTypeDefaults()
-        {
-            if (!IsPlcType)
-            {
-                return;
-            }
-
-            if (IsPlcS7Type)
-            {
-                if (string.IsNullOrWhiteSpace(PLCS7CpuType))
-                {
-                    PLCS7CpuType = S7CpuTypeNames.S71200;
-                }
-
-                if (string.IsNullOrWhiteSpace(PLCS7Rack))
-                {
-                    PLCS7Rack = "0";
-                }
-
-                if (string.IsNullOrWhiteSpace(PLCS7Slot))
-                {
-                    PLCS7Slot = "1";
-                }
-
-                if (string.IsNullOrWhiteSpace(RemotePort) || RemotePort == "502")
-                {
-                    RemotePort = "102";
-                }
-
-                return;
-            }
-
-            if (IsPlcModbusType && (string.IsNullOrWhiteSpace(RemotePort) || RemotePort == "102"))
-            {
-                RemotePort = "502";
-            }
-        }
-
+        /// <summary>
+        /// 处理支持协议集合变化。
+        /// </summary>
+        /// <param name="sender">事件来源。</param>
+        /// <param name="e">集合变化参数。</param>
         private void SupportedProtocols_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.NewItems is not null)
@@ -790,6 +725,11 @@ namespace Module.Communication.Models
             RaiseStateChanged();
         }
 
+        /// <summary>
+        /// 处理支持协议属性变化。
+        /// </summary>
+        /// <param name="sender">事件来源。</param>
+        /// <param name="e">属性变化参数。</param>
         private void SupportedProtocol_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(DeviceSupportedProtocol.ProtocolName) or nameof(DeviceSupportedProtocol.ProtocolFilePath))
@@ -798,97 +738,48 @@ namespace Module.Communication.Models
             }
         }
 
+        /// <summary>
+        /// 设置字段并触发属性变更通知。
+        /// </summary>
+        /// <typeparam name="T">字段类型。</typeparam>
+        /// <param name="field">待设置字段。</param>
+        /// <param name="value">新值。</param>
+        /// <param name="propertyName">属性名称。</param>
+        /// <returns>字段发生变化返回 true，否则返回 false。</returns>
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+
+        /// <summary>
+        /// 触发属性变更通知。
+        /// </summary>
+        /// <param name="propertyName">属性名称。</param>
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        private static bool TryValidateIpAddress(string value, string fieldName, out string validationMessage)
+        /// <summary>
+        /// 规范化通信配置类型标识。
+        /// </summary>
+        /// <param name="typeId">原始通信配置类型标识。</param>
+        /// <returns>已注册的通信配置类型标识。</returns>
+        private static string NormalizeTypeId(string? typeId)
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                validationMessage = $"{fieldName}不能为空。";
-                return false;
-            }
-
-            if (!IPAddress.TryParse(value.Trim(), out _))
-            {
-                validationMessage = $"{fieldName}格式无效。";
-                return false;
-            }
-
-            validationMessage = string.Empty;
-            return true;
+            DeviceCommunicationConfigRegistry registry = DeviceCommunicationConfigRegistry.Default;
+            return registry.GetOrDefault(typeId).TypeId;
         }
 
-        private static bool TryValidatePort(string value, string fieldName, bool isRequired, out int port, out string validationMessage)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                if (!isRequired)
-                {
-                    port = 0;
-                    validationMessage = string.Empty;
-                    return true;
-                }
-
-                port = 0;
-                validationMessage = $"{fieldName}不能为空。";
-                return false;
-            }
-
-            if (!int.TryParse(value.Trim(), out port) || port < 0 || port > ushort.MaxValue)
-            {
-                validationMessage = $"{fieldName}必须是 0 到 65535 之间的数字。";
-                return false;
-            }
-
-            if (isRequired && port == 0)
-            {
-                validationMessage = $"{fieldName}必须大于 0。";
-                return false;
-            }
-
-            validationMessage = string.Empty;
-            return true;
-        }
-
-        private static bool TryValidatePositiveNumber(string value, string fieldName, out int number, out string validationMessage)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                number = 0;
-                validationMessage = $"{fieldName}不能为空。";
-                return false;
-            }
-
-            if (!int.TryParse(value.Trim(), out number) || number <= 0)
-            {
-                validationMessage = $"{fieldName}必须大于 0。";
-                return false;
-            }
-
-            validationMessage = string.Empty;
-            return true;
-        }
-
-        private static bool TryValidateNumberInRange(string value, string fieldName, int minValue, int maxValue, out int number, out string validationMessage)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                number = 0;
-                validationMessage = $"{fieldName}不能为空。";
-                return false;
-            }
-
-            if (!int.TryParse(value.Trim(), out number) || number < minValue || number > maxValue)
-            {
-                validationMessage = $"{fieldName}必须在 {minValue} 到 {maxValue} 之间。";
-                return false;
-            }
-
-            validationMessage = string.Empty;
-            return true;
-        }
+        #endregion
     }
+
+    #endregion
 }

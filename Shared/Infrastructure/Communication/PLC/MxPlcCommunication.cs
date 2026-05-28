@@ -1,11 +1,12 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
+using Shared.Abstractions.ICommunication;
 using Shared.Models.Communication;
 using Shared.Models.Log;
 using System;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Shared.Infrastructure.Communication
@@ -13,45 +14,22 @@ namespace Shared.Infrastructure.Communication
     /// <summary>
     /// PLC communication based on Mitsubishi MX Component ActUtlType.
     /// </summary>
-    public sealed class MxPlcCommunication : ICommunication
+    [CommunicationAdapter(typeof(MxPlcRuntimeConfig))]
+    public sealed class MxPlcCommunication : CommunicationBase, IPlcCommunication
     {
         private readonly int _logicalStationNumber;
         private readonly string? _password;
         private readonly object _syncRoot = new object();
         private dynamic? _actUtlType;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
-        public MxPlcCommunication(CommuniactionConfigModel config)
+        public MxPlcCommunication(MxPlcRuntimeConfig config)
         {
             LocalName = config.LocalName;
-            _logicalStationNumber = config.PLCActLogicalStationNumber;
-            _password = config.PassWord;
+            _logicalStationNumber = config.StationNumber;
+            _password = config.Password;
         }
 
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event StateChanged StateChange = delegate { };
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public ConnectState IsConnected
-        {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                Task.Run(() => StateChange(value, LocalName));
-            }
-        }
-
-        public string LocalName { get; }
-
-        public bool Start()
+        public override bool Start()
         {
             lock (_syncRoot)
             {
@@ -91,7 +69,7 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Close()
+        public override bool Close()
         {
             lock (_syncRoot)
             {
@@ -102,92 +80,110 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Send(ref SendReceiveModel readWriteModel, bool isWait = false)
+        public PlcReadResult Read(string address, int length, DataType dataType = DataType.Decimal)
         {
+            int normalizedLength = Math.Max(1, length);
             lock (_syncRoot)
             {
-                if (!EnsureConnected(readWriteModel.PLCAddress, out string address))
+                if (!EnsureConnected(address, out string normalizedAddress))
                 {
-                    readWriteModel.Result = "PLC 未连接或地址为空。";
-                    return false;
+                    return PlcReadResult.Create(false, address, normalizedLength, dataType, "PLC 未连接或地址为空。");
+                }
+
+                int[] values = new int[normalizedLength];
+
+                try
+                {
+                    int resultCode = _actUtlType!.ReadDeviceBlock(normalizedAddress, normalizedLength, out values[0]);
+                    bool success = resultCode == 0;
+                    string resultText = success
+                        ? FormatValues(values, dataType)
+                        : $"返回码：{resultCode}";
+
+                    WriteLog(
+                        $"{LocalName} PLC 读取 {normalizedAddress}，长度 {normalizedLength}，结果：{(success ? resultText : $"失败 {resultCode}")}。",
+                        success ? LogType.INFO : LogType.ERROR);
+
+                    if (success)
+                    {
+                        Task.Run(() => RaiseReceive(resultText, normalizedAddress));
+                    }
+
+                    return PlcReadResult.Create(success, address, normalizedLength, dataType, resultText);
+                }
+                catch (Exception ex)
+                {
+                    WriteLog($"{LocalName} PLC 读取异常：{ex.Message}", LogType.ERROR);
+                    return PlcReadResult.Create(false, address, normalizedLength, dataType, ex.Message);
+                }
+            }
+        }
+
+        public Task<PlcReadResult> ReadAsync(
+            string address,
+            int length,
+            DataType dataType = DataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Read(address, length, dataType);
+            }, cancellationToken);
+        }
+
+        public PlcWriteResult Write(string address, string value, DataType dataType = DataType.Decimal)
+        {
+            string writeValue = value ?? string.Empty;
+            lock (_syncRoot)
+            {
+                if (!EnsureConnected(address, out string normalizedAddress))
+                {
+                    return PlcWriteResult.Create(false, address, writeValue, dataType, "PLC 未连接或地址为空。");
                 }
 
                 int[] values;
                 try
                 {
-                    values = ParseWriteValues(readWriteModel.Message);
+                    values = ParseWriteValues(writeValue);
                 }
                 catch (Exception ex)
                 {
-                    readWriteModel.Result = ex.Message;
                     WriteLog($"{LocalName} PLC 写入参数错误：{ex.Message}", LogType.ERROR);
-                    return false;
+                    return PlcWriteResult.Create(false, address, writeValue, dataType, ex.Message);
                 }
 
                 try
                 {
-                    int resultCode = _actUtlType!.WriteDeviceBlock(address, values.Length, ref values[0]);
+                    int resultCode = _actUtlType!.WriteDeviceBlock(normalizedAddress, values.Length, ref values[0]);
                     bool success = resultCode == 0;
-                    readWriteModel.Result = success ? "OK" : $"返回码：{resultCode}";
+                    string response = success ? "OK" : $"返回码：{resultCode}";
                     WriteLog(
-                        $"{LocalName} PLC 写入 {address}，长度 {values.Length}，值 {string.Join(", ", values)}，结果：{(success ? "成功" : $"失败 {resultCode}")}。",
+                        $"{LocalName} PLC 写入 {normalizedAddress}，长度 {values.Length}，值 {string.Join(", ", values)}，结果：{(success ? "成功" : $"失败 {resultCode}")}。",
                         success ? LogType.INFO : LogType.ERROR);
-                    return success;
+                    return PlcWriteResult.Create(success, address, writeValue, dataType, response);
                 }
                 catch (Exception ex)
                 {
-                    readWriteModel.Result = ex.Message;
                     WriteLog($"{LocalName} PLC 写入异常：{ex.Message}", LogType.ERROR);
-                    return false;
+                    return PlcWriteResult.Create(false, address, writeValue, dataType, ex.Message);
                 }
             }
         }
 
-        public Task<bool> SendAsync(SendReceiveModel readWriteModel)
+        public Task<PlcWriteResult> WriteAsync(
+            string address,
+            string value,
+            DataType dataType = DataType.Decimal,
+            CancellationToken cancellationToken = default)
         {
-            return Task.Run(() => Send(ref readWriteModel));
-        }
-
-        public bool Receive(ref SendReceiveModel readWriteModel)
-        {
-            lock (_syncRoot)
+            return Task.Run(() =>
             {
-                if (!EnsureConnected(readWriteModel.PLCAddress, out string address))
-                {
-                    readWriteModel.Result = "PLC 未连接或地址为空。";
-                    return false;
-                }
-
-                int length = Math.Max(1, readWriteModel.Lenght);
-                int[] values = new int[length];
-
-                try
-                {
-                    int resultCode = _actUtlType!.ReadDeviceBlock(address, length, out values[0]);
-                    bool success = resultCode == 0;
-                    string resultText = success
-                        ? FormatValues(values, readWriteModel.Type)
-                        : $"返回码：{resultCode}";
-
-                    readWriteModel.Result = resultText;
-                    WriteLog(
-                        $"{LocalName} PLC 读取 {address}，长度 {length}，结果：{(success ? resultText : $"失败 {resultCode}")}。",
-                        success ? LogType.INFO : LogType.ERROR);
-
-                    if (success)
-                    {
-                        Task.Run(() => OnReceive(resultText, address));
-                    }
-
-                    return success;
-                }
-                catch (Exception ex)
-                {
-                    readWriteModel.Result = ex.Message;
-                    WriteLog($"{LocalName} PLC 读取异常：{ex.Message}", LogType.ERROR);
-                    return false;
-                }
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                PlcWriteResult result = Write(address, value, dataType);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
+            }, cancellationToken);
         }
 
         private bool EnsureConnected(object plcAddress, out string address)
@@ -271,9 +267,5 @@ namespace Shared.Infrastructure.Communication
             };
         }
 
-        private void WriteLog(string message, LogType type)
-        {
-            Task.Run(() => OnLog(new LogMessageModel { Message = message, Type = type }));
-        }
     }
 }

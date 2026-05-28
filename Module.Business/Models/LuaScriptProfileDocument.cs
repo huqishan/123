@@ -1,4 +1,4 @@
-using Module.Business.ViewModels.PropertyVMs;
+using Module.Business.Features.LuaScript;
 using System;
 
 namespace Module.Business.Models

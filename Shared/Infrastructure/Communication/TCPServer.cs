@@ -1,4 +1,3 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
 using Shared.Infrastructure.Extensions;
 using Shared.Models.Communication;
@@ -12,10 +11,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
+using Shared.Abstractions.ICommunication;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class TCPServer : ICommunication, ICommunicationClientSource
+    [CommunicationAdapter(typeof(TcpServerRuntimeConfig))]
+    public class TCPServer : CommunicationBase, ICommunication, ICommunicationClientSource
     {
         private const int BufferSize = 8192;
 
@@ -26,7 +27,6 @@ namespace Shared.Infrastructure.Communication
         private CancellationTokenSource? _lifetimeCts;
         private Task? _acceptTask;
         private bool _lastSendIsHex;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
         /// <summary>
         /// 服务器 IP。
@@ -38,39 +38,16 @@ namespace Shared.Infrastructure.Communication
         /// </summary>
         public ushort LocalPort { get; private set; } = 5555;
 
-        public string LocalName { get; private set; } = string.Empty;
-
-        public ConnectState IsConnected
-        {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                SendState(value);
-            }
-        }
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event StateChanged StateChange = delegate { };
-
         public event CommunicationClientsChanged ClientsChanged = delegate { };
 
-        public TCPServer(CommuniactionConfigModel config)
+        public TCPServer(TcpServerRuntimeConfig config)
         {
-            LocalAddress = config.LocalIPAddress;
+            LocalAddress = config.LocalIpAddress;
             LocalPort = Convert.ToUInt16(config.LocalPort);
             LocalName = config.LocalName;
         }
 
-        public bool Start()
+        public override bool Start()
         {
             if (!CheckIpAddressAndPort(LocalAddress, LocalPort.ToString()))
             {
@@ -102,7 +79,7 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Close()
+        public override bool Close()
         {
             try
             {
@@ -304,7 +281,7 @@ namespace Shared.Infrastructure.Communication
                     byte[] data = buffer[..length];
                     string command = OnReceiveHandler(data);
                     WriteLog(new LogMessageModel { Message = $"TcpClient({session.Key})-->{LocalName}:{command}", Type = LogType.INFO });
-                    _ = Task.Run(() => OnReceive(command, session.Key, session.RemoteEndPoint.Address.ToString(), session.RemoteEndPoint.Port), token);
+                    _ = Task.Run(() => RaiseReceive(command, session.Key, session.RemoteEndPoint.Address.ToString(), session.RemoteEndPoint.Port), token);
                 }
             }
             catch (OperationCanceledException)
@@ -361,16 +338,6 @@ namespace Shared.Infrastructure.Communication
                    int.TryParse(port, out int portNumber) &&
                    portNumber > 0 &&
                    portNumber <= ushort.MaxValue;
-        }
-
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => OnLog(message));
-        }
-
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => StateChange(connectState, LocalName));
         }
 
         private void NotifyClientsChanged()

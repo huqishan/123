@@ -3,7 +3,7 @@ using ControlLibrary.Controls.FlowchartEditor.Models;
 using Newtonsoft.Json;
 using System.Windows.Media;
 
-namespace Module.Business.ViewModels;
+namespace Module.Business.Features.StationConfiguration;
 
 
 /// <summary>
@@ -181,7 +181,7 @@ public sealed class FlowchartProfile : ViewModelProperties
     #region 私有字段
 
     private string _id = Guid.NewGuid().ToString("N");
-    private string _name = "\u6d41\u7a0b\u56fe1";
+    private string _name = "流程图1";
     private FlowchartDocument _document = new();
 
     #endregion
@@ -217,13 +217,13 @@ public sealed class FlowchartProfile : ViewModelProperties
     public int NodeCount => Document.Nodes?.Count ?? 0;
 
     [JsonIgnore]
-    public string NodeCountText => $"{NodeCount} \u4e2a\u8282\u70b9";
+    public string NodeCountText => $"{NodeCount} 个节点";
 
     [JsonIgnore]
     public int ConnectionCount => Document.Connections?.Count ?? 0;
 
     [JsonIgnore]
-    public string Summary => $"{NodeCount} \u4e2a\u8282\u70b9 / {ConnectionCount} \u6761\u8fde\u7ebf";
+    public string Summary => $"{NodeCount} 个节点 / {ConnectionCount} 条连线";
 
     #endregion
 

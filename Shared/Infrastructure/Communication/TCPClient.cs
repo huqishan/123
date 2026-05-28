@@ -1,5 +1,5 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
+using Shared.Abstractions.ICommunication;
 using Shared.Infrastructure.Extensions;
 using Shared.Models.Communication;
 using Shared.Models.Log;
@@ -13,7 +13,8 @@ using System.Threading.Tasks;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class TCPClient : ICommunication
+    [CommunicationAdapter(typeof(TcpClientRuntimeConfig))]
+    public class TCPClient : CommunicationBase, ICommunication
     {
         private const int BufferSize = 8192;
         private const int ReconnectIntervalMilliseconds = 1000;
@@ -31,7 +32,6 @@ namespace Shared.Infrastructure.Communication
         private Task? _receiveTask;
         private Task? _reconnectTask;
         private bool _lastSendIsHex;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
         /// <summary>
         /// 远程服务器 IP 地址。
@@ -48,43 +48,20 @@ namespace Shared.Infrastructure.Communication
         /// </summary>
         public string LocalClientName { get; private set; } = string.Empty;
 
-        public ConnectState IsConnected
-        {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                SendState(value);
-            }
-        }
-
-        public string LocalName { get; }
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event StateChanged StateChange = delegate { };
-
-        public TCPClient(CommuniactionConfigModel config)
+        public TCPClient(TcpClientRuntimeConfig config)
         {
             LocalName = config.LocalName;
             LocalClientName = config.LocalName;
-            RemoteAddress = config.RemoteIPAddress;
+            RemoteAddress = config.RemoteIpAddress;
             RemotePort = Convert.ToUInt16(config.RemotePort);
-            _localAddress = config.LocalIPAddress;
+            _localAddress = config.LocalIpAddress;
             _localPort = config.LocalPort;
         }
 
         /// <summary>
         /// 连接服务器；后台会持续重连，避免设备短暂断线后必须手动重启连接。
         /// </summary>
-        public bool Start()
+        public override bool Start()
         {
             if (!CheckIpAddressAndPort(RemoteAddress, RemotePort.ToString()))
             {
@@ -99,7 +76,7 @@ namespace Shared.Infrastructure.Communication
             return connected;
         }
 
-        public bool Close()
+        public override bool Close()
         {
             try
             {
@@ -344,7 +321,7 @@ namespace Shared.Infrastructure.Communication
                     {
                         WriteLog(new LogMessageModel { Message = $"服务器{RemoteAddress}:{RemotePort}-->{LocalClientName}:{item}", Type = LogType.INFO });
                         _responseQueue.Add(item);
-                        _ = Task.Run(() => OnReceive(item, RemoteAddress, RemoteAddress, RemotePort), token);
+                        _ = Task.Run(() => RaiseReceive(item, RemoteAddress, RemoteAddress, RemotePort), token);
                     }
                 }
             }
@@ -453,14 +430,5 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => OnLog(message));
-        }
-
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => StateChange(connectState, LocalName));
-        }
     }
 }

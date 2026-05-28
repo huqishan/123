@@ -1051,8 +1051,8 @@ namespace ControlLibrary.Controls.FlowchartEditor.Control
             nodeRoot.Children.Add(nodeOutline);
             if (node.Kind == FlowchartNodeKind.Decision)
             {
-                nodeRoot.Children.Add(CreateDecisionBranchLabel("\u5426", HorizontalAlignment.Left));
-                nodeRoot.Children.Add(CreateDecisionBranchLabel("\u662f", HorizontalAlignment.Right));
+                nodeRoot.Children.Add(CreateDecisionBranchLabel("否", HorizontalAlignment.Left));
+                nodeRoot.Children.Add(CreateDecisionBranchLabel("是", HorizontalAlignment.Right));
             }
 
             nodeRoot.Children.Add(CreateNodeContent(node));
@@ -1975,9 +1975,9 @@ namespace ControlLibrary.Controls.FlowchartEditor.Control
             // 兼容旧的拖拽数据：如果只传了文本，也能把“判断”识别成菱形节点。
             return text.Trim() switch
             {
-                "\u5f00\u59cb" => FlowchartNodeKind.Start,
-                "\u5224\u65ad" => FlowchartNodeKind.Decision,
-                "\u7ed3\u675f" => FlowchartNodeKind.End,
+                "开始" => FlowchartNodeKind.Start,
+                "判断" => FlowchartNodeKind.Decision,
+                "结束" => FlowchartNodeKind.End,
                 _ => FlowchartNodeKind.Process
             };
         }

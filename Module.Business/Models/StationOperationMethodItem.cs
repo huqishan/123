@@ -1,4 +1,4 @@
-namespace Module.Business.ViewModels;
+namespace Module.Business.Models;
 
 public sealed class StationOperationMethodItem
 {

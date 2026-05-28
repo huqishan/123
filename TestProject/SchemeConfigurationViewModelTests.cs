@@ -1,6 +1,6 @@
 using Module.Business.Models;
-using Module.Business.ViewModels;
-using Module.Business.ViewModels.PropertyVMs;
+using Module.Business.Services;
+using Module.Business.Features.SchemeConfiguration;
 using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Threading;
@@ -64,13 +64,54 @@ public class SchemeConfigurationViewModelTests
     }
 
     [Test]
+    public void NormalizeCatalog_WhenSchemeStepHasOnlyWorkStepId_DoesNotBackfillOperations()
+    {
+        WorkStepProfile template = new()
+        {
+            Id = "template-step",
+            StepName = "Template"
+        };
+        template.Steps.Add(new WorkStepOperation
+        {
+            OperationObject = "System",
+            OperationId = "StringtoHex",
+            InvokeMethod = "StringtoHex"
+        });
+
+        SchemeProfile scheme = new()
+        {
+            SchemeName = "Scheme"
+        };
+        scheme.Steps.Add(new SchemeWorkStepItem
+        {
+            WorkStepId = template.Id,
+            StepName = template.StepName
+        });
+
+        SchemeConfigurationCatalog catalog = new()
+        {
+            WorkSteps = new ObservableCollection<WorkStepProfile> { template },
+            Schemes = new ObservableCollection<SchemeProfile> { scheme }
+        };
+
+        MethodInfo normalizeMethod = typeof(BusinessConfigurationStore).GetMethod(
+            "NormalizeCatalog",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        SchemeConfigurationCatalog normalized =
+            (SchemeConfigurationCatalog)normalizeMethod.Invoke(null, new object?[] { catalog })!;
+
+        Assert.That(normalized.Schemes.Single().Steps.Single().Operations, Is.Empty);
+    }
+
+    [Test]
     [Apartment(ApartmentState.STA)]
     public void EditingInvokeParameters_WhenTypeIsReturnValue_UsesPreviousStepKeysOnly()
     {
         _ = Application.Current ?? new App();
 
         Type editorStateType = typeof(SchemeConfigurationViewModel).Assembly
-            .GetType("Module.Business.ViewModels.SchemeStepEditorState", throwOnError: true)!;
+            .GetType("Module.Business.Features.SchemeConfiguration.SchemeStepEditorState", throwOnError: true)!;
         object editorState = Activator.CreateInstance(editorStateType)!;
 
         WorkStepProfile workStep = new()

@@ -146,7 +146,7 @@ public sealed class DependencyInjectionRegressionTests
 
     private static void EnsureWpfThreadContext()
     {
-        _ = Application.Current ?? new App();
+        _ = Application.Current ?? new Application();
         EnsureApplicationResources();
 
         if (SynchronizationContext.Current is not DispatcherSynchronizationContext)

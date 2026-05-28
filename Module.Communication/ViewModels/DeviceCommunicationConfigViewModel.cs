@@ -2,7 +2,6 @@ using ControlLibrary;
 using System.Linq;
 using System.Windows.Data;
 using Module.Communication.Models;
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
 using System;
 using System.Collections.Generic;
@@ -24,6 +23,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using Module.Communication.ViewModels.PropertyVMs;
+using Shared.Abstractions.ICommunication;
 
 namespace Module.Communication.ViewModels;
 
@@ -57,7 +57,7 @@ public DeviceCommunicationConfigViewModel()
     }
 
 
-#region 常量与静态资源
+    #region 常量与静态资源
 
     /// <summary>
     /// 接收日志允许保留的最大字符数，避免界面长期运行后文本过大。
@@ -118,7 +118,7 @@ public DeviceCommunicationConfigViewModel()
     /// <summary>
     /// 当前已经创建并启动的通信对象。
     /// </summary>
-    private ICommunication? _activeCommunication;
+    private CommunicationBase? _activeCommunication;
 
     /// <summary>
     /// 当前通信对象的客户端来源，供 TCP 服务端刷新客户端列表。
@@ -186,6 +186,10 @@ public DeviceCommunicationConfigViewModel()
     private string _searchText = string.Empty;
     private string _availableProtocolSearchText = string.Empty;
     private string _supportedProtocolCommandSearchText = string.Empty;
+    private string _selectedCommunicationFamily = CommunicationFamily.Standard.ToString();
+    private bool _isSyncingCommunicationFamily;
+    private string _selectedCommunicationTypeId = DeviceCommunicationConfigRegistry.Default.DefaultTypeId;
+    private bool _isSyncingCommunicationType;
 
     /// <summary>
     /// 协议列表抽屉是否处于打开状态。
@@ -220,42 +224,19 @@ public DeviceCommunicationConfigViewModel()
     /// <summary>
     /// 通信类型下拉选项集合。
     /// </summary>
+    public ObservableCollection<SelectionOption> CommunicationFamilies { get; } = new();
+
     public ObservableCollection<CommunicationTypeOption> CommunicationTypes { get; } = new();
 
     /// <summary>
-    /// PLC 类型下拉选项集合。
+    /// 当前通信类型的连接参数字段集合。
     /// </summary>
-    public ObservableCollection<SelectionOption> PLCTypes { get; } = new();
-
-    /// <summary>
-    /// S7 CPU 类型下拉选项集合。
-    /// </summary>
-    public ObservableCollection<SelectionOption> S7CpuTypes { get; } = new();
+    public ObservableCollection<DeviceCommunicationConfigFieldViewModel> CurrentFields { get; } = new();
 
     /// <summary>
     /// 串口名称候选集合。
     /// </summary>
     public ObservableCollection<string> PortNameOptions { get; } = new();
-
-    /// <summary>
-    /// 波特率候选集合。
-    /// </summary>
-    public ObservableCollection<SelectionOption> BaudRateOptions { get; } = new();
-
-    /// <summary>
-    /// 串口校验位候选集合。
-    /// </summary>
-    public ObservableCollection<SelectionOption> ParityOptions { get; } = new();
-
-    /// <summary>
-    /// 串口数据位候选集合。
-    /// </summary>
-    public ObservableCollection<SelectionOption> DataBitOptions { get; } = new();
-
-    /// <summary>
-    /// 串口停止位候选集合。
-    /// </summary>
-    public ObservableCollection<SelectionOption> StopBitOptions { get; } = new();
 
     /// <summary>
     /// PLC 数据类型候选集合。
@@ -304,9 +285,11 @@ public DeviceCommunicationConfigViewModel()
             if (_selectedProfile is not null)
             {
                 _selectedProfile.PropertyChanged += SelectedProfile_PropertyChanged;
-                RefreshPortNameOptions(_selectedProfile.IsSerialType);
             }
 
+            SyncCommunicationFamilyFromSelectedProfile();
+            SyncCommunicationTypeFromSelectedProfile();
+            RefreshCurrentFields();
             RefreshSupportedProtocolCommands();
             CloseProtocolCommandLibrary();
             OnPropertyChanged();
@@ -366,6 +349,56 @@ public DeviceCommunicationConfigViewModel()
             }
 
             SupportedProtocolCommandsView?.Refresh();
+        }
+    }
+
+    public string SelectedCommunicationFamily
+    {
+        get => _selectedCommunicationFamily;
+        set
+        {
+            string normalizedFamily = NormalizeCommunicationFamily(value).ToString();
+            if (!SetField(ref _selectedCommunicationFamily, normalizedFamily))
+            {
+                return;
+            }
+
+            RefreshCommunicationTypesForSelectedFamily();
+            if (!_isSyncingCommunicationFamily)
+            {
+                SelectDefaultTypeForCurrentFamily();
+            }
+        }
+    }
+
+    public string SelectedCommunicationTypeId
+    {
+        get => _selectedCommunicationTypeId;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value) ||
+                !DeviceCommunicationConfigRegistry.Default.Contains(value))
+            {
+                return;
+            }
+
+            string normalizedTypeId = DeviceCommunicationConfigRegistry.Default.GetOrDefault(value).TypeId;
+            if (!SetField(ref _selectedCommunicationTypeId, normalizedTypeId))
+            {
+                return;
+            }
+
+            if (_isSyncingCommunicationType || SelectedProfile is null)
+            {
+                return;
+            }
+
+            if (!string.Equals(SelectedProfile.TypeId, normalizedTypeId, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedProfile.TypeId = normalizedTypeId;
+            }
+
+            RefreshSelectedProfileTypeState();
         }
     }
 
@@ -475,18 +508,20 @@ public DeviceCommunicationConfigViewModel()
     /// 是否显示 TCP 服务端客户端选择区域。
     /// </summary>
     public bool IsTcpServerClientSelectionVisible =>
-        SelectedProfile?.Type == CommuniactionType.TCPServer ||
+        SelectedProfile?.IsTcpServerType == true ||
         _activeCommunicationType == CommuniactionType.TCPServer;
 
     /// <summary>
     /// 是否显示 PLC 读写测试区域。
     /// </summary>
-    public bool IsPlcTestVisible => SelectedProfile?.Type == CommuniactionType.PLC;
+    public bool IsPlcTestVisible => SelectedProfile?.IsPlcType == true;
 
     /// <summary>
     /// 是否显示通用报文发送区域。
     /// </summary>
-    public bool IsGenericSendTestVisible => !IsPlcTestVisible;
+    public bool IsGenericSendTestVisible => SelectedProfile?.SupportsGenericSendTest == true;
+
+    public bool IsPortRefreshVisible => SelectedProfile?.IsSerialType == true;
 
     /// <summary>
     /// 已连接 TCP 服务端客户端状态文案。
@@ -609,10 +644,11 @@ public DeviceCommunicationConfigViewModel()
     /// </summary>
     private void SelectedProfile_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DeviceCommunicationProfile.Type))
+        if (e.PropertyName == nameof(DeviceCommunicationProfile.TypeId))
         {
-            RefreshPortNameOptions(SelectedProfile?.IsSerialType == true);
-            RaiseCommunicationVisibilityChanged();
+            SyncCommunicationFamilyFromSelectedProfile();
+            SyncCommunicationTypeFromSelectedProfile();
+            RefreshSelectedProfileTypeState();
         }
 
         if (e.PropertyName is nameof(DeviceCommunicationProfile.LocalName) or
@@ -638,6 +674,16 @@ public DeviceCommunicationConfigViewModel()
         OnPropertyChanged(nameof(IsTcpServerClientSelectionVisible));
         OnPropertyChanged(nameof(IsPlcTestVisible));
         OnPropertyChanged(nameof(IsGenericSendTestVisible));
+        OnPropertyChanged(nameof(IsPortRefreshVisible));
+    }
+
+    private void RefreshSelectedProfileTypeState()
+    {
+        CloseActiveCommunicationForConfigurationChange();
+        RefreshCurrentFields();
+        ProfilesView?.Refresh();
+        RaiseCommunicationVisibilityChanged();
+        RaiseCommandStatesChanged();
     }
 
     private sealed record BoundParseOnlyCommand(
@@ -647,57 +693,121 @@ public DeviceCommunicationConfigViewModel()
 
     #endregion
 
-
-#region 初始化
+    #region 初始化
 
     /// <summary>
     /// 初始化页面下拉选项。
     /// </summary>
     private void InitializeSelectionOptions()
     {
-        CommunicationTypes.Add(new CommunicationTypeOption(CommuniactionType.TCPClient, "TCP客户端", "主动连接远端设备。"));
-        CommunicationTypes.Add(new CommunicationTypeOption(CommuniactionType.TCPServer, "TCP服务端", "启动本地监听并等待外部连接。"));
-        CommunicationTypes.Add(new CommunicationTypeOption(CommuniactionType.UDP, "UDP", "无连接数据报通信。"));
-        CommunicationTypes.Add(new CommunicationTypeOption(CommuniactionType.COM, "串口", "串口通信。"));
-        CommunicationTypes.Add(new CommunicationTypeOption(CommuniactionType.PLC, "PLC", "PLC通信。"));
-
-        PLCTypes.Add(new SelectionOption(PlcCommunicationTypeNames.Modbus, PlcCommunicationTypeNames.Modbus));
-        PLCTypes.Add(new SelectionOption(PlcCommunicationTypeNames.MX, PlcCommunicationTypeNames.MX));
-        PLCTypes.Add(new SelectionOption(PlcCommunicationTypeNames.S7, PlcCommunicationTypeNames.S7));
-
-        S7CpuTypes.Add(new SelectionOption(S7CpuTypeNames.S7200, "S7-200"));
-        S7CpuTypes.Add(new SelectionOption(S7CpuTypeNames.S7300, "S7-300"));
-        S7CpuTypes.Add(new SelectionOption(S7CpuTypeNames.S7400, "S7-400"));
-        S7CpuTypes.Add(new SelectionOption(S7CpuTypeNames.S71200, "S7-1200"));
-        S7CpuTypes.Add(new SelectionOption(S7CpuTypeNames.S71500, "S7-1500"));
-
         RefreshPortNameOptions(updateSelectedProfile: false);
 
-        foreach (string baudRate in new[] { "1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200" })
+        foreach (CommunicationFamily family in Enum.GetValues<CommunicationFamily>())
         {
-            BaudRateOptions.Add(new SelectionOption(baudRate, baudRate));
+            if (DeviceCommunicationConfigRegistry.Default.Descriptors.Any(descriptor => descriptor.Family == family))
+            {
+                CommunicationFamilies.Add(new SelectionOption(family.ToString(), GetCommunicationFamilyDisplayName(family)));
+            }
         }
 
-        ParityOptions.Add(new SelectionOption("0", "0 - 无"));
-        ParityOptions.Add(new SelectionOption("1", "1 - 奇校验"));
-        ParityOptions.Add(new SelectionOption("2", "2 - 偶校验"));
-        ParityOptions.Add(new SelectionOption("3", "3 - 标记"));
-        ParityOptions.Add(new SelectionOption("4", "4 - 空格"));
-
-        DataBitOptions.Add(new SelectionOption("5", "5"));
-        DataBitOptions.Add(new SelectionOption("6", "6"));
-        DataBitOptions.Add(new SelectionOption("7", "7"));
-        DataBitOptions.Add(new SelectionOption("8", "8"));
-
-        StopBitOptions.Add(new SelectionOption("0", "0 - 无"));
-        StopBitOptions.Add(new SelectionOption("1", "1 - 1位"));
-        StopBitOptions.Add(new SelectionOption("2", "2 - 2位"));
-        StopBitOptions.Add(new SelectionOption("3", "3 - 1.5位"));
+        RefreshCommunicationTypesForSelectedFamily();
 
         foreach (DataType type in Enum.GetValues<DataType>())
         {
             PlcDataTypeOptions.Add(new SelectionOption(type.ToString(), GetPlcDataTypeDisplayName(type)));
         }
+    }
+
+    private void RefreshCommunicationTypesForSelectedFamily()
+    {
+        CommunicationFamily selectedFamily = NormalizeCommunicationFamily(SelectedCommunicationFamily);
+        CommunicationTypes.Clear();
+
+        foreach (DeviceCommunicationConfigDescriptor descriptor in DeviceCommunicationConfigRegistry.Default.Descriptors
+                     .Where(descriptor => descriptor.Family == selectedFamily))
+        {
+            CommunicationTypes.Add(new CommunicationTypeOption(
+                descriptor.TypeId,
+                descriptor.DisplayName,
+                descriptor.Description));
+        }
+    }
+
+    private void SelectDefaultTypeForCurrentFamily()
+    {
+        if (SelectedProfile is null)
+        {
+            return;
+        }
+
+        if (CommunicationTypes.Any(option =>
+                string.Equals(option.Value, SelectedProfile.TypeId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        CommunicationTypeOption? firstType = CommunicationTypes.FirstOrDefault();
+        if (firstType is not null)
+        {
+            SelectedCommunicationTypeId = firstType.Value;
+        }
+    }
+
+    private void SyncCommunicationFamilyFromSelectedProfile()
+    {
+        if (SelectedProfile is null)
+        {
+            return;
+        }
+
+        DeviceCommunicationConfigDescriptor descriptor =
+            DeviceCommunicationConfigRegistry.Default.GetOrDefault(SelectedProfile.TypeId);
+
+        _isSyncingCommunicationFamily = true;
+        try
+        {
+            SelectedCommunicationFamily = descriptor.Family.ToString();
+        }
+        finally
+        {
+            _isSyncingCommunicationFamily = false;
+        }
+    }
+
+    private void SyncCommunicationTypeFromSelectedProfile()
+    {
+        if (SelectedProfile is null)
+        {
+            return;
+        }
+
+        _isSyncingCommunicationType = true;
+        try
+        {
+            SelectedCommunicationTypeId = SelectedProfile.TypeId;
+        }
+        finally
+        {
+            _isSyncingCommunicationType = false;
+        }
+    }
+
+    private static CommunicationFamily NormalizeCommunicationFamily(string? value)
+    {
+        return Enum.TryParse(value, ignoreCase: true, out CommunicationFamily family)
+            ? family
+            : CommunicationFamily.Standard;
+    }
+
+    private static string GetCommunicationFamilyDisplayName(CommunicationFamily family)
+    {
+        return family switch
+        {
+            CommunicationFamily.Standard => "标准通信",
+            CommunicationFamily.Plc => "PLC",
+            CommunicationFamily.Can => "CAN",
+            _ => family.ToString()
+        };
     }
 
     /// <summary>
@@ -780,7 +890,7 @@ public DeviceCommunicationConfigViewModel()
     /// </summary>
     private void NewProfile()
     {
-        CommuniactionType type = SelectedProfile?.Type ?? CommuniactionType.TCPClient;
+        string type = SelectedProfile?.TypeId ?? DeviceCommunicationConfigRegistry.Default.DefaultTypeId;
         DeviceCommunicationProfile profile = CreateProfile(type, GenerateUniqueName(type));
         AddProfile(profile);
         SelectedProfile = profile;
@@ -794,7 +904,7 @@ public DeviceCommunicationConfigViewModel()
             return;
         }
 
-        DeviceCommunicationProfile profile = SelectedProfile.Clone(GenerateUniqueName(SelectedProfile.Type));
+        DeviceCommunicationProfile profile = SelectedProfile.Clone(GenerateUniqueName(SelectedProfile.TypeId));
         AddProfile(profile);
         SelectedProfile = profile;
         AppendReceiveLine($"已复制设备通信配置：{profile.LocalName}。");
@@ -814,7 +924,8 @@ public DeviceCommunicationConfigViewModel()
 
         if (Profiles.Count == 0)
         {
-            AddProfile(CreateProfile(CommuniactionType.TCPClient, GenerateUniqueName(CommuniactionType.TCPClient)));
+            string defaultTypeId = DeviceCommunicationConfigRegistry.Default.DefaultTypeId;
+            AddProfile(CreateProfile(defaultTypeId, GenerateUniqueName(defaultTypeId)));
         }
 
         SelectedProfile = Profiles[Math.Clamp(currentIndex, 0, Profiles.Count - 1)];
@@ -1150,7 +1261,7 @@ public DeviceCommunicationConfigViewModel()
             return;
         }
 
-        if (!SelectedProfile.TryBuildRuntimeConfig(out CommuniactionConfigModel? config, out string message) || config is null)
+        if (!SelectedProfile.TryBuildRuntimeConfig(out ICommunicationRuntimeConfig? config, out string message) || config is null)
         {
             SetConnectionStatus("配置无效", WarningBrush);
             AppendReceiveLine($"通信测试失败：{message}");
@@ -1161,7 +1272,7 @@ public DeviceCommunicationConfigViewModel()
 
         try
         {
-            ICommunication communication = CommunicationFactory.CreateCommuniactionProtocol(config);
+            CommunicationBase communication = CommunicationFactory.CreateCommunicationProtocol(config);
             _activeCommunication = communication;
             _activeProfileName = config.LocalName;
             _activeCommunicationType = config.Type;
@@ -1197,7 +1308,7 @@ public DeviceCommunicationConfigViewModel()
     {
         try
         {
-            ICommunication? communication = _activeCommunication;
+            CommunicationBase? communication = _activeCommunication;
             CommuniactionType? activeType = _activeCommunicationType;
             if (communication is null || activeType is null)
             {
@@ -1212,6 +1323,18 @@ public DeviceCommunicationConfigViewModel()
                 return;
             }
 
+            if (IsPlcCommunicationType(activeType))
+            {
+                AppendReceiveLine("发送失败：PLC 通信请使用 PLC 读写测试。");
+                return;
+            }
+
+            if (communication is not ICommunication messageCommunication)
+            {
+                AppendReceiveLine("发送失败：当前通信对象不支持报文发送。");
+                return;
+            }
+
             if (activeType == CommuniactionType.TCPServer)
             {
                 if (SelectedServerClient is null)
@@ -1220,18 +1343,11 @@ public DeviceCommunicationConfigViewModel()
                     return;
                 }
 
-                await SendToServerClientAsync(communication, message, SelectedServerClient);
+                await SendToServerClientAsync(messageCommunication, message, SelectedServerClient);
                 return;
             }
-
-            if (IsPlcCommunicationType(activeType))
-            {
-                AppendReceiveLine("发送失败：PLC 通信请使用 PLC 读写测试。");
-                return;
-            }
-
             SendReceiveModel readWriteModel = new(message);
-            bool result = await communication.SendAsync(readWriteModel);
+            bool result = await messageCommunication.SendAsync(readWriteModel);
             string resultText = readWriteModel.Result is null ? string.Empty : $"，响应：{FormatMessage(readWriteModel.Result)}";
             AppendReceiveLine($"已发送：{message}，结果：{(result ? "成功" : "失败")}{resultText}");
         }
@@ -1245,8 +1361,8 @@ public DeviceCommunicationConfigViewModel()
     {
         try
         {
-            ICommunication? communication = _activeCommunication;
-            if (communication is null || _activeCommunicationType != CommuniactionType.TCPServer)
+            if (_activeCommunication is not ICommunication communication ||
+                _activeCommunicationType != CommuniactionType.TCPServer)
             {
                 AppendReceiveLine("群发失败：请先启动 TCP 服务端测试连接。");
                 return;
@@ -1287,20 +1403,20 @@ public DeviceCommunicationConfigViewModel()
     {
         try
         {
-            if (!TryGetActivePlcCommunication(out ICommunication? communication) ||
+            if (!TryGetActivePlcCommunication(out IPlcCommunication? communication) ||
                 !TryGetPlcTestArguments(out string address, out int length, out DataType dataType))
             {
                 return;
             }
 
-            SendReceiveModel readWriteModel = new(string.Empty, address, length, dataType);
-            bool result = await Task.Run(() =>
+            PlcReadResult readResult = await communication!
+                .ReadAsync(address, length, dataType)
+                .ConfigureAwait(false);
+            bool result = readResult.IsSuccess;
+            SendReceiveModel readWriteModel = new(string.Empty, address, length, dataType)
             {
-                SendReceiveModel model = readWriteModel;
-                bool readResult = communication!.Receive(ref model);
-                readWriteModel = model;
-                return readResult;
-            });
+                Result = readResult.Message
+            };
 
             AppendReceiveLine($"PLC 读取 {address}，长度 {length}，结果：{(result ? "成功" : "失败")}，响应：{FormatMessage(readWriteModel.Result)}");
         }
@@ -1314,7 +1430,7 @@ public DeviceCommunicationConfigViewModel()
     {
         try
         {
-            if (!TryGetActivePlcCommunication(out ICommunication? communication) ||
+            if (!TryGetActivePlcCommunication(out IPlcCommunication? communication) ||
                 !TryGetPlcTestArguments(out string address, out int length, out DataType dataType))
             {
                 return;
@@ -1328,7 +1444,11 @@ public DeviceCommunicationConfigViewModel()
             }
 
             SendReceiveModel readWriteModel = new(value, address, length, dataType);
-            bool result = await communication!.SendAsync(readWriteModel);
+            PlcWriteResult writeResult = await communication!
+                .WriteAsync(address, value, dataType)
+                .ConfigureAwait(false);
+            readWriteModel.Result = writeResult.Message;
+            bool result = writeResult.IsSuccess;
             AppendReceiveLine($"PLC 写入 {address}，值 {value}，结果：{(result ? "成功" : "失败")}，响应：{FormatMessage(readWriteModel.Result)}");
         }
         catch (Exception ex)
@@ -1349,6 +1469,7 @@ public DeviceCommunicationConfigViewModel()
 
     private void RefreshPorts()
     {
+        RefreshCurrentFields();
         RefreshPortNameOptions(updateSelectedProfile: true);
         AppendReceiveLine(PortNameOptions.Count == 0
             ? "未检测到串口，可手动输入端口名称。"
@@ -1361,17 +1482,16 @@ public DeviceCommunicationConfigViewModel()
 
     private void SeedProfiles()
     {
-        AddProfile(CreateProfile(CommuniactionType.TCPClient, GenerateUniqueName(CommuniactionType.TCPClient)));
+        string defaultTypeId = DeviceCommunicationConfigRegistry.Default.DefaultTypeId;
+        AddProfile(CreateProfile(defaultTypeId, GenerateUniqueName(defaultTypeId)));
     }
 
-    private DeviceCommunicationProfile CreateProfile(CommuniactionType type, string name)
+    private DeviceCommunicationProfile CreateProfile(string typeId, string name)
     {
-        DeviceCommunicationProfile profile = new()
+        DeviceCommunicationProfile profile = new(typeId)
         {
-            LocalName = name,
-            Type = type
+            LocalName = name
         };
-        profile.ResetToCurrentTypeDefaults();
         return profile;
     }
 
@@ -1594,7 +1714,7 @@ public DeviceCommunicationConfigViewModel()
             try
             {
                 DeviceCommunicationProfileDocument? document = JsonHelper.ReadJson<DeviceCommunicationProfileDocument>(filePath);
-                if (document is null || !IsSupportedCommunicationType(document.Type))
+                if (document is null || !IsSupportedCommunicationType(document.TypeId))
                 {
                     continue;
                 }
@@ -1702,17 +1822,17 @@ public DeviceCommunicationConfigViewModel()
         return safeName.Length <= 80 ? safeName : safeName[..80];
     }
 
-    private string GenerateUniqueName(CommuniactionType type)
+    private string GenerateUniqueName(string typeId)
     {
-        string prefix = type switch
-        {
+        string prefix = DeviceCommunicationConfigRegistry.Default.GetOrDefault(typeId).DisplayName;
+        /*
             CommuniactionType.TCPClient => "TCP客户端",
             CommuniactionType.TCPServer => "TCP服务端",
             CommuniactionType.UDP => "UDP",
             CommuniactionType.COM => "串口",
             CommuniactionType.PLC => "PLC",
             _ => "通信配置"
-        };
+        */
 
         for (int index = 1; ; index++)
         {
@@ -1728,7 +1848,7 @@ public DeviceCommunicationConfigViewModel()
 
     #region 通信对象事件
 
-    private void AttachActiveCommunicationEvents(ICommunication communication)
+    private void AttachActiveCommunicationEvents(CommunicationBase communication)
     {
         communication.OnReceive += ActiveCommunication_OnReceive;
         communication.StateChange += ActiveCommunication_StateChange;
@@ -1742,7 +1862,7 @@ public DeviceCommunicationConfigViewModel()
         }
     }
 
-    private void DetachActiveCommunicationEvents(ICommunication communication)
+    private void DetachActiveCommunicationEvents(CommunicationBase communication)
     {
         communication.OnReceive -= ActiveCommunication_OnReceive;
         communication.StateChange -= ActiveCommunication_StateChange;
@@ -1757,7 +1877,7 @@ public DeviceCommunicationConfigViewModel()
 
     private void CloseActiveCommunication(bool updateStatus)
     {
-        ICommunication? communication = _activeCommunication;
+        CommunicationBase? communication = _activeCommunication;
         string? profileName = _activeProfileName;
         if (communication is null)
         {
@@ -1899,9 +2019,9 @@ public DeviceCommunicationConfigViewModel()
         });
     }
 
-    private bool TryGetActivePlcCommunication(out ICommunication? communication)
+    private bool TryGetActivePlcCommunication(out IPlcCommunication? communication)
     {
-        communication = _activeCommunication;
+        communication = _activeCommunication as IPlcCommunication;
         if (communication is not null && IsPlcCommunicationType(_activeCommunicationType))
         {
             return true;
@@ -2229,19 +2349,14 @@ public DeviceCommunicationConfigViewModel()
         return message.ToString() ?? string.Empty;
     }
 
-    private static bool IsSupportedCommunicationType(CommuniactionType type)
+    private static bool IsSupportedCommunicationType(string? typeId)
     {
-        return type is CommuniactionType.TCPClient
-            or CommuniactionType.TCPServer
-            or CommuniactionType.UDP
-            or CommuniactionType.COM
-            or CommuniactionType.MX
-            or CommuniactionType.PLC;
+        return DeviceCommunicationConfigRegistry.Default.Contains(typeId);
     }
 
     private static bool IsPlcCommunicationType(CommuniactionType? type)
     {
-        return type is CommuniactionType.PLC or CommuniactionType.MX;
+        return type == CommuniactionType.PLC;
     }
 
     private void RaiseCommandStatesChanged()
@@ -2262,6 +2377,18 @@ public DeviceCommunicationConfigViewModel()
         RaiseCommandState(CloseConnectionCommand);
     }
 
+    private void CloseActiveCommunicationForConfigurationChange()
+    {
+        if (_activeCommunication is null)
+        {
+            return;
+        }
+
+        CloseActiveCommunication(updateStatus: false);
+        SetConnectionStatus("配置已变更", NeutralBrush);
+        AppendReceiveLine("驱动类型已变更，已关闭当前测试连接。");
+    }
+
     private static void RaiseCommandState(ICommand? command)
     {
         if (command is RelayCommand relayCommand)
@@ -2270,27 +2397,50 @@ public DeviceCommunicationConfigViewModel()
         }
     }
 
+    private void RefreshCurrentFields()
+    {
+        CurrentFields.Clear();
+        if (SelectedProfile is null)
+        {
+            return;
+        }
+
+        DeviceCommunicationConfigDescriptor descriptor =
+            DeviceCommunicationConfigRegistry.Default.GetOrDefault(SelectedProfile.TypeId);
+        foreach (DeviceCommunicationConfigFieldViewModel field in descriptor.CreateFieldViewModels(SelectedProfile))
+        {
+            CurrentFields.Add(field);
+        }
+
+        if (SelectedProfile.IsSerialType)
+        {
+            RefreshPortNameOptions(updateSelectedProfile: false);
+        }
+
+        OnPropertyChanged(nameof(IsPortRefreshVisible));
+    }
+
     private void RefreshPortNameOptions(bool updateSelectedProfile)
     {
         List<string> detectedPortNames = GetDetectedSerialPortNames();
-        DeviceCommunicationProfile? profile = SelectedProfile;
-        if (profile?.IsSerialType == true)
-        {
-            string selectedPortName = profile.PortName.Trim();
-            if (updateSelectedProfile &&
-                detectedPortNames.Count > 0 &&
-                (string.IsNullOrWhiteSpace(selectedPortName) ||
-                 (string.Equals(selectedPortName, "COM1", StringComparison.OrdinalIgnoreCase) &&
-                  !ContainsPortName(detectedPortNames, selectedPortName))))
-            {
-                profile.PortName = detectedPortNames[0];
-            }
-        }
 
         PortNameOptions.Clear();
         foreach (string portName in detectedPortNames)
         {
             PortNameOptions.Add(portName);
+        }
+
+        if (updateSelectedProfile && SelectedProfile?.IsSerialType == true && detectedPortNames.Count > 0)
+        {
+            DeviceCommunicationConfigFieldViewModel? portField =
+                CurrentFields.FirstOrDefault(field => string.Equals(field.Key, "PortName", StringComparison.OrdinalIgnoreCase));
+            if (portField is not null &&
+                (string.IsNullOrWhiteSpace(portField.Value) ||
+                 (string.Equals(portField.Value, "COM1", StringComparison.OrdinalIgnoreCase) &&
+                  !ContainsPortName(detectedPortNames, portField.Value))))
+            {
+                portField.Value = detectedPortNames[0];
+            }
         }
     }
 

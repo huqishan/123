@@ -1,9 +1,11 @@
 using Module.Business.Services.BusinessOperations;
-using Shared.Abstractions;
 using Shared.Abstractions.Attributes;
 using Shared.Abstractions.Enum;
+using Shared.Abstractions.ICommunication;
+using Shared.Infrastructure.Communication;
 using Shared.Models.Communication;
-using Shared.Models.Log;
+using System.IO;
+using System.Reflection;
 using System.Threading;
 
 namespace TestProject;
@@ -14,6 +16,8 @@ public class BusinessOperationCatalogTests
     public void SetUp()
     {
         BusinessOperationCatalog.Refresh();
+        CommunicationAdapterRegistry.Default.RegisterFromAssembly(typeof(FakeCommunication).Assembly);
+        BusinessOperationInvoker.ConfigureServiceResolver(_ => null);
     }
 
     [Test]
@@ -49,7 +53,7 @@ public class BusinessOperationCatalogTests
     {
         BusinessOperationDescriptor? operation = BusinessOperationCatalog
             .GetOperations(CommuniactionType.TCPClient.ToString())
-            .FirstOrDefault(item => item.OperationId == "GetCurrentCommunicationName");
+            .FirstOrDefault(item => item.OperationId == "SendCurrentCommunication");
 
         Assert.That(operation, Is.Not.Null);
         Assert.That(operation!.Parameters, Is.Empty);
@@ -58,47 +62,140 @@ public class BusinessOperationCatalogTests
     [Test]
     public async Task InvokeAsync_ForCommunicationTypeBusiness_InjectsCurrentCommunication()
     {
-        FakeCommunication communication = new("TCP客户端-01");
+        const string localName = "TCP客户端01";
+        FakeRuntimeConfig config = new(localName, CommuniactionType.TCPClient);
 
-        BusinessOperationInvocationResult result = await BusinessOperationInvoker.InvokeAsync(
-            CommuniactionType.TCPClient.ToString(),
-            "GetCurrentCommunicationName",
-            new Dictionary<string, string>(),
-            communication,
-            CancellationToken.None);
+        try
+        {
+            CommunicationFactory.CreateCommunicationProtocol(config);
 
-        Assert.That(result.IsSuccess, Is.True);
-        Assert.That(result.Result, Is.EqualTo("TCP客户端-01"));
+            BusinessOperationInvocationResult result = await BusinessOperationInvoker.InvokeAsync(
+                CommuniactionType.TCPClient.ToString(),
+                "SendCurrentCommunication",
+                new Dictionary<string, string>(),
+                localName,
+                CancellationToken.None);
+
+            Assert.That(result.IsSuccess, Is.True);
+            Assert.That(result.Result, Is.EqualTo(localName));
+        }
+        finally
+        {
+            CommunicationFactory.Remove(localName);
+        }
+    }
+
+    [Test]
+    public void GetOperations_ForPlcBusiness_HidesRuntimePlcParameter()
+    {
+        BusinessOperationDescriptor? operation = BusinessOperationCatalog
+            .GetOperations(CommuniactionType.PLC.ToString())
+            .FirstOrDefault(item => item.OperationId == "ReadCurrentPlcValue");
+
+        Assert.That(operation, Is.Not.Null);
+        Assert.That(operation!.Parameters, Is.Empty);
+    }
+
+    [Test]
+    public async Task InvokeAsync_ForPlcBusiness_InjectsCurrentPlcCommunication()
+    {
+        const string localName = "PLC-01";
+        FakeRuntimeConfig config = new(localName, CommuniactionType.PLC, "123");
+
+        try
+        {
+            CommunicationFactory.CreateCommunicationProtocol(config);
+
+            BusinessOperationInvocationResult result = await BusinessOperationInvoker.InvokeAsync(
+                CommuniactionType.PLC.ToString(),
+                "ReadCurrentPlcValue",
+                new Dictionary<string, string>(),
+                localName,
+                CancellationToken.None);
+
+            Assert.That(result.IsSuccess, Is.True);
+            Assert.That(result.Result, Is.EqualTo("123"));
+        }
+        finally
+        {
+            CommunicationFactory.Remove(localName);
+        }
     }
 
     [DeviceBusiness(CommuniactionType.TCPClient, "TCP客户端业务")]
     private static class TcpClientBusiness
     {
-        [BusinessOperation("GetCurrentCommunicationName", "获取当前通信名称")]
-        public static string GetCurrentCommunicationName(ICommunication communication)
+        [BusinessOperation("SendCurrentCommunication", "发送当前通信报文")]
+        public static string SendCurrentCommunication(ICommunication communication)
         {
-            return communication.LocalName;
+            SendReceiveModel model = new("PING");
+            return communication.Send(ref model) ? model.Result?.ToString() ?? string.Empty : string.Empty;
         }
     }
 
-    private sealed class FakeCommunication : ICommunication
+    [DeviceBusiness(CommuniactionType.PLC, "PLC业务")]
+    private static class PlcBusiness
     {
-        public FakeCommunication(string localName)
+        [BusinessOperation("ReadCurrentPlcValue", "读取当前 PLC 值")]
+        public static string ReadCurrentPlcValue(IPlcCommunication plcCommunication)
         {
-            LocalName = localName;
+            return plcCommunication.Read("D100", 1).Message;
+        }
+    }
+
+    [Test]
+    public void ResolveCatalogDeviceId_ForCurrentCommunicationTypeId_MapsToRuntimeBusinessDevice()
+    {
+        const string localName = "type-id-plc-device";
+        string directory = Path.Combine(AppContext.BaseDirectory, "Config", "Communication");
+        string filePath = Path.Combine(directory, $"{Guid.NewGuid():N}.json");
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(
+            filePath,
+            """
+            {
+              "LocalName": "type-id-plc-device",
+              "TypeId": "plc-s7",
+              "Config": {}
+            }
+            """);
+
+        try
+        {
+            Type resolverType = typeof(BusinessOperationCatalog).Assembly.GetType(
+                "Module.Business.Services.BusinessOperations.BusinessOperationBindingResolver",
+                throwOnError: true)!;
+            MethodInfo resolveMethod = resolverType.GetMethod(
+                "ResolveCatalogDeviceId",
+                BindingFlags.Public | BindingFlags.Static)!;
+
+            string deviceId = (string)resolveMethod.Invoke(null, new object?[] { localName, null })!;
+
+            Assert.That(deviceId, Is.EqualTo(CommuniactionType.PLC.ToString()));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    public sealed record FakeRuntimeConfig(
+        string LocalName,
+        CommuniactionType Type,
+        string PlcValue = "") : ICommunicationRuntimeConfig;
+
+    [CommunicationAdapter(typeof(FakeRuntimeConfig))]
+    public sealed class FakeCommunication : CommunicationBase, ICommunication, IPlcCommunication
+    {
+        private readonly string _plcValue;
+
+        public FakeCommunication(FakeRuntimeConfig config)
+        {
+            LocalName = config.LocalName;
+            _plcValue = config.PlcValue;
         }
 
-        public event ReceiveData? OnReceive;
-
-        public event StateChanged? StateChange;
-
-        public event Action<LogMessageModel>? OnLog;
-
-        public ConnectState IsConnected => ConnectState.Connected;
-
-        public string LocalName { get; }
-
-        public bool Start()
+        public override bool Start()
         {
             return true;
         }
@@ -106,6 +203,7 @@ public class BusinessOperationCatalogTests
         public bool Send(ref SendReceiveModel readWriteModel, bool isWait = false)
         {
             _ = isWait;
+            readWriteModel.Result = LocalName;
             return true;
         }
 
@@ -119,9 +217,37 @@ public class BusinessOperationCatalogTests
             return true;
         }
 
-        public bool Close()
+        public override bool Close()
         {
             return true;
+        }
+
+        public PlcReadResult Read(string address, int length, DataType dataType = DataType.Decimal)
+        {
+            return PlcReadResult.Create(true, address, length, dataType, _plcValue);
+        }
+
+        public Task<PlcReadResult> ReadAsync(
+            string address,
+            int length,
+            DataType dataType = DataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Read(address, length, dataType));
+        }
+
+        public PlcWriteResult Write(string address, string value, DataType dataType = DataType.Decimal)
+        {
+            return PlcWriteResult.Create(true, address, value, dataType, "OK");
+        }
+
+        public Task<PlcWriteResult> WriteAsync(
+            string address,
+            string value,
+            DataType dataType = DataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Write(address, value, dataType));
         }
     }
 }

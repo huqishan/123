@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Module.Business.ViewModels.PropertyVMs
+namespace Module.Business.Features.LuaScript
 {
     public sealed class LuaScriptProfile : ViewModelProperties
     {

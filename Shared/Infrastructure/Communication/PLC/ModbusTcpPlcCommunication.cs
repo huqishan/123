@@ -1,5 +1,5 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
+using Shared.Abstractions.ICommunication;
 using Shared.Models.Communication;
 using Shared.Models.Log;
 using System;
@@ -7,11 +7,13 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Shared.Infrastructure.Communication
 {
-    public sealed class ModbusTcpPlcCommunication : ICommunication
+    [CommunicationAdapter(typeof(ModbusTcpPlcRuntimeConfig))]
+    public sealed class ModbusTcpPlcCommunication : CommunicationBase, IPlcCommunication
     {
         private const byte UnitId = 1;
         private const int TimeoutMilliseconds = 5000;
@@ -24,41 +26,17 @@ namespace Shared.Infrastructure.Communication
         private ushort _transactionId;
         private TcpClient? _tcpClient;
         private NetworkStream? _stream;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
-        public ModbusTcpPlcCommunication(CommuniactionConfigModel config)
+        public ModbusTcpPlcCommunication(ModbusTcpPlcRuntimeConfig config)
         {
             LocalName = config.LocalName;
-            _remoteAddress = config.RemoteIPAddress;
+            _remoteAddress = config.RemoteIpAddress;
             _remotePort = config.RemotePort;
-            _localAddress = config.LocalIPAddress;
+            _localAddress = config.LocalIpAddress;
             _localPort = config.LocalPort;
         }
 
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event StateChanged StateChange = delegate { };
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public ConnectState IsConnected
-        {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                Task.Run(() => StateChange(value, LocalName));
-            }
-        }
-
-        public string LocalName { get; }
-
-        public bool Start()
+        public override bool Start()
         {
             lock (_syncRoot)
             {
@@ -102,7 +80,7 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Close()
+        public override bool Close()
         {
             lock (_syncRoot)
             {
@@ -113,59 +91,21 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Send(ref SendReceiveModel readWriteModel, bool isWait = false)
+        public PlcReadResult Read(string address, int length, DataType dataType = DataType.Decimal)
         {
+            int normalizedLength = Math.Clamp(length, 1, 125);
             lock (_syncRoot)
             {
                 try
                 {
                     if (!EnsureConnected())
                     {
-                        readWriteModel.Result = "Modbus TCP is not connected.";
-                        return false;
+                        return PlcReadResult.Create(false, address, normalizedLength, dataType, "Modbus TCP is not connected.");
                     }
 
-                    ushort address = ParseRegisterAddress(readWriteModel.PLCAddress);
-                    ushort[] values = ParseWriteValues(readWriteModel.Message);
-                    byte functionCode = values.Length == 1 ? (byte)0x06 : (byte)0x10;
-                    byte[] response = SendRequest(BuildWriteRequest(functionCode, address, values));
-                    ValidateResponse(response, functionCode);
-
-                    readWriteModel.Result = "OK";
-                    WriteLog(
-                        $"{LocalName} Modbus TCP write {address}, values {string.Join(", ", values)} succeeded.",
-                        LogType.INFO);
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    readWriteModel.Result = ex.Message;
-                    WriteLog($"{LocalName} Modbus TCP write failed: {ex.Message}", LogType.ERROR);
-                    return false;
-                }
-            }
-        }
-
-        public Task<bool> SendAsync(SendReceiveModel readWriteModel)
-        {
-            return Task.Run(() => Send(ref readWriteModel));
-        }
-
-        public bool Receive(ref SendReceiveModel readWriteModel)
-        {
-            lock (_syncRoot)
-            {
-                try
-                {
-                    if (!EnsureConnected())
-                    {
-                        readWriteModel.Result = "Modbus TCP is not connected.";
-                        return false;
-                    }
-
-                    ushort address = ParseRegisterAddress(readWriteModel.PLCAddress);
-                    ushort quantity = Convert.ToUInt16(Math.Clamp(readWriteModel.Lenght, 1, 125));
-                    byte[] response = SendRequest(BuildReadHoldingRegistersRequest(address, quantity));
+                    ushort registerAddress = ParseRegisterAddress(address);
+                    ushort quantity = Convert.ToUInt16(normalizedLength);
+                    byte[] response = SendRequest(BuildReadHoldingRegistersRequest(registerAddress, quantity));
                     ValidateResponse(response, 0x03);
 
                     int byteCount = response.Length > 1 ? response[1] : 0;
@@ -181,19 +121,76 @@ namespace Shared.Infrastructure.Communication
                         values[index] = ReadUInt16(response, offset);
                     }
 
-                    string resultText = FormatValues(values, readWriteModel.Type);
-                    readWriteModel.Result = resultText;
-                    WriteLog($"{LocalName} Modbus TCP read {address}, length {quantity}, result {resultText}.", LogType.INFO);
-                    Task.Run(() => OnReceive(resultText, address));
-                    return true;
+                    string resultText = FormatValues(values, dataType);
+                    WriteLog($"{LocalName} Modbus TCP read {registerAddress}, length {quantity}, result {resultText}.", LogType.INFO);
+                    Task.Run(() => RaiseReceive(resultText, registerAddress));
+                    return PlcReadResult.Create(true, address, normalizedLength, dataType, resultText);
                 }
                 catch (Exception ex)
                 {
-                    readWriteModel.Result = ex.Message;
                     WriteLog($"{LocalName} Modbus TCP read failed: {ex.Message}", LogType.ERROR);
-                    return false;
+                    return PlcReadResult.Create(false, address, normalizedLength, dataType, ex.Message);
                 }
             }
+        }
+
+        public Task<PlcReadResult> ReadAsync(
+            string address,
+            int length,
+            DataType dataType = DataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Read(address, length, dataType);
+            }, cancellationToken);
+        }
+
+        public PlcWriteResult Write(string address, string value, DataType dataType = DataType.Decimal)
+        {
+            string writeValue = value ?? string.Empty;
+            lock (_syncRoot)
+            {
+                try
+                {
+                    if (!EnsureConnected())
+                    {
+                        return PlcWriteResult.Create(false, address, writeValue, dataType, "Modbus TCP is not connected.");
+                    }
+
+                    ushort registerAddress = ParseRegisterAddress(address);
+                    ushort[] values = ParseWriteValues(writeValue);
+                    byte functionCode = values.Length == 1 ? (byte)0x06 : (byte)0x10;
+                    byte[] response = SendRequest(BuildWriteRequest(functionCode, registerAddress, values));
+                    ValidateResponse(response, functionCode);
+
+                    WriteLog(
+                        $"{LocalName} Modbus TCP write {registerAddress}, values {string.Join(", ", values)} succeeded.",
+                        LogType.INFO);
+                    return PlcWriteResult.Create(true, address, writeValue, dataType, "OK");
+                }
+                catch (Exception ex)
+                {
+                    WriteLog($"{LocalName} Modbus TCP write failed: {ex.Message}", LogType.ERROR);
+                    return PlcWriteResult.Create(false, address, writeValue, dataType, ex.Message);
+                }
+            }
+        }
+
+        public Task<PlcWriteResult> WriteAsync(
+            string address,
+            string value,
+            DataType dataType = DataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                PlcWriteResult result = Write(address, value, dataType);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
+            }, cancellationToken);
         }
 
         private bool EnsureConnected()
@@ -438,9 +435,5 @@ namespace Shared.Infrastructure.Communication
             _tcpClient = null;
         }
 
-        private void WriteLog(string message, LogType type)
-        {
-            Task.Run(() => OnLog(new LogMessageModel { Message = message, Type = type }));
-        }
     }
 }

@@ -1,5 +1,6 @@
-using Shared.Abstractions;
+using Shared.Abstractions.ICommunication;
 using Shared.Infrastructure.Events;
+using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Mediator;
 using System;
 using System.Collections.Generic;
@@ -74,7 +75,7 @@ public static class BusinessOperationInvoker
         string deviceId,
         string operationId,
         IReadOnlyDictionary<string, string> parameters,
-        ICommunication? currentCommunication,
+        string? operationObjectName,
         CancellationToken cancellationToken = default)
     {
         BusinessOperationRegistration? registration = BusinessOperationCatalog.FindRegistration(deviceId, operationId);
@@ -89,7 +90,7 @@ public static class BusinessOperationInvoker
             object? target = registration.Method.IsStatic
                 ? null
                 : CreateTarget(registration.DeclaringType);
-            object?[] args = BuildArguments(registration, parameters, currentCommunication, cancellationToken);
+            object?[] args = BuildArguments(registration, parameters, operationObjectName, cancellationToken);
             object? value = registration.Method.Invoke(target, args);
             if (value is Task task)
             {
@@ -126,8 +127,15 @@ public static class BusinessOperationInvoker
         return parameterType == typeof(CancellationToken) ||
                parameterType == typeof(IMediator) ||
                parameterType == typeof(IEventAggregator) ||
-               typeof(ICommunication).IsAssignableFrom(parameterType) ||
-               typeof(ICommunicationClientSource).IsAssignableFrom(parameterType);
+               IsCommunicationRuntimeParameter(parameterType);
+    }
+
+    private static bool IsCommunicationRuntimeParameter(Type parameterType)
+    {
+        return typeof(ICommunication).IsAssignableFrom(parameterType) ||
+               typeof(ICommunicationClientSource).IsAssignableFrom(parameterType) ||
+               typeof(IPlcCommunication).IsAssignableFrom(parameterType) ||
+               typeof(CommunicationBase).IsAssignableFrom(parameterType);
     }
 
     #endregion
@@ -190,7 +198,7 @@ public static class BusinessOperationInvoker
     private static object?[] BuildArguments(
         BusinessOperationRegistration registration,
         IReadOnlyDictionary<string, string> values,
-        ICommunication? currentCommunication,
+        string? operationObjectName,
         CancellationToken cancellationToken)
     {
         Dictionary<string, BusinessParameterDescriptor> descriptorByName = registration.Descriptor.Parameters
@@ -215,7 +223,7 @@ public static class BusinessOperationInvoker
             if (TryResolveCurrentCommunicationParameter(
                     registration,
                     parameter,
-                    currentCommunication,
+                    operationObjectName,
                     out object? currentCommunicationValue))
             {
                 args[index] = currentCommunicationValue;
@@ -225,13 +233,11 @@ public static class BusinessOperationInvoker
             if (IsRuntimeParameter(parameter.ParameterType))
             {
                 object? service = _serviceResolver?.Invoke(parameter.ParameterType);
-                if (service is null &&
-                    (typeof(ICommunication).IsAssignableFrom(parameter.ParameterType) ||
-                     typeof(ICommunicationClientSource).IsAssignableFrom(parameter.ParameterType)))
+                if (service is null && IsCommunicationRuntimeParameter(parameter.ParameterType))
                 {
                     throw new InvalidOperationException(
                         $"Business operation '{registration.Descriptor.DeviceId}.{registration.Descriptor.OperationId}' " +
-                        $"requires current communication parameter '{parameter.Name}', but no compatible communication object is available.");
+                        $"requires operation object parameter '{parameter.Name}', but no compatible communication object is available.");
                 }
 
                 args[index] = service;
@@ -260,31 +266,38 @@ public static class BusinessOperationInvoker
     private static bool TryResolveCurrentCommunicationParameter(
         BusinessOperationRegistration registration,
         ParameterInfo parameter,
-        ICommunication? currentCommunication,
+        string? operationObjectName,
         out object? value)
     {
         value = null;
-        if (currentCommunication is null)
+        if (!IsCommunicationRuntimeParameter(parameter.ParameterType))
         {
             return false;
         }
 
-        if (parameter.ParameterType.IsInstanceOfType(currentCommunication))
+        string normalizedName = operationObjectName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedName))
         {
-            value = currentCommunication;
-            return true;
+            return false;
         }
 
-        if (typeof(ICommunication).IsAssignableFrom(parameter.ParameterType) ||
-            typeof(ICommunicationClientSource).IsAssignableFrom(parameter.ParameterType))
+        if (!CommunicationFactory.TryGet(normalizedName, out CommunicationBase runtimeCommunication))
         {
             throw new InvalidOperationException(
                 $"Business operation '{registration.Descriptor.DeviceId}.{registration.Descriptor.OperationId}' " +
-                $"requires current communication parameter '{parameter.Name}' of type '{parameter.ParameterType.Name}', " +
-                "but the current communication object is incompatible.");
+                $"requires operation object '{normalizedName}', but it is not initialized.");
         }
 
-        return false;
+        if (parameter.ParameterType.IsInstanceOfType(runtimeCommunication))
+        {
+            value = runtimeCommunication;
+            return true;
+        }
+
+        throw new InvalidOperationException(
+            $"Business operation '{registration.Descriptor.DeviceId}.{registration.Descriptor.OperationId}' " +
+            $"requires operation object parameter '{parameter.Name}' of type '{parameter.ParameterType.Name}', " +
+            $"but '{normalizedName}' is '{runtimeCommunication.GetType().Name}'.");
     }
 
     #endregion

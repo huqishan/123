@@ -33,7 +33,7 @@ namespace ControlLibrary
 
             ResourceDictionary languageDictionary = new()
             {
-                Source = new Uri($"{LanguagePathPrefix}{language.ResourceFileName}", UriKind.Relative)
+                Source = CreateLanguageResourceUri(language)
             };
 
             var dictionaries = Application.Current.Resources.MergedDictionaries;
@@ -62,7 +62,19 @@ namespace ControlLibrary
 
         private static bool IsLanguageDictionary(ResourceDictionary dictionary)
         {
-            return dictionary.Source?.OriginalString.StartsWith(LanguagePathPrefix, StringComparison.OrdinalIgnoreCase) == true;
+            string? source = dictionary.Source?.OriginalString;
+            return source is not null &&
+                   source.IndexOf(LanguagePathPrefix, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static Uri CreateLanguageResourceUri(AppLanguageOption language)
+        {
+            string resourcePath = $"{LanguagePathPrefix}{language.ResourceFileName}";
+            string? resourceAssemblyName = Application.ResourceAssembly?.GetName().Name;
+
+            return string.IsNullOrWhiteSpace(resourceAssemblyName)
+                ? new Uri(resourcePath, UriKind.Relative)
+                : new Uri($"/{resourceAssemblyName};component/{resourcePath}", UriKind.Relative);
         }
 
         private static void SetCulture(string languageKey)

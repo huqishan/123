@@ -1,5 +1,5 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
+using Shared.Abstractions.ICommunication;
 using Shared.Infrastructure.Extensions;
 using Shared.Models.Communication;
 using Shared.Models.Log;
@@ -13,7 +13,8 @@ using System.Threading.Tasks;
 
 namespace Shared.Infrastructure.Communication
 {
-    public class UDPClient : ICommunication
+    [CommunicationAdapter(typeof(UdpClientRuntimeConfig))]
+    public class UDPClient : CommunicationBase, ICommunication
     {
         private readonly BlockingCollection<byte[]> _responseQueue = new BlockingCollection<byte[]>();
         private readonly object _clientLock = new object();
@@ -24,7 +25,6 @@ namespace Shared.Infrastructure.Communication
         private CancellationTokenSource? _lifetimeCts;
         private Task? _receiveTask;
         private bool _lastSendIsHex;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
         /// <summary>
         /// 远程连接 IP。
@@ -36,39 +36,16 @@ namespace Shared.Infrastructure.Communication
         /// </summary>
         public ushort RemotePort { get; private set; } = 5555;
 
-        public string LocalName { get; private set; } = string.Empty;
-
-        public ConnectState IsConnected
+        public UDPClient(UdpClientRuntimeConfig config)
         {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                SendState(value);
-            }
-        }
-
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public event StateChanged StateChange = delegate { };
-
-        public UDPClient(CommuniactionConfigModel config)
-        {
-            _localAddress = config.LocalIPAddress;
+            _localAddress = config.LocalIpAddress;
             _localPort = config.LocalPort;
-            RemoteAddress = config.RemoteIPAddress;
+            RemoteAddress = config.RemoteIpAddress;
             RemotePort = Convert.ToUInt16(config.RemotePort);
             LocalName = config.LocalName;
         }
 
-        public bool Start()
+        public override bool Start()
         {
             if (!CheckIpAddressAndPort(RemoteAddress, RemotePort.ToString()))
             {
@@ -99,7 +76,7 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Close()
+        public override bool Close()
         {
             try
             {
@@ -265,7 +242,7 @@ namespace Shared.Infrastructure.Communication
                     {
                         WriteLog(new LogMessageModel { Message = $"服务器({endpointText})-->{LocalName}:{command}", Type = LogType.INFO });
                         _responseQueue.Add(data);
-                        _ = Task.Run(() => OnReceive(command, endpointText, result.RemoteEndPoint.Address.ToString(), result.RemoteEndPoint.Port), token);
+                        _ = Task.Run(() => RaiseReceive(command, endpointText, result.RemoteEndPoint.Address.ToString(), result.RemoteEndPoint.Port), token);
                     }
                 }
             }
@@ -285,14 +262,5 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        private void WriteLog(LogMessageModel message)
-        {
-            Task.Run(() => OnLog(message));
-        }
-
-        private void SendState(ConnectState connectState)
-        {
-            Task.Run(() => StateChange(connectState, LocalName));
-        }
     }
 }

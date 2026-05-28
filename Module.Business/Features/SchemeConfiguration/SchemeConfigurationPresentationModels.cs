@@ -1,4 +1,4 @@
-ï»¿using ControlLibrary;
+using ControlLibrary;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -9,20 +9,20 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Module.Business.ViewModels.PropertyVMs
+namespace Module.Business.Features.SchemeConfiguration
 {
     public sealed class WorkStepProfile : ViewModelProperties
     {
-        #region ç§æœ‰å­—æ®µ
+        #region Ë½ÓĞ×Ö¶Î
 
         private string _id = Guid.NewGuid().ToString("N");
-        private string _stepName = "å·¥æ­¥ 1";
+        private string _stepName = "¹¤²½ 1";
         private DateTime _lastModifiedAt = DateTime.Now;
         private ObservableCollection<WorkStepOperation> _steps = new();
 
         #endregion
 
-        #region æ„é€ æ–¹æ³•
+        #region ¹¹Ôì·½·¨
 
         public WorkStepProfile()
         {
@@ -31,7 +31,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region åŸºç¡€å±æ€§
+        #region »ù´¡ÊôĞÔ
 
         public string Id
         {
@@ -82,15 +82,15 @@ namespace Module.Business.ViewModels.PropertyVMs
         [JsonIgnore]
         public string OperationSummary =>
             Steps.Count == 0
-                ? "æœªé…ç½®æ­¥éª¤"
+                ? "Î´ÅäÖÃ²½Öè"
                 : string.Join(" / ", Steps.Select(step => step.DisplayText));
 
         [JsonIgnore]
-        public string LastModifiedText => $"æœ€åä¿®æ”¹ï¼š{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+        public string LastModifiedText => $"×îºóĞŞ¸Ä£º{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
 
         #endregion
 
-        #region é›†åˆé€šçŸ¥
+        #region ¼¯ºÏÍ¨Öª
 
         private void AttachSteps(ObservableCollection<WorkStepOperation> steps)
         {
@@ -194,7 +194,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region å¤åˆ¶æ–¹æ³•
+        #region ¸´ÖÆ·½·¨
 
         public WorkStepProfile Clone()
         {
@@ -211,7 +211,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region ä¿®æ”¹æ—¶é—´æ–¹æ³•
+        #region ĞŞ¸ÄÊ±¼ä·½·¨
 
         public void MarkModified()
         {
@@ -222,19 +222,19 @@ namespace Module.Business.ViewModels.PropertyVMs
     }
 
     /// <summary>
-    /// å·¥æ­¥å†…çš„å•ä¸ªæ­¥éª¤ã€‚
+    /// ¹¤²½ÄÚµÄµ¥¸ö²½Öè¡£
     /// </summary>
     public sealed class WorkStepOperation : ViewModelProperties
     {
-        #region ç§æœ‰å­—æ®µ
+        #region Ë½ÓĞ×Ö¶Î
 
         private string _id = Guid.NewGuid().ToString("N");
-        private string _operationType = "è®¾å¤‡";
+        private string _operationType = "Éè±¸";
         private string _operationObject = "System";
         private string _deviceId = string.Empty;
         private string _protocolName = string.Empty;
         private string _commandName = string.Empty;
-        private string _invokeMethod = "ç­‰å¾…";
+        private string _invokeMethod = "µÈ´ı";
         private string _operationId = string.Empty;
         private string _returnValue = string.Empty;
         private bool _showDataToView;
@@ -251,7 +251,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region æ„é€ æ–¹æ³•
+        #region ¹¹Ôì·½·¨
 
         public WorkStepOperation()
         {
@@ -260,7 +260,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region ç»‘å®šå±æ€§
+        #region °ó¶¨ÊôĞÔ
 
         public string Id
         {
@@ -273,7 +273,7 @@ namespace Module.Business.ViewModels.PropertyVMs
             get => _operationType;
             set
             {
-                if (SetField(ref _operationType, string.IsNullOrWhiteSpace(value) ? "è®¾å¤‡" : value, true))
+                if (SetField(ref _operationType, string.IsNullOrWhiteSpace(value) ? "Éè±¸" : value, true))
                 {
                     OnPropertyChanged(nameof(DisplayText));
                 }
@@ -478,7 +478,7 @@ namespace Module.Business.ViewModels.PropertyVMs
                 string returnText = string.IsNullOrWhiteSpace(ReturnValue) ? string.Empty : $" -> {ReturnValue}";
                 string delayText = DelayMilliseconds <= 0 ? string.Empty : $" / {DelayMilliseconds}ms";
                 string remarkText = string.IsNullOrWhiteSpace(Remark) ? string.Empty : $" / {Remark}";
-                string parameterText = ParameterCount == 0 ? string.Empty : $" / å‚æ•°{ParameterCount}";
+                string parameterText = ParameterCount == 0 ? string.Empty : $" / ²ÎÊı{ParameterCount}";
                 if (IsLuaOperationObject(OperationObject) || IsLuaOperationObject(OperationType))
                 {
                     return $"Lua{delayText}{remarkText}";
@@ -500,7 +500,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region é›†åˆé€šçŸ¥
+        #region ¼¯ºÏÍ¨Öª
 
         private void AttachParameters(ObservableCollection<WorkStepOperationParameter> parameters)
         {
@@ -559,7 +559,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region å¤åˆ¶æ–¹æ³•
+        #region ¸´ÖÆ·½·¨
 
         public WorkStepOperation Clone()
         {
@@ -589,12 +589,12 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region é™æ€å·¥å…·
+        #region ¾²Ì¬¹¤¾ß
 
         private static bool IsSystemOperationObject(string? operationObject)
         {
             return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(operationObject?.Trim(), "ç³»ç»Ÿ", StringComparison.OrdinalIgnoreCase);
+                   string.Equals(operationObject?.Trim(), "ÏµÍ³", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsLuaOperationObject(string? operationObject)
@@ -606,15 +606,15 @@ namespace Module.Business.ViewModels.PropertyVMs
     }
 
     /// <summary>
-    /// å·¥æ­¥æ­¥éª¤è°ƒç”¨æ–¹æ³•å‚æ•°ã€‚
+    /// ¹¤²½²½Öèµ÷ÓÃ·½·¨²ÎÊı¡£
     /// </summary>
     public sealed class WorkStepOperationParameter : ViewModelProperties
     {
-        #region ç§æœ‰å­—æ®µ
+        #region Ë½ÓĞ×Ö¶Î
 
         private string _id = Guid.NewGuid().ToString("N");
         private int _sequence = 1;
-        private string _name = "è®¾ç½®å€¼";
+        private string _name = "ÉèÖÃÖµ";
         private string _parameterName = string.Empty;
         private string _valueType = string.Empty;
         private string _value = string.Empty;
@@ -622,7 +622,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region ç»‘å®šå±æ€§
+        #region °ó¶¨ÊôĞÔ
 
         public string Id
         {
@@ -685,19 +685,19 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         [JsonIgnore]
         public bool UsesTextValueEditor =>
-            string.Equals(Type, "è®¾ç½®å€¼", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(Type, "å·¥æ­¥å€¼", StringComparison.OrdinalIgnoreCase);
+            string.Equals(Type, "ÉèÖÃÖµ", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Type, "¹¤²½Öµ", StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
         public bool UsesComboValueEditor => !UsesTextValueEditor;
 
         #endregion
 
-        #region å±æ€§åˆ«åæ–¹æ³•
+        #region ÊôĞÔ±ğÃû·½·¨
 
         private void SetParameterType(string? value, string propertyName)
         {
-            string normalizedValue = string.IsNullOrWhiteSpace(value) ? "è®¾ç½®å€¼" : value.Trim();
+            string normalizedValue = string.IsNullOrWhiteSpace(value) ? "ÉèÖÃÖµ" : value.Trim();
             if (!SetField(ref _name, normalizedValue, propertyName))
             {
                 return;
@@ -721,7 +721,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region å¤åˆ¶æ–¹æ³•
+        #region ¸´ÖÆ·½·¨
 
         public WorkStepOperationParameter Clone()
         {
@@ -741,28 +741,28 @@ namespace Module.Business.ViewModels.PropertyVMs
     }
 
     /// <summary>
-    /// æ–¹æ¡ˆå·¥æ­¥å‚æ•°ã€‚
+    /// ·½°¸¹¤²½²ÎÊı¡£
     /// </summary>
     public sealed class SchemeWorkStepParameter : ViewModelProperties
     {
         private static readonly string[] DefaultJudgeTypeOptions =
         {
-        "ç­‰äº"
+        "µÈÓÚ"
     };
 
-        #region ç§æœ‰å­—æ®µ
+        #region Ë½ÓĞ×Ö¶Î
 
         private string _id = Guid.NewGuid().ToString("N");
         private string _sourceOperationId = string.Empty;
         private string _sourceParameterId = string.Empty;
-        private string _parameterName = "å‚æ•°";
-        private string _parameterType = "è®¾ç½®å€¼";
+        private string _parameterName = "²ÎÊı";
+        private string _parameterType = "ÉèÖÃÖµ";
         private string _judgeType = string.Empty;
         private string _judgeCondition = string.Empty;
 
         #endregion
 
-        #region ç»‘å®šå±æ€§
+        #region °ó¶¨ÊôĞÔ
 
         public string Id
         {
@@ -785,7 +785,7 @@ namespace Module.Business.ViewModels.PropertyVMs
         public string ParameterName
         {
             get => _parameterName;
-            set => SetField(ref _parameterName, string.IsNullOrWhiteSpace(value) ? "å‚æ•°" : value, true);
+            set => SetField(ref _parameterName, string.IsNullOrWhiteSpace(value) ? "²ÎÊı" : value, true);
         }
 
         public string ParameterType
@@ -793,7 +793,7 @@ namespace Module.Business.ViewModels.PropertyVMs
             get => _parameterType;
             set
             {
-                string normalizedValue = string.IsNullOrWhiteSpace(value) ? "è®¾ç½®å€¼" : value.Trim();
+                string normalizedValue = string.IsNullOrWhiteSpace(value) ? "ÉèÖÃÖµ" : value.Trim();
                 if (!SetField(ref _parameterType, normalizedValue, nameof(ParameterType)))
                 {
                     return;
@@ -801,7 +801,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
                 if (UsesJudgeType && string.IsNullOrWhiteSpace(_judgeType))
                 {
-                    _judgeType = "ç­‰äº";
+                    _judgeType = "µÈÓÚ";
                     OnPropertyChanged(nameof(JudgeType));
                 }
                 else if (!UsesJudgeType && !string.IsNullOrWhiteSpace(_judgeType))
@@ -827,7 +827,7 @@ namespace Module.Business.ViewModels.PropertyVMs
         }
 
         [JsonIgnore]
-        public bool UsesJudgeType => string.Equals(ParameterType, "åˆ¤æ–­å€¼", StringComparison.OrdinalIgnoreCase);
+        public bool UsesJudgeType => string.Equals(ParameterType, "ÅĞ¶ÏÖµ", StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
         public ObservableCollection<string> JudgeTypeOptions { get; } = new(DefaultJudgeTypeOptions);
@@ -859,7 +859,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region å¤åˆ¶æ–¹æ³•
+        #region ¸´ÖÆ·½·¨
 
         public SchemeWorkStepParameter Clone()
         {
@@ -879,20 +879,20 @@ namespace Module.Business.ViewModels.PropertyVMs
     }
 
     /// <summary>
-    /// æ–¹æ¡ˆé…ç½®ï¼Œä¿å­˜æ–¹æ¡ˆåç§°å’Œå·¥æ­¥å¼•ç”¨å¿«ç…§ã€‚
+    /// ·½°¸ÅäÖÃ£¬±£´æ·½°¸Ãû³ÆºÍ¹¤²½ÒıÓÃ¿ìÕÕ¡£
     /// </summary>
     public sealed class SchemeProfile : ViewModelProperties
     {
-        #region ç§æœ‰å­—æ®µ
+        #region Ë½ÓĞ×Ö¶Î
 
         private string _id = Guid.NewGuid().ToString("N");
-        private string _schemeName = "æ–¹æ¡ˆ 1";
+        private string _schemeName = "·½°¸ 1";
         private DateTime _lastModifiedAt = DateTime.Now;
         private ObservableCollection<SchemeWorkStepItem> _steps = new();
 
         #endregion
 
-        #region æ„é€ æ–¹æ³•
+        #region ¹¹Ôì·½·¨
 
         public SchemeProfile()
         {
@@ -901,7 +901,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region ç»‘å®šå±æ€§
+        #region °ó¶¨ÊôĞÔ
 
         public string Id
         {
@@ -957,11 +957,11 @@ namespace Module.Business.ViewModels.PropertyVMs
         public int StepCount => Steps.Count;
 
         [JsonIgnore]
-        public string LastModifiedText => $"æœ€åä¿®æ”¹ï¼š{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+        public string LastModifiedText => $"×îºóĞŞ¸Ä£º{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
 
         #endregion
 
-        #region é›†åˆé€šçŸ¥
+        #region ¼¯ºÏÍ¨Öª
 
         private void AttachSteps(ObservableCollection<SchemeWorkStepItem> steps)
         {
@@ -1048,7 +1048,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region å¤åˆ¶æ–¹æ³•
+        #region ¸´ÖÆ·½·¨
 
         public SchemeProfile Clone()
         {
@@ -1070,13 +1070,13 @@ namespace Module.Business.ViewModels.PropertyVMs
     }
 
     /// <summary>
-    /// æ–¹æ¡ˆä¸­çš„å·¥æ­¥å¼•ç”¨å¿«ç…§ã€‚
+    /// ·½°¸ÖĞµÄ¹¤²½ÒıÓÃ¿ìÕÕ¡£
     /// </summary>
     public sealed class SchemeWorkStepItem : ViewModelProperties
     {
         private const string DisplayedViewDataSourceId = "__display_to_view__";
 
-        #region ç§æœ‰å­—æ®µ
+        #region Ë½ÓĞ×Ö¶Î
 
         private string _id = Guid.NewGuid().ToString("N");
         private bool _isStartupEnabled = true;
@@ -1090,7 +1090,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region æ„é€ æ–¹æ³•
+        #region ¹¹Ôì·½·¨
 
         public SchemeWorkStepItem()
         {
@@ -1100,7 +1100,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region ç»‘å®šå±æ€§
+        #region °ó¶¨ÊôĞÔ
 
         public string Id
         {
@@ -1220,11 +1220,11 @@ namespace Module.Business.ViewModels.PropertyVMs
         }
 
         [JsonIgnore]
-        public string LastModifiedText => $"æœ€åä¿®æ”¹ï¼š{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+        public string LastModifiedText => $"×îºóĞŞ¸Ä£º{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
 
         #endregion
 
-        #region é›†åˆé€šçŸ¥
+        #region ¼¯ºÏÍ¨Öª
 
         private void AttachOperations(ObservableCollection<WorkStepOperation> operations)
         {
@@ -1384,7 +1384,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         #endregion
 
-        #region å·¥å‚ä¸å¤åˆ¶æ–¹æ³•
+        #region ¹¤³§Óë¸´ÖÆ·½·¨
 
         public static SchemeWorkStepItem FromWorkStep(WorkStepProfile workStep)
         {
@@ -1512,7 +1512,7 @@ namespace Module.Business.ViewModels.PropertyVMs
                 displayedSchemeParameter.SourceOperationId = DisplayedViewDataSourceId;
                 displayedSchemeParameter.SourceParameterId = displayedTypeKey;
                 displayedSchemeParameter.ParameterName = displayedParameterName;
-                displayedSchemeParameter.ParameterType = isNewDisplayedParameter ? "åˆ¤æ–­å€¼" : displayedSchemeParameter.ParameterType;
+                displayedSchemeParameter.ParameterType = isNewDisplayedParameter ? "ÅĞ¶ÏÖµ" : displayedSchemeParameter.ParameterType;
                 displayedSchemeParameter.JudgeType = operation.ViewJudgeType;
                 displayedSchemeParameter.JudgeCondition = operation.ViewJudgeCondition;
                 displayedSchemeParameter.ReplaceJudgeTypeOptions(displayJudgeTypeOptions);
@@ -1530,7 +1530,7 @@ namespace Module.Business.ViewModels.PropertyVMs
 
         private static bool IsSchemeVisibleParameter(WorkStepOperationParameter parameter)
         {
-            return string.Equals(parameter.Type, "å·¥æ­¥å€¼", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(parameter.Type, "¹¤²½Öµ", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ResolveParameterName(WorkStepOperationParameter parameter, int index)
@@ -1550,7 +1550,7 @@ namespace Module.Business.ViewModels.PropertyVMs
                 return parameter.Description.Trim();
             }
 
-            return $"å‚æ•° {index}";
+            return $"²ÎÊı {index}";
         }
 
         private static string ResolveDisplayedViewDataName(WorkStepOperation operation, int index)
@@ -1570,7 +1570,7 @@ namespace Module.Business.ViewModels.PropertyVMs
                 return operation.ReturnValue.Trim();
             }
 
-            return $"æ˜¾ç¤ºæ•°æ® {index}";
+            return $"ÏÔÊ¾Êı¾İ {index}";
         }
 
         private static string ResolveDisplayedViewDataKey(WorkStepOperation operation, string displayedParameterName, int index)
@@ -1585,7 +1585,7 @@ namespace Module.Business.ViewModels.PropertyVMs
                 return displayedParameterName.Trim();
             }
 
-            return $"æ˜¾ç¤ºæ•°æ®_{index}";
+            return $"ÏÔÊ¾Êı¾İ_{index}";
         }
 
         private static string BuildParameterSourceKey(string? operationId, string? parameterId)

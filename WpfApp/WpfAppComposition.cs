@@ -67,7 +67,7 @@ internal static class WpfAppComposition
         Assembly[] assemblies =
         [
             typeof(App).Assembly,
-            typeof(Module.Business.Views.SchemeConfigurationView).Assembly,
+            typeof(Module.Business.Features.SchemeConfiguration.SchemeConfigurationView).Assembly,
             typeof(Module.Communication.Views.DeviceCommunicationConfigView).Assembly,
             typeof(Module.MES.Views.ApiConfigView).Assembly,
             typeof(Module.Test.Views.TestView).Assembly,

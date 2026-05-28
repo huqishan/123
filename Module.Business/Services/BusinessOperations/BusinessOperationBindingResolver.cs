@@ -1,4 +1,4 @@
-using Shared.Abstractions.Enum;
+using Module.Communication.Models;
 using System;
 using System.IO;
 using System.Linq;
@@ -91,13 +91,9 @@ internal static class BusinessOperationBindingResolver
             return normalizedOperationObject;
         }
 
-        if (TryResolveCommunicationType(normalizedOperationObject, out CommuniactionType communicationType))
+        if (TryResolveCommunicationDeviceId(normalizedOperationObject, out string communicationDeviceId))
         {
-            string typeKey = communicationType.ToString();
-            if (BusinessOperationCatalog.GetOperations(typeKey).Count > 0)
-            {
-                return typeKey;
-            }
+            return communicationDeviceId;
         }
 
         return !string.IsNullOrWhiteSpace(normalizedStoredDeviceId)
@@ -115,9 +111,9 @@ internal static class BusinessOperationBindingResolver
     /// <param name="operationObject">步骤中选中的设备名称。</param>
     /// <param name="communicationType">找到的通信类型。</param>
     /// <returns>找到并成功解析时返回 <c>true</c>。</returns>
-    private static bool TryResolveCommunicationType(string operationObject, out CommuniactionType communicationType)
+    private static bool TryResolveCommunicationDeviceId(string operationObject, out string deviceId)
     {
-        communicationType = default;
+        deviceId = string.Empty;
         if (string.IsNullOrWhiteSpace(operationObject) || !Directory.Exists(CommunicationConfigDirectory))
         {
             return false;
@@ -134,7 +130,34 @@ internal static class BusinessOperationBindingResolver
                     continue;
                 }
 
-                return TryReadCommunicationType(document.RootElement, out communicationType);
+                if (!TryReadCommunicationTypeId(document.RootElement, out string typeId))
+                {
+                    return false;
+                }
+
+                if (BusinessOperationCatalog.GetOperations(typeId).Count > 0)
+                {
+                    deviceId = typeId;
+                    return true;
+                }
+
+                DeviceCommunicationConfigRegistry registry = DeviceCommunicationConfigRegistry.Default;
+                if (!registry.Contains(typeId))
+                {
+                    return false;
+                }
+
+                string runtimeType = registry
+                    .Get(typeId)
+                    .RuntimeType
+                    .ToString();
+                if (BusinessOperationCatalog.GetOperations(runtimeType).Count > 0)
+                {
+                    deviceId = runtimeType;
+                    return true;
+                }
+
+                return false;
             }
             catch
             {
@@ -152,24 +175,17 @@ internal static class BusinessOperationBindingResolver
     /// <param name="rootElement">通信配置文件根节点。</param>
     /// <param name="communicationType">解析出的通信类型。</param>
     /// <returns>解析成功时返回 <c>true</c>。</returns>
-    private static bool TryReadCommunicationType(JsonElement rootElement, out CommuniactionType communicationType)
+    private static bool TryReadCommunicationTypeId(JsonElement rootElement, out string typeId)
     {
-        communicationType = default;
-        if (!rootElement.TryGetProperty("Type", out JsonElement typeElement))
+        typeId = string.Empty;
+        if (!rootElement.TryGetProperty("TypeId", out JsonElement typeElement) ||
+            typeElement.ValueKind != JsonValueKind.String)
         {
             return false;
         }
 
-        if (typeElement.ValueKind == JsonValueKind.Number &&
-            typeElement.TryGetInt32(out int numericValue) &&
-            Enum.IsDefined(typeof(CommuniactionType), numericValue))
-        {
-            communicationType = (CommuniactionType)numericValue;
-            return true;
-        }
-
-        return typeElement.ValueKind == JsonValueKind.String &&
-               Enum.TryParse(typeElement.GetString(), true, out communicationType);
+        typeId = typeElement.GetString()?.Trim() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(typeId);
     }
 
     #endregion

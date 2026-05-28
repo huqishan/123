@@ -15,117 +15,115 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace Module.Business.ViewModels;
+namespace Module.Business.Features.StationConfiguration;
 
 /// <summary>
-/// 工位配置视图模型，负责工位列表维护、流程图导入导出和流程图预览执行。
+/// 工位配置页面视图模型，负责工位列表、流程图导入导出和预览执行状态。
 /// </summary>
 public sealed class StationConfigurationViewModel : ViewModelProperties
 {
     #region 样式字段
 
     /// <summary>
-    /// 成功状态提示颜色。
+    /// 成功状态画刷。
     /// </summary>
     private static readonly Brush SuccessBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A"));
 
     /// <summary>
-    /// 警告状态提示颜色。
+    /// 警告状态画刷。
     /// </summary>
     private static readonly Brush WarningBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EA580C"));
 
     /// <summary>
-    /// 中性状态提示颜色。
+    /// 中性状态画刷。
     /// </summary>
     private static readonly Brush NeutralBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B"));
 
     /// <summary>
-    /// 流程图开始节点颜色。
+    /// 开始节点画刷。
     /// </summary>
     private static readonly Brush StartBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB"));
 
     /// <summary>
-    /// 流程图处理节点颜色。
+    /// 处理节点画刷。
     /// </summary>
     private static readonly Brush ProcessBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F766E"));
 
     /// <summary>
-    /// 流程图判断节点颜色。
+    /// 判断节点画刷。
     /// </summary>
     private static readonly Brush DecisionBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A16207"));
 
     /// <summary>
-    /// 流程图结束节点颜色。
+    /// 结束节点画刷。
     /// </summary>
     private static readonly Brush EndBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626"));
 
     #endregion
 
-    #region 私有状态字段
-
+    #region 数据与状态字段
     /// <summary>
     /// 当前工位配置目录。
     /// </summary>
     private readonly StationConfigurationCatalog _catalog = BusinessConfigurationStore.LoadStationCatalog();
 
     /// <summary>
-    /// 当前选中的工位配置。
+    /// 当前选中的工位。
     /// </summary>
     private StationProfile? _selectedStation;
 
     /// <summary>
-    /// 工位列表搜索关键字。
+    /// 工位搜索关键字。
     /// </summary>
     private string _searchText = string.Empty;
 
     /// <summary>
-    /// 页面状态文本。
+    /// 页面顶部状态文本。
     /// </summary>
     private string _pageStatusText = "等待编辑";
 
     /// <summary>
-    /// 页面状态提示颜色。
+    /// 页面顶部状态画刷。
     /// </summary>
     private Brush _pageStatusBrush = NeutralBrush;
 
     /// <summary>
-    /// 流程图执行状态文本。
+    /// 流程图预览执行状态文本。
     /// </summary>
     private string _executionStatusText = "状态：等待操作";
 
     /// <summary>
-    /// 流程图执行状态颜色。
+    /// 流程图预览执行状态画刷。
     /// </summary>
     private Brush _executionStatusBrush = NeutralBrush;
 
     /// <summary>
-    /// 流程图是否正在预览执行。
+    /// 是否正在预览执行流程图。
     /// </summary>
     private bool _isExecuting;
 
     /// <summary>
-    /// 流程图预览执行是否处于暂停状态。
+    /// 当前流程图预览是否已暂停。
     /// </summary>
     private bool _isPaused;
 
     /// <summary>
-    /// 上一次新建或复制命令触发时间，用于避免短时间重复触发。
+    /// 上一次新建或复制命令触发时间，用于防止连点。
     /// </summary>
     private DateTime _lastCreateOrCopyCommandAt = DateTime.MinValue;
 
     #endregion
 
     #region 构造与初始化
-
     /// <summary>
-    /// 初始化工位配置视图模型，加载工位、构建节点模板并绑定命令。
+    /// 初始化工位配置页面数据、集合视图和命令。
     /// </summary>
     public StationConfigurationViewModel()
     {
@@ -161,15 +159,14 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region 绑定集合与属性
-
+    #region 绑定属性
     /// <summary>
-    /// 当前工位配置集合。
+    /// 工位配置集合。
     /// </summary>
     public ObservableCollection<StationProfile> Stations => _catalog.Stations;
 
     /// <summary>
-    /// 工位列表视图，用于搜索过滤和当前项同步。
+    /// 支持搜索过滤的工位集合视图。
     /// </summary>
     public ICollectionView StationsView { get; }
 
@@ -179,7 +176,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     public ObservableCollection<FlowchartNodeTemplate> NodeTemplates { get; } = new();
 
     /// <summary>
-    /// 流程图预览执行日志集合。
+    /// 流程图预览执行日志。
     /// </summary>
     public ObservableCollection<string> ExecutionLogs { get; } = new();
 
@@ -224,7 +221,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 页面状态显示文本。
+    /// 页面状态提示文本。
     /// </summary>
     public string PageStatusText
     {
@@ -233,7 +230,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 页面状态显示颜色。
+    /// 页面状态提示画刷。
     /// </summary>
     public Brush PageStatusBrush
     {
@@ -242,7 +239,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 流程图执行状态显示文本。
+    /// 流程图预览执行状态文本。
     /// </summary>
     public string ExecutionStatusText
     {
@@ -251,7 +248,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 流程图执行状态显示颜色。
+    /// 流程图预览执行状态画刷。
     /// </summary>
     public Brush ExecutionStatusBrush
     {
@@ -260,7 +257,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 流程图是否正在预览执行。
+    /// 是否正在执行流程图预览。
     /// </summary>
     public bool IsExecuting
     {
@@ -276,7 +273,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 流程图预览执行是否暂停。
+    /// 流程图预览是否暂停。
     /// </summary>
     public bool IsPaused
     {
@@ -291,7 +288,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 当前页面是否允许编辑工位配置。
+    /// 当前是否允许编辑工位配置。
     /// </summary>
     public bool CanEdit => !IsExecuting;
 
@@ -301,19 +298,18 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     public string StationCountText => $"{Stations.Count} 个工位";
 
     /// <summary>
-    /// 当前是否存在选中的工位。
+    /// 是否已选择工位。
     /// </summary>
     public bool HasSelectedStation => SelectedStation is not null;
 
     /// <summary>
-    /// 当前工位摘要显示文本。
+    /// 当前工位摘要信息。
     /// </summary>
     public string CurrentStationSummary => SelectedStation?.Summary ?? "未选择工位";
 
     #endregion
 
-    #region 命令属性
-
+    #region 页面命令
     /// <summary>
     /// 新建工位命令。
     /// </summary>
@@ -379,7 +375,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     #region 工位命令处理
 
     /// <summary>
-    /// 新建一个工位配置并选中。
+    /// 新建一个工位配置。
     /// </summary>
     private void NewStation()
     {
@@ -458,9 +454,8 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     #endregion
 
     #region 流程图导入导出
-
     /// <summary>
-    /// 从文件导入当前工位的流程图。
+    /// 从文件导入流程图到当前工位。
     /// </summary>
     /// <param name="parameter">流程图编辑器控件。</param>
     private void ImportFlowchart(object? parameter)
@@ -534,13 +529,12 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region 流程图预览执行控制
-
+    #region 流程图预览控制
     /// <summary>
-    /// 预览执行当前工位的流程图。
+    /// 在页面内预览执行当前流程图。
     /// </summary>
     /// <param name="parameter">流程图编辑器控件。</param>
-    /// <returns>异步执行任务。</returns>
+    /// <returns>异步预览执行任务。</returns>
     private async Task ExecuteFlowchartAsync(object? parameter)
     {
         if (parameter is not FlowchartEditorControl editor || SelectedStation is null)
@@ -599,7 +593,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 暂停或继续当前流程图预览执行。
+    /// 切换流程图预览的暂停和继续状态。
     /// </summary>
     /// <param name="parameter">流程图编辑器控件。</param>
     private void TogglePauseFlowchart(object? parameter)
@@ -625,7 +619,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 停止当前流程图预览执行。
+    /// 停止当前流程图预览。
     /// </summary>
     /// <param name="parameter">流程图编辑器控件。</param>
     private void StopFlowchart(object? parameter)
@@ -650,9 +644,8 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     #endregion
 
     #region 编辑器文档同步
-
     /// <summary>
-    /// 捕获当前流程图编辑器文档并同步到选中工位。
+    /// 捕获当前编辑器中的流程图文档到选中工位。
     /// </summary>
     /// <param name="parameter">流程图编辑器控件。</param>
     public void CaptureCurrentEditorDocument(object? parameter)
@@ -665,13 +658,12 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region 集合与属性变更跟踪
-
+    #region 集合与属性变更处理
     /// <summary>
-    /// 处理工位集合变更，维护属性订阅并刷新列表状态。
+    /// 处理工位集合增删后的事件订阅和界面刷新。
     /// </summary>
-    /// <param name="sender">触发变更的集合。</param>
-    /// <param name="e">集合变更事件参数。</param>
+    /// <param name="sender">参数 sender。</param>
+    /// <param name="e">参数 e。</param>
     private void Stations_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.OldItems is not null)
@@ -696,9 +688,9 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 批量订阅工位属性变更。
+    /// 为工位集合订阅属性变更事件。
     /// </summary>
-    /// <param name="stations">待订阅的工位集合。</param>
+    /// <param name="stations">参数 stations。</param>
     private void HookStations(IEnumerable<StationProfile> stations)
     {
         foreach (StationProfile station in stations)
@@ -708,28 +700,28 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 订阅单个工位的属性变更。
+    /// 为单个工位订阅属性变更事件。
     /// </summary>
-    /// <param name="station">待订阅的工位配置。</param>
+    /// <param name="station">参数 station。</param>
     private void HookStation(StationProfile station)
     {
         station.PropertyChanged += Station_PropertyChanged;
     }
 
     /// <summary>
-    /// 取消订阅单个工位的属性变更。
+    /// 取消单个工位的属性变更订阅。
     /// </summary>
-    /// <param name="station">待取消订阅的工位配置。</param>
+    /// <param name="station">参数 station。</param>
     private void UnhookStation(StationProfile station)
     {
         station.PropertyChanged -= Station_PropertyChanged;
     }
 
     /// <summary>
-    /// 处理工位属性变更，刷新更新时间、摘要和过滤结果。
+    /// 处理工位属性变化并刷新状态。
     /// </summary>
-    /// <param name="sender">触发变更的工位配置。</param>
-    /// <param name="e">属性变更事件参数。</param>
+    /// <param name="sender">参数 sender。</param>
+    /// <param name="e">参数 e。</param>
     private void Station_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (sender is not StationProfile station)
@@ -752,9 +744,9 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 判断指定属性变更是否需要刷新最后修改时间。
+    /// 判断指定属性变化是否需要刷新最后修改时间。
     /// </summary>
-    /// <param name="propertyName">属性名称。</param>
+    /// <param name="propertyName">参数 propertyName。</param>
     /// <returns>需要刷新时返回 true。</returns>
     private static bool ShouldRefreshLastModified(string? propertyName)
     {
@@ -767,12 +759,11 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region 过滤与校验
-
+    #region 搜索与校验
     /// <summary>
-    /// 根据搜索关键字过滤工位。
+    /// 根据搜索关键字过滤工位列表。
     /// </summary>
-    /// <param name="item">待过滤的工位对象。</param>
+    /// <param name="item">参数 item。</param>
     /// <returns>符合过滤条件时返回 true。</returns>
     private bool FilterStations(object item)
     {
@@ -792,10 +783,10 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 判断文本是否包含指定关键字。
+    /// 判断文本是否包含搜索关键字。
     /// </summary>
-    /// <param name="source">原始文本。</param>
-    /// <param name="keyword">搜索关键字。</param>
+    /// <param name="source">参数 source。</param>
+    /// <param name="keyword">参数 keyword。</param>
     /// <returns>包含关键字时返回 true。</returns>
     private static bool Contains(string? source, string keyword)
     {
@@ -803,9 +794,9 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 校验工位名称和编码是否为空或重复。
+    /// 校验工位名称和编码是否完整且唯一。
     /// </summary>
-    /// <param name="message">校验失败时的提示文本。</param>
+    /// <param name="message">参数 message。</param>
     /// <returns>校验通过时返回 true。</returns>
     private bool ValidateStations(out string message)
     {
@@ -845,12 +836,11 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region 新建选择与名称生成
-
+    #region 工位名称与编码工具
     /// <summary>
-    /// 选中新建或复制出的工位，并清理搜索条件。
+    /// 选择刚创建或复制出的工位。
     /// </summary>
-    /// <param name="station">需要选中的工位配置。</param>
+    /// <param name="station">参数 station。</param>
     private void SelectCreatedStation(StationProfile station)
     {
         SearchText = string.Empty;
@@ -860,7 +850,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 判断当前是否允许执行新建或复制命令。
+    /// 判断是否允许执行新建或复制命令。
     /// </summary>
     /// <returns>允许执行时返回 true。</returns>
     private bool CanRunCreateOrCopyCommand()
@@ -876,7 +866,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 生成唯一工位名称。
+    /// 生成不重复的新工位名称。
     /// </summary>
     /// <returns>唯一工位名称。</returns>
     private string GenerateUniqueStationName()
@@ -893,10 +883,10 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 根据原工位名称生成唯一副本名称。
+    /// 基于原名称生成复制工位名称。
     /// </summary>
-    /// <param name="baseName">原工位名称。</param>
-    /// <returns>唯一副本名称。</returns>
+    /// <param name="baseName">参数 baseName。</param>
+    /// <returns>唯一复制工位名称。</returns>
     private string GenerateCopyStationName(string baseName)
     {
         HashSet<string> existingNames = new(Stations.Select(station => station.StationName), StringComparer.OrdinalIgnoreCase);
@@ -917,9 +907,9 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 生成唯一工位编码。
+    /// 生成不重复的工位编码。
     /// </summary>
-    /// <param name="baseCode">可选的编码前缀。</param>
+    /// <param name="baseCode">参数 baseCode。</param>
     /// <returns>唯一工位编码。</returns>
     private string GenerateUniqueStationCode(string? baseCode = null)
     {
@@ -945,10 +935,10 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     #region 状态与命令刷新
 
     /// <summary>
-    /// 更新页面状态文本和颜色。
+    /// 更新页面状态提示。
     /// </summary>
-    /// <param name="text">状态文本。</param>
-    /// <param name="brush">状态颜色。</param>
+    /// <param name="text">参数 text。</param>
+    /// <param name="brush">参数 brush。</param>
     private void SetPageStatus(string text, Brush brush)
     {
         PageStatusText = text;
@@ -956,17 +946,17 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 更新流程图执行状态。
+    /// 更新流程图预览执行状态。
     /// </summary>
-    /// <param name="text">执行状态文本。</param>
-    /// <param name="brush">执行状态颜色。</param>
+    /// <param name="text">参数 text。</param>
+    /// <param name="brush">参数 brush。</param>
     private void SetExecutionStatus(string text, Brush brush)
     {
         SetPageStatus(text, brush);
     }
 
     /// <summary>
-    /// 刷新所有依赖当前选中工位和执行状态的命令。
+    /// 刷新所有命令的可执行状态。
     /// </summary>
     private void RaiseCommandStatesChanged()
     {
@@ -980,9 +970,9 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 刷新单个 RelayCommand 的可执行状态。
+    /// 刷新单个命令的可执行状态。
     /// </summary>
-    /// <param name="command">待刷新的命令。</param>
+    /// <param name="command">参数 command。</param>
     private static void RaiseCommandState(ICommand? command)
     {
         if (command is RelayCommand relayCommand)
@@ -994,11 +984,10 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     #endregion
 
     #region 文件名工具
-
     /// <summary>
-    /// 清理文件名中的非法字符。
+    /// 清理流程图导出文件名中的非法字符。
     /// </summary>
-    /// <param name="fileName">原始文件名。</param>
+    /// <param name="fileName">参数 fileName。</param>
     /// <returns>可用于文件系统的安全文件名。</returns>
     private static string SanitizeFileName(string fileName)
     {

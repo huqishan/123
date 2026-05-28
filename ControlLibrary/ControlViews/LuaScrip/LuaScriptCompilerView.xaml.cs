@@ -25,7 +25,7 @@ namespace ControlLibrary.ControlViews.LuaScrip
             WriteIndented = true
         };
 
-        private string _luaCompileResultText = "\u5728\u8fd9\u91cc\u67e5\u770b\u811a\u672c\u6267\u884c\u8fd4\u56de\u6216\u9519\u8bef\u3002";
+        private string _luaCompileResultText = "在这里查看脚本执行返回或错误。";
         private Brush _luaEditorStatusBrush = NeutralBrush;
 
         public LuaScriptCompilerView()
@@ -138,7 +138,7 @@ namespace ControlLibrary.ControlViews.LuaScrip
         {
             if (results.Length == 0)
             {
-                return "\u6267\u884c\u5b8c\u6210\uff0c\u65e0\u8fd4\u56de\u503c\u3002";
+                return "执行完成，无返回值。";
             }
 
             return string.Join(Environment.NewLine, results.Select(FormatLuaResultValue));

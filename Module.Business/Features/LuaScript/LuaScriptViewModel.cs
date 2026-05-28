@@ -1,6 +1,5 @@
 using ControlLibrary;
 using Module.Business.Models;
-using Module.Business.ViewModels.PropertyVMs;
 using Shared.Infrastructure.Extensions;
 using Shared.Infrastructure.PackMethod;
 using System;
@@ -13,7 +12,7 @@ using System.Text;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace Module.Business.ViewModels;
+namespace Module.Business.Features.LuaScript;
 
 /// <summary>
 /// Lua 脚本配置视图模型，负责脚本列表的增删改查和本地 JSON 存储。

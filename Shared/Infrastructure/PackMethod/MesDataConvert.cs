@@ -1,5 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
-using Shared.Abstractions;
+using Shared.Abstractions.ICommunication;
 using Shared.Global;
 using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Extensions;
@@ -29,7 +29,7 @@ namespace Shared.Infrastructure.PackMethod
     {
         static string _LayoutFile = $"{System.AppDomain.CurrentDomain.SetupInformation.ApplicationBase}\\Config\\MES_Config";
         static string _ErrorCode = null;
-        static Dictionary<string, ICommunication> _MESObj = new Dictionary<string, ICommunication>();
+        static Dictionary<string, CommunicationBase> _MESObj = new Dictionary<string, CommunicationBase>();
         public static string Convert(MesDataInfoTree sourceData, DataSruct dataLayout)
         {
             if (dataLayout == null || dataLayout.Structure == null || dataLayout.Structure.Count == 0) return null;
@@ -188,15 +188,20 @@ namespace Shared.Infrastructure.PackMethod
                     string ipPort = $"{apiConfig.TCPRemoteIpAddress}:{apiConfig.TCPRemotePort}";
                     if (!_MESObj.Keys.Contains(ipPort))
                     {
-                        CommuniactionConfigModel tcpConfig = new CommuniactionConfigModel(false, "MES", apiConfig.TCPRemoteIpAddress, apiConfig.TCPRemotePort, apiConfig.TCPLocalIpAddress, apiConfig.TCPLocalPort);
-                        _MESObj.Add(ipPort, CommunicationFactory.CreateCommuniactionProtocol(tcpConfig));
+                        TcpClientRuntimeConfig tcpConfig = new TcpClientRuntimeConfig("MES", apiConfig.TCPRemoteIpAddress, apiConfig.TCPRemotePort, apiConfig.TCPLocalIpAddress, apiConfig.TCPLocalPort);
+                        _MESObj.Add(ipPort, CommunicationFactory.CreateCommunicationProtocol(tcpConfig));
                         _MESObj[ipPort].OnLog -= MESCommuniactionObj_OnLog;
                         _MESObj[ipPort].OnLog += MESCommuniactionObj_OnLog;
                         _MESObj[ipPort].Start();
                     }
                     Thread.Sleep(100);
                     SendReceiveModel send = new SendReceiveModel(data + (apiConfig.IsEnter ? "\r\n" : ""), mesSystemConfig.TimeOut * 1000);
-                    sendSta = _MESObj[ipPort].Send(ref send, !string.IsNullOrWhiteSpace(apiConfig.ResultCheck)) ? 200 : 500;
+                    if (_MESObj[ipPort] is not ICommunication messageCommunication)
+                    {
+                        throw new InvalidOperationException("MES TCP communication object does not support message send.");
+                    }
+
+                    sendSta = messageCommunication.Send(ref send, !string.IsNullOrWhiteSpace(apiConfig.ResultCheck)) ? 200 : 500;
                     mesResult.Message = send.Result == null ? "" : send.Result.ToString();
                     if (!apiConfig.IsEnabledTCPKeepAlive) _MESObj[ipPort].Close();
                     break;

@@ -94,9 +94,24 @@ namespace ControlLibrary
     {
         internal static Dispatcher? ResolveDispatcher()
         {
-            return Application.Current?.Dispatcher
-                   ?? Dispatcher.FromThread(System.Threading.Thread.CurrentThread)
-                   ?? Dispatcher.CurrentDispatcher;
+            Dispatcher? applicationDispatcher = Application.Current?.Dispatcher;
+            if (applicationDispatcher is not null &&
+                IsUsableDispatcher(applicationDispatcher) &&
+                applicationDispatcher.CheckAccess())
+            {
+                return applicationDispatcher;
+            }
+
+            if (System.Threading.Thread.CurrentThread.GetApartmentState() == System.Threading.ApartmentState.STA)
+            {
+                Dispatcher currentDispatcher = Dispatcher.CurrentDispatcher;
+                if (IsUsableDispatcher(currentDispatcher))
+                {
+                    return currentDispatcher;
+                }
+            }
+
+            return IsUsableDispatcher(applicationDispatcher) ? applicationDispatcher : null;
         }
 
         internal static void RaiseCanExecuteChangedCore(EventHandler? handler, Dispatcher? dispatcher, object sender)
@@ -115,6 +130,13 @@ namespace ControlLibrary
             _ = dispatcher.BeginInvoke(
                 DispatcherPriority.DataBind,
                 new Action(() => handler(sender, EventArgs.Empty)));
+        }
+
+        private static bool IsUsableDispatcher(Dispatcher? dispatcher)
+        {
+            return dispatcher is not null &&
+                   !dispatcher.HasShutdownStarted &&
+                   !dispatcher.HasShutdownFinished;
         }
     }
 }

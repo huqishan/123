@@ -1,4 +1,3 @@
-using Shared.Abstractions;
 using Shared.Abstractions.Enum;
 using Shared.Models.Communication;
 using Shared.Models.Log;
@@ -7,11 +6,13 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using S7.Net;
 using DisplayDataType = Shared.Abstractions.Enum.DataType;
 using PlcDataType = S7.Net.DataType;
 using PlcVarType = S7.Net.VarType;
+using Shared.Abstractions.ICommunication;
 
 namespace Shared.Infrastructure.Communication
 {
@@ -20,7 +21,8 @@ namespace Shared.Infrastructure.Communication
     /// Address examples:
     /// DB1.DBX0.0, DB1.DBB0, DB1.DBW2, DB1.DBD4, M0.0, MB0, MW2, MD4, I0.0, Q0.0.
     /// </summary>
-    public sealed class S7PlcCommunication : ICommunication
+    [CommunicationAdapter(typeof(S7PlcRuntimeConfig))]
+    public sealed class S7PlcCommunication : CommunicationBase, IPlcCommunication
     {
         private static readonly Regex DataBlockAddressRegex =
             new(@"^DB(?<db>\d+)\.DB(?<kind>[XBWD])(?<byte>\d+)(?:\.(?<bit>\d+))?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -34,41 +36,17 @@ namespace Shared.Infrastructure.Communication
         private readonly int _rack;
         private readonly int _slot;
         private Plc? _plc;
-        private ConnectState _isConnected = ConnectState.DisConnected;
 
-        public S7PlcCommunication(CommuniactionConfigModel config)
+        public S7PlcCommunication(S7PlcRuntimeConfig config)
         {
             LocalName = config.LocalName;
-            _remoteAddress = config.RemoteIPAddress;
-            _cpuTypeName = S7CpuTypeNames.Normalize(config.S7CpuType);
-            _rack = config.S7Rack;
-            _slot = config.S7Slot;
+            _remoteAddress = config.RemoteIpAddress;
+            _cpuTypeName = S7CpuTypeNames.Normalize(config.CpuType);
+            _rack = config.Rack;
+            _slot = config.Slot;
         }
 
-        public event ReceiveData OnReceive = (_, _) => string.Empty;
-
-        public event StateChanged StateChange = delegate { };
-
-        public event Action<LogMessageModel> OnLog = delegate { };
-
-        public ConnectState IsConnected
-        {
-            get => _isConnected;
-            private set
-            {
-                if (_isConnected == value)
-                {
-                    return;
-                }
-
-                _isConnected = value;
-                Task.Run(() => StateChange(value, LocalName));
-            }
-        }
-
-        public string LocalName { get; }
-
-        public bool Start()
+        public override bool Start()
         {
             lock (_syncRoot)
             {
@@ -103,7 +81,7 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Close()
+        public override bool Close()
         {
             lock (_syncRoot)
             {
@@ -114,65 +92,83 @@ namespace Shared.Infrastructure.Communication
             }
         }
 
-        public bool Send(ref SendReceiveModel readWriteModel, bool isWait = false)
+        public PlcReadResult Read(string address, int length, DisplayDataType dataType = DisplayDataType.Decimal)
         {
+            int count = Math.Max(1, length);
             lock (_syncRoot)
             {
                 try
                 {
                     if (!EnsureConnected())
                     {
-                        readWriteModel.Result = "S7 is not connected.";
-                        return false;
+                        return PlcReadResult.Create(false, address, count, dataType, "S7 is not connected.");
                     }
 
-                    S7Address address = ParseAddress(readWriteModel.PLCAddress);
-                    WriteValue(address, readWriteModel);
-                    readWriteModel.Result = "OK";
-                    WriteLog($"{LocalName} S7 write {address.CanonicalAddress} succeeded.", LogType.INFO);
-                    return true;
+                    S7Address parsedAddress = ParseAddress(address);
+                    string resultText = ReadValue(parsedAddress, count, dataType);
+                    WriteLog($"{LocalName} S7 read {parsedAddress.CanonicalAddress}, length {count}, result {resultText}.", LogType.INFO);
+                    Task.Run(() => RaiseReceive(resultText, parsedAddress.CanonicalAddress));
+                    return PlcReadResult.Create(true, address, count, dataType, resultText);
                 }
                 catch (Exception ex)
                 {
-                    readWriteModel.Result = ex.Message;
-                    WriteLog($"{LocalName} S7 write failed: {ex.Message}", LogType.ERROR);
-                    return false;
-                }
-            }
-        }
-
-        public Task<bool> SendAsync(SendReceiveModel readWriteModel)
-        {
-            return Task.Run(() => Send(ref readWriteModel));
-        }
-
-        public bool Receive(ref SendReceiveModel readWriteModel)
-        {
-            lock (_syncRoot)
-            {
-                try
-                {
-                    if (!EnsureConnected())
-                    {
-                        readWriteModel.Result = "S7 is not connected.";
-                        return false;
-                    }
-
-                    S7Address address = ParseAddress(readWriteModel.PLCAddress);
-                    int count = Math.Max(1, readWriteModel.Lenght);
-                    string resultText = ReadValue(address, count, readWriteModel.Type);
-                    readWriteModel.Result = resultText;
-                    WriteLog($"{LocalName} S7 read {address.CanonicalAddress}, length {count}, result {resultText}.", LogType.INFO);
-                    Task.Run(() => OnReceive(resultText, address.CanonicalAddress));
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    readWriteModel.Result = ex.Message;
                     WriteLog($"{LocalName} S7 read failed: {ex.Message}", LogType.ERROR);
-                    return false;
+                    return PlcReadResult.Create(false, address, count, dataType, ex.Message);
                 }
             }
+        }
+
+        public Task<PlcReadResult> ReadAsync(
+            string address,
+            int length,
+            DisplayDataType dataType = DisplayDataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Read(address, length, dataType);
+            }, cancellationToken);
+        }
+
+        public PlcWriteResult Write(string address, string value, DisplayDataType dataType = DisplayDataType.Decimal)
+        {
+            string writeValue = value ?? string.Empty;
+            lock (_syncRoot)
+            {
+                try
+                {
+                    if (!EnsureConnected())
+                    {
+                        return PlcWriteResult.Create(false, address, writeValue, dataType, "S7 is not connected.");
+                    }
+
+                    S7Address parsedAddress = ParseAddress(address);
+                    WriteValue(parsedAddress, writeValue, dataType);
+                    WriteLog($"{LocalName} S7 write {parsedAddress.CanonicalAddress} succeeded.", LogType.INFO);
+                    return PlcWriteResult.Create(true, address, writeValue, dataType, "OK");
+                }
+                catch (Exception ex)
+                {
+                    WriteLog($"{LocalName} S7 write failed: {ex.Message}", LogType.ERROR);
+                    return PlcWriteResult.Create(false, address, writeValue, dataType, ex.Message);
+                }
+            }
+        }
+
+        public Task<PlcWriteResult> WriteAsync(
+            string address,
+            string value,
+            DisplayDataType dataType = DisplayDataType.Decimal,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                PlcWriteResult result = Write(address, value, dataType);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
+            }, cancellationToken);
         }
 
         private bool EnsureConnected()
@@ -210,10 +206,10 @@ namespace Shared.Infrastructure.Communication
             };
         }
 
-        private void WriteValue(S7Address address, SendReceiveModel readWriteModel)
+        private void WriteValue(S7Address address, string value, DisplayDataType dataType)
         {
             Plc plc = _plc ?? throw new InvalidOperationException("S7 client is not ready.");
-            string message = readWriteModel.Message?.Trim() ?? string.Empty;
+            string message = value?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(message))
             {
                 throw new InvalidOperationException("S7 write value cannot be empty.");
@@ -228,7 +224,7 @@ namespace Shared.Infrastructure.Communication
 
             byte[] buffer = address.VarType switch
             {
-                PlcVarType.Byte => ParseByteWriteBuffer(message, readWriteModel.Type),
+                PlcVarType.Byte => ParseByteWriteBuffer(message, dataType),
                 PlcVarType.Word => ParseWordWriteBuffer(message),
                 PlcVarType.DWord => ParseDWordWriteBuffer(message),
                 _ => throw new InvalidOperationException($"Unsupported S7 variable type: {address.VarType}.")
@@ -521,11 +517,6 @@ namespace Shared.Infrastructure.Communication
             {
                 _plc = null;
             }
-        }
-
-        private void WriteLog(string message, LogType type)
-        {
-            Task.Run(() => OnLog(new LogMessageModel { Message = message, Type = type }));
         }
 
         private readonly record struct S7Address(

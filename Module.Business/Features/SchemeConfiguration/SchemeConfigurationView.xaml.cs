@@ -1,10 +1,9 @@
 using Module.Business.Models;
-using Module.Business.ViewModels;
+using Shared.Infrastructure.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -15,17 +14,15 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using Shared.Infrastructure.Extensions;
-using Module.Business.ViewModels.PropertyVMs;
 
-namespace Module.Business.Views
+namespace Module.Business.Features.SchemeConfiguration
 {
     /// <summary>
-    /// 方案配置界面的交互逻辑。
+    /// 方案配置视图，负责工步拖拽、操作编辑抽屉和行内参数编辑。
     /// </summary>
     public partial class SchemeConfigurationView : UserControl
     {
-        #region 常量与字段
+        #region 拖拽数据格式
         private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
         private const string OperationDragDataFormat = "Module.Business.WorkStepOperation";
         private const double OperationDrawerClosedOffset = 56d;
@@ -42,18 +39,25 @@ namespace Module.Business.Views
         private Point _operationMethodDragStartPoint;
         private SchemeWorkStepItem? _pendingDraggedSchemeStep;
         private WorkStepOperation? _pendingDraggedOperation;
-        private DataRowView? _pendingDraggedOperationMethodRow;
+        private StationOperationMethodItem? _pendingDraggedOperationMethod;
         private bool _isInlineParameterDrawerOpen;
 
         #endregion
 
         #region 构造与生命周期
 
+        /// <summary>
+        /// 初始化方案配置视图。
+        /// </summary>
         public SchemeConfigurationView()
         {
             InitializeComponent();
         }
 
+        /// <summary>
+        /// 使用指定视图模型初始化方案配置视图。
+        /// </summary>
+        /// <param name="viewModel">方案配置视图模型。</param>
         public SchemeConfigurationView(SchemeConfigurationViewModel viewModel)
         {
             InitializeComponent();
@@ -67,6 +71,9 @@ namespace Module.Business.Views
 
         private SchemeConfigurationViewModel? ViewModel => DataContext as SchemeConfigurationViewModel;
 
+        /// <summary>
+        /// 处理视图加载后的初始化逻辑。
+        /// </summary>
         private void SchemeConfigurationView_Loaded(object sender, RoutedEventArgs e)
         {
             if (ViewModel is not null)
@@ -78,6 +85,9 @@ namespace Module.Business.Views
             UpdateInlineParameterDrawerVisual(animate: false);
         }
 
+        /// <summary>
+        /// 处理视图加载后的初始化逻辑。
+        /// </summary>
         private void SchemeConfigurationView_Unloaded(object sender, RoutedEventArgs e)
         {
             if (ViewModel is not null)
@@ -88,9 +98,9 @@ namespace Module.Business.Views
 
         #endregion
 
-        #region 属性联动
+        #region 视图模型联动
         /// <summary>
-        /// 同步步骤抽屉开关动画。
+        /// 响应视图模型属性变化并刷新界面状态。
         /// </summary>
         /// <summary>
         private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -105,6 +115,9 @@ namespace Module.Business.Views
 
         #region 方案工步拖拽
 
+        /// <summary>
+        /// 处理界面按钮点击事件。
+        /// </summary>
         private void SaveSchemesButton_Click(object sender, RoutedEventArgs e)
         {
             CommitSchemeNameTextBoxes();
@@ -116,6 +129,9 @@ namespace Module.Business.Views
             }
         }
 
+        /// <summary>
+        /// 提交页面内所有可编辑表格的当前编辑。
+        /// </summary>
         private void CommitEditableDataGrids()
         {
             SchemeStepsDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -125,7 +141,7 @@ namespace Module.Business.Views
         }
 
         /// <summary>
-        /// 提交方案名称文本框的当前编辑值，避免保存时仍停留在旧绑定值。
+        /// 提交方案名称文本框的当前输入。
         /// </summary>
         private void CommitSchemeNameTextBoxes()
         {
@@ -144,6 +160,9 @@ namespace Module.Business.Views
             }
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void SchemeStepsDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (IsInlineEditableSchemeStepElement(e.OriginalSource as DependencyObject))
@@ -156,6 +175,9 @@ namespace Module.Business.Views
             _pendingDraggedSchemeStep = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as SchemeWorkStepItem;
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void SchemeStepsDataGrid_PreviewMouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedSchemeStep is null)
@@ -178,6 +200,9 @@ namespace Module.Business.Views
             DragDrop.DoDragDrop(SchemeStepsDataGrid, dataObject, DragDropEffects.Move);
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void SchemeStepsDataGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject) is not DataGridRow row)
@@ -190,6 +215,9 @@ namespace Module.Business.Views
             row.Focus();
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void SchemeStepsDataGrid_DragOver(object sender, DragEventArgs e)
         {
             if (!TryGetSchemeStepDropInfo(e, out _, out _, out bool insertAfter))
@@ -205,11 +233,17 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void SchemeStepsDataGrid_DragLeave(object sender, DragEventArgs e)
         {
             HideSchemeStepDropIndicator();
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void SchemeStepsDataGrid_Drop(object sender, DragEventArgs e)
         {
             if (TryGetSchemeStepDropInfo(e, out SchemeWorkStepItem? draggedSchemeStep, out SchemeWorkStepItem? targetSchemeStep, out bool insertAfter) &&
@@ -224,6 +258,9 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private bool TryGetSchemeStepDropInfo(
             DragEventArgs e,
             out SchemeWorkStepItem? draggedSchemeStep,
@@ -250,6 +287,9 @@ namespace Module.Business.Views
             return true;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void ShowSchemeStepDropIndicator(DataGridRow? targetRow, bool insertAfter)
         {
             if (targetRow is null || SchemeStepDropIndicatorCanvas is null || SchemeStepDropIndicator is null)
@@ -272,6 +312,9 @@ namespace Module.Business.Views
             SchemeStepDropIndicator.Visibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void HideSchemeStepDropIndicator()
         {
             if (SchemeStepDropIndicator is not null)
@@ -284,6 +327,9 @@ namespace Module.Business.Views
 
         #region 方法指令拖拽
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void HookOperationMethodDragEvents()
         {
             OperationMethodDataGrid.PreviewMouseLeftButtonDown += OperationMethodDataGrid_PreviewMouseLeftButtonDown;
@@ -291,23 +337,32 @@ namespace Module.Business.Views
             OperationMethodDataGrid.SelectionChanged += OperationMethodDataGrid_SelectionChanged;
         }
 
+        /// <summary>
+        /// 处理状态或数据变更后的联动刷新。
+        /// </summary>
         private void OperationMethodDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ViewModel is not null)
             {
-                ViewModel.SelectedInvokeMethodRow = OperationMethodDataGrid.SelectedItem as DataRowView;
+                ViewModel.SelectedStationOperationMethod = OperationMethodDataGrid.SelectedItem as StationOperationMethodItem;
             }
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void OperationMethodDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _operationMethodDragStartPoint = e.GetPosition(OperationMethodDataGrid);
-            _pendingDraggedOperationMethodRow = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as DataRowView;
+            _pendingDraggedOperationMethod = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as StationOperationMethodItem;
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void OperationMethodDataGrid_PreviewMouseMove(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedOperationMethodRow is null)
+            if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedOperationMethod is null)
             {
                 return;
             }
@@ -319,8 +374,8 @@ namespace Module.Business.Views
                 return;
             }
 
-            WorkStepOperation? operation = ViewModel?.CreateStepFromInvokeMethodRow(_pendingDraggedOperationMethodRow);
-            _pendingDraggedOperationMethodRow = null;
+            WorkStepOperation? operation = ViewModel?.CreateStepFromInvokeMethodItem(_pendingDraggedOperationMethod);
+            _pendingDraggedOperationMethod = null;
             if (operation is null)
             {
                 return;
@@ -334,7 +389,10 @@ namespace Module.Business.Views
 
         #endregion
 
-        #region 步骤拖拽与双击编辑
+        #region 操作编辑抽屉
+        /// <summary>
+        /// 处理界面按钮点击事件。
+        /// </summary>
         private void OperationsDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (IsOperationSelectionCheckBox(e.OriginalSource as DependencyObject) ||
@@ -353,6 +411,9 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void OperationsDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (IsOperationSelectionCheckBox(e.OriginalSource as DependencyObject) ||
@@ -366,6 +427,9 @@ namespace Module.Business.Views
             _pendingDraggedOperation = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as WorkStepOperation;
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void OperationsDataGrid_PreviewMouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedOperation is null)
@@ -388,6 +452,9 @@ namespace Module.Business.Views
             DragDrop.DoDragDrop(OperationsDataGrid, dataObject, DragDropEffects.Move);
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void OperationsDataGrid_DragOver(object sender, DragEventArgs e)
         {
             if (!TryGetOperationDropInfo(e, out WorkStepOperation? draggedOperation, out _, out bool insertAfter, out bool isExistingOperation) ||
@@ -404,11 +471,17 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void OperationsDataGrid_DragLeave(object sender, DragEventArgs e)
         {
             HideOperationDropIndicator();
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void OperationsDataGrid_Drop(object sender, DragEventArgs e)
         {
             if (TryGetOperationDropInfo(
@@ -434,6 +507,9 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private bool TryGetOperationDropInfo(
             DragEventArgs e,
             out WorkStepOperation? draggedOperation,
@@ -468,6 +544,9 @@ namespace Module.Business.Views
             return ViewModel?.HasCurrentSchemeStep() == true;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void ShowOperationDropIndicator(DataGridRow? targetRow, bool insertAfter)
         {
             if (targetRow is null || OperationDropIndicatorCanvas is null || OperationDropIndicator is null)
@@ -490,6 +569,9 @@ namespace Module.Business.Views
             OperationDropIndicator.Visibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// 处理拖拽交互逻辑。
+        /// </summary>
         private void HideOperationDropIndicator()
         {
             if (OperationDropIndicator is not null)
@@ -504,6 +586,9 @@ namespace Module.Business.Views
 
         #region 行内参数编辑
 
+        /// <summary>
+        /// 处理界面按钮点击事件。
+        /// </summary>
         private void InlineOperationParametersButton_Click(object sender, RoutedEventArgs e)
         {
             CommitEditableDataGrids();
@@ -532,16 +617,25 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void InlineParameterDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             CloseInlineParameterDrawer();
         }
 
+        /// <summary>
+        /// 处理界面按钮点击事件。
+        /// </summary>
         private void CloseInlineParameterDrawerButton_Click(object sender, RoutedEventArgs e)
         {
             CloseInlineParameterDrawer();
         }
 
+        /// <summary>
+        /// 处理界面按钮点击事件。
+        /// </summary>
         private void ApplyInlineParameterDrawerButton_Click(object sender, RoutedEventArgs e)
         {
             InlineInputParameterDataGrid.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -566,6 +660,9 @@ namespace Module.Business.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 处理状态或数据变更后的联动刷新。
+        /// </summary>
         private void InlineParameterTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!ReferenceEquals(e.OriginalSource, sender) ||
@@ -581,12 +678,18 @@ namespace Module.Business.Views
                 ViewModel?.StepCollection ?? Enumerable.Empty<WorkStepOperation>());
         }
 
+        /// <summary>
+        /// 打开对应的编辑界面或抽屉。
+        /// </summary>
         private void OpenInlineParameterDrawer()
         {
             _isInlineParameterDrawerOpen = true;
             UpdateInlineParameterDrawerVisual(animate: true);
         }
 
+        /// <summary>
+        /// 关闭对应的编辑界面或抽屉。
+        /// </summary>
         private void CloseInlineParameterDrawer()
         {
             _isInlineParameterDrawerOpen = false;
@@ -595,12 +698,18 @@ namespace Module.Business.Views
             UpdateInlineParameterDrawerVisual(animate: true);
         }
 
+        /// <summary>
+        /// 收集指定操作可供后续步骤引用的返回参数键。
+        /// </summary>
         private IEnumerable<string> CollectReturnParameterKeys(WorkStepOperation operation)
         {
             return ViewModel?.CreateReturnParametersFromOperation(operation)
                 .Select(parameter => parameter.ParameterName) ?? Enumerable.Empty<string>();
         }
 
+        /// <summary>
+        /// 更新行内参数编辑抽屉的显示状态。
+        /// </summary>
         private void UpdateInlineParameterDrawerVisual(bool animate)
         {
             if (InlineParameterDrawerHost is null || InlineParameterDrawerTranslateTransform is null)
@@ -690,6 +799,9 @@ namespace Module.Business.Views
 
             public IReadOnlyList<string> ParsedReturnKeys { get; }
 
+            /// <summary>
+            /// 刷新对应的界面或业务状态。
+            /// </summary>
             public void RefreshInputValueOptions(IEnumerable<WorkStepOperation> currentOperations)
             {
                 List<string> options = BuildInputReturnValueOptions(
@@ -708,6 +820,9 @@ namespace Module.Business.Views
                 }
             }
 
+            /// <summary>
+            /// 构建并返回对应的业务数据。
+            /// </summary>
             public ObservableCollection<WorkStepOperationParameter> BuildInputParameters()
             {
                 List<WorkStepOperationParameter> parameters = new();
@@ -734,6 +849,9 @@ namespace Module.Business.Views
                         }));
             }
 
+            /// <summary>
+            /// 应用当前编辑结果到目标对象。
+            /// </summary>
             public void ApplyReturnParameters()
             {
                 SanitizeReturnParameterTable();
@@ -766,6 +884,9 @@ namespace Module.Business.Views
                 TargetOperation.ViewJudgeCondition = row.ViewJudgeCondition?.Trim() ?? string.Empty;
             }
 
+            /// <summary>
+            /// 清理返回参数表格中的无效显示项。
+            /// </summary>
             public void SanitizeReturnParameterTable()
             {
                 HashSet<string> seenKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -800,6 +921,9 @@ namespace Module.Business.Views
 
             public ObservableCollection<WorkStepOperationParameter> Parameters { get; }
 
+            /// <summary>
+            /// 根据操作参数创建输入参数行集合。
+            /// </summary>
             private static ObservableCollection<InlineInputParameterRow> CreateInputParameterRows(IEnumerable<WorkStepOperationParameter> parameters)
             {
                 return new ObservableCollection<InlineInputParameterRow>(
@@ -816,6 +940,9 @@ namespace Module.Business.Views
                         }));
             }
 
+            /// <summary>
+            /// 根据操作返回值配置创建返回参数行集合。
+            /// </summary>
             private ObservableCollection<InlineReturnParameterRow> CreateReturnParameterRows(
                 WorkStepOperation operation,
                 out IReadOnlyList<string> parsedReturnKeys)
@@ -867,6 +994,9 @@ namespace Module.Business.Views
                 return rows;
             }
 
+            /// <summary>
+            /// 判断操作是否配置了返回参数。
+            /// </summary>
             private static bool HasReturnParameter(WorkStepOperation operation)
             {
                 return !string.IsNullOrWhiteSpace(operation.ReturnValue) ||
@@ -876,6 +1006,9 @@ namespace Module.Business.Views
                        !string.IsNullOrWhiteSpace(operation.ViewJudgeCondition);
             }
 
+            /// <summary>
+            /// 判断是否满足指定业务条件。
+            /// </summary>
             private bool IsAllowedReturnParameterRow(InlineReturnParameterRow row)
             {
                 if (ParsedReturnKeys.Count == 0)
@@ -887,6 +1020,9 @@ namespace Module.Business.Views
                 return ParsedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase));
             }
 
+            /// <summary>
+            /// 判断是否满足指定业务条件。
+            /// </summary>
             private static bool IsEmptyReturnParameterRow(InlineReturnParameterRow row)
             {
                 return string.IsNullOrWhiteSpace(row.Key) &&
@@ -896,6 +1032,9 @@ namespace Module.Business.Views
                        string.IsNullOrWhiteSpace(row.ViewJudgeCondition);
             }
 
+            /// <summary>
+            /// 构建并返回对应的业务数据。
+            /// </summary>
             private static IEnumerable<string> BuildInputReturnValueOptions(
                 IEnumerable<WorkStepOperation> currentOperations,
                 WorkStepOperation targetOperation,
@@ -919,6 +1058,9 @@ namespace Module.Business.Views
                     .SelectMany(operation => collectReturnParameterKeys(operation) ?? Enumerable.Empty<string>());
             }
 
+            /// <summary>
+            /// 用候选项集合替换字符串选项集合。
+            /// </summary>
             private static void ReplaceStringOptions(ObservableCollection<string> target, IEnumerable<string> source)
             {
                 List<string> options = source
@@ -992,27 +1134,33 @@ namespace Module.Business.Views
 
             public sealed class InlineReturnParameterRow : INotifyPropertyChanged
             {
+                /// <summary>
+                /// 判断条件模板显示项。
+                /// </summary>
                 public sealed record JudgeTemplateOption(string DisplayText, string Value)
                 {
+                    /// <summary>
+                    /// 返回模板显示文本。
+                    /// </summary>
                     public override string ToString() => DisplayText;
                 }
 
                 private static readonly IReadOnlyList<JudgeTemplateOption> DefaultJudgeTemplateOptions =
                     Array.AsReadOnly(new[]
                     {
-                        new JudgeTemplateOption("大于", ">"),
-                        new JudgeTemplateOption("大于等于", ">="),
-                        new JudgeTemplateOption("小于", "<"),
-                        new JudgeTemplateOption("小于等于", "<="),
-                        new JudgeTemplateOption("等于", "=="),
-                        new JudgeTemplateOption("不等于", "!="),
-                        new JudgeTemplateOption("区间(左开右开)", "<{0}<"),
-                        new JudgeTemplateOption("区间(左闭右闭)", "<={0}<="),
-                        new JudgeTemplateOption("为空", "()"),
-                        new JudgeTemplateOption("不为空", "!()"),
+                        new JudgeTemplateOption(">", ">"),
+                        new JudgeTemplateOption(">=", ">="),
+                        new JudgeTemplateOption("<", "<"),
+                        new JudgeTemplateOption("<=", "<="),
+                        new JudgeTemplateOption("==", "=="),
+                        new JudgeTemplateOption("!=", "!="),
+                        new JudgeTemplateOption("<{0}<", "<{0}<"),
+                        new JudgeTemplateOption("<={0}<=", "<={0}<="),
+                        new JudgeTemplateOption("()", "()"),
+                        new JudgeTemplateOption("!()", "!()"),
                         new JudgeTemplateOption("黑名单", "黑名单"),
                         new JudgeTemplateOption("白名单", "白名单"),
-                        new JudgeTemplateOption("不适用", "NA")
+                        new JudgeTemplateOption("NA", "NA")
                     });
 
                 private string _key = string.Empty;
@@ -1111,6 +1259,9 @@ namespace Module.Business.Views
                     string.Equals(ViewJudgeType, "<{0}<", StringComparison.Ordinal) ||
                     string.Equals(ViewJudgeType, "<={0}<=", StringComparison.Ordinal);
 
+                /// <summary>
+                /// 应用当前编辑结果到目标对象。
+                /// </summary>
                 private void ApplyJudgeCondition(string? value)
                 {
                     string normalizedValue = value?.Trim() ?? string.Empty;
@@ -1140,6 +1291,9 @@ namespace Module.Business.Views
                     OnPropertyChanged(nameof(ViewJudgeCondition));
                 }
 
+                /// <summary>
+                /// 构建并返回对应的业务数据。
+                /// </summary>
                 private string BuildRangeConditionValue()
                 {
                     string firstValue = _firstJudgeConditionValue.Trim();
@@ -1152,6 +1306,9 @@ namespace Module.Business.Views
                     return $"{firstValue}|{secondValue}";
                 }
 
+                /// <summary>
+                /// 解析范围判断条件中的边界值。
+                /// </summary>
                 private void ParseRangeConditionValue(string value)
                 {
                     string normalizedValue = value?.Trim() ?? string.Empty;
@@ -1180,6 +1337,9 @@ namespace Module.Business.Views
                     _secondJudgeConditionValue = delimiterParts.ElementAtOrDefault(1)?.Trim() ?? string.Empty;
                 }
 
+                /// <summary>
+                /// 根据判断条件推断模板类型。
+                /// </summary>
                 private static string InferJudgeTemplate(string condition)
                 {
                     string normalizedCondition = condition?.Trim() ?? string.Empty;
@@ -1208,12 +1368,18 @@ namespace Module.Business.Views
                     return string.Empty;
                 }
 
+                /// <summary>
+                /// 判断是否满足指定业务条件。
+                /// </summary>
                 private static bool IsRangeTemplate(string template)
                 {
                     return string.Equals(template, "<{0}<", StringComparison.Ordinal) ||
                            string.Equals(template, "<={0}<=", StringComparison.Ordinal);
                 }
 
+                /// <summary>
+                /// 从判断条件中移除简单模板前缀。
+                /// </summary>
                 private static string StripSimpleTemplate(string condition, string template)
                 {
                     string normalizedCondition = condition?.Trim() ?? string.Empty;
@@ -1237,17 +1403,26 @@ namespace Module.Business.Views
                     return normalizedCondition;
                 }
 
+                /// <summary>
+                /// 清理范围边界值的空白和括号。
+                /// </summary>
                 private static string TrimRangeBoundary(string value)
                 {
                     return (value ?? string.Empty).Trim().Trim('<', '>', '=', ' ');
                 }
 
+                /// <summary>
+                /// 处理状态或数据变更后的联动刷新。
+                /// </summary>
                 private void OnPropertyChanged(string propertyName)
                 {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
                 }
             }
 
+            /// <summary>
+            /// 判断是否满足指定业务条件。
+            /// </summary>
             private static bool IsSendOnlyProtocolCommand(JsonElement? command)
             {
                 return command is not null &&
@@ -1255,6 +1430,9 @@ namespace Module.Business.Views
                        !GetJsonBool(command.Value, "IsParseOnly", defaultValue: false);
             }
 
+            /// <summary>
+            /// 在协议配置文件中查找指定指令。
+            /// </summary>
             private static JsonElement? FindProtocolCommand(string protocolName, string commandName)
             {
                 string directory = Path.Combine(AppContext.BaseDirectory, "Config", "Protocol");
@@ -1301,6 +1479,9 @@ namespace Module.Business.Views
                 return null;
             }
 
+            /// <summary>
+            /// 读取可能经过加密保存的协议配置文本。
+            /// </summary>
             private static string ReadPossiblyEncryptedText(string filePath)
             {
                 string storageText = File.ReadAllText(filePath, Encoding.UTF8);
@@ -1314,6 +1495,9 @@ namespace Module.Business.Views
                 }
             }
 
+            /// <summary>
+            /// 从 JSON 节点读取字符串属性。
+            /// </summary>
             private static string GetJsonString(JsonElement element, string propertyName)
             {
                 return element.TryGetProperty(propertyName, out JsonElement propertyElement)
@@ -1321,6 +1505,9 @@ namespace Module.Business.Views
                     : string.Empty;
             }
 
+            /// <summary>
+            /// 从 JSON 节点读取字符串数组属性。
+            /// </summary>
             private static IReadOnlyList<string> GetJsonStringArray(JsonElement element, string propertyName)
             {
                 if (!element.TryGetProperty(propertyName, out JsonElement propertyElement) ||
@@ -1340,6 +1527,9 @@ namespace Module.Business.Views
                     .ToArray();
             }
 
+            /// <summary>
+            /// 从 JSON 节点读取布尔属性。
+            /// </summary>
             private static bool GetJsonBool(JsonElement element, string propertyName, bool defaultValue)
             {
                 if (!element.TryGetProperty(propertyName, out JsonElement propertyElement))
@@ -1360,13 +1550,16 @@ namespace Module.Business.Views
 
         #endregion
 
+        /// <summary>
+        /// 处理鼠标交互事件。
+        /// </summary>
         private void OperationDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             ViewModel?.CloseStepEditor();
         }
 
         /// <summary>
-        /// 更新步骤编辑抽屉的显示状态。
+        /// 更新操作编辑抽屉的显示状态。
         /// </summary>
         private void UpdateOperationDrawerVisual(bool animate)
         {
@@ -1423,6 +1616,9 @@ namespace Module.Business.Views
 
         #region 交互辅助方法
 
+        /// <summary>
+        /// 判断是否满足指定业务条件。
+        /// </summary>
         private static bool IsInlineEditableSchemeStepElement(DependencyObject? source)
         {
             return FindAncestor<TextBox>(source) is not null ||
@@ -1430,6 +1626,9 @@ namespace Module.Business.Views
                    FindAncestor<CheckBox>(source) is not null;
         }
 
+        /// <summary>
+        /// 判断是否满足指定业务条件。
+        /// </summary>
         private static bool IsInlineEditableOperationCell(DependencyObject? source)
         {
             if (FindAncestor<ComboBox>(source) is not null ||
@@ -1459,6 +1658,9 @@ namespace Module.Business.Views
 
         }
 
+        /// <summary>
+        /// 判断是否满足指定业务条件。
+        /// </summary>
         private static bool IsOperationSelectionCheckBox(DependencyObject? source)
         {
             return FindAncestor<CheckBox>(source) is not null;
@@ -1504,6 +1706,9 @@ namespace Module.Business.Views
             }
         }
 
+        /// <summary>
+        /// 获取指定依赖对象的父级对象。
+        /// </summary>
         private static DependencyObject? GetParentObject(DependencyObject source)
         {
             if (source is Visual or System.Windows.Media.Media3D.Visual3D)

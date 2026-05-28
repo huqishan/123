@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -8,19 +8,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Business\System.cs" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Business\System.cs" CopyToOutputDirectory="Never" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ControlLibrary\ControlLibrary.csproj" />
+    <ProjectReference Include="..\Module.Communication\Module.Communication.csproj" />
     <ProjectReference Include="..\Shared\Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Views\StationConfigurationView.xaml.cs">
+    <Compile Update="Features\StationConfiguration\StationConfigurationView.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Views\LuaScriptView.xaml.cs">
+    <Compile Update="Features\LuaScript\LuaScriptView.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

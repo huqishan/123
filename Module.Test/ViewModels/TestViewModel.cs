@@ -28,6 +28,7 @@ public sealed class TestViewModel : ViewModelProperties, IDisposable
         Stations = new ObservableCollection<TestMaxViewModel>();
         AddStationCommand = new RelayCommand(_ => AddStation());
         RefreshStationsCommand = new AsyncRelayCommand(_ => LoadStationsAsync());
+        AddStation();
     }
 
     public ObservableCollection<TestMaxViewModel> Stations { get; }

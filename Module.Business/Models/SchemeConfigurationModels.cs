@@ -1,5 +1,5 @@
 using ControlLibrary;
-using Module.Business.ViewModels.PropertyVMs;
+using Module.Business.Features.SchemeConfiguration;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -11,25 +11,38 @@ using System.Text.Json.Serialization;
 namespace Module.Business.Models;
 
 /// <summary>
-/// 业务配置根对象，统一保存步骤模板和方案配置。
+/// 业务配置根对象，统一保存工步模板和方案配置。
 /// </summary>
 public sealed class SchemeConfigurationCatalog
 {
+    /// <summary>
+    /// 工步模板集合。
+    /// </summary>
     public ObservableCollection<WorkStepProfile> WorkSteps { get; set; } = new();
 
+    /// <summary>
+    /// 业务方案集合。
+    /// </summary>
     public ObservableCollection<SchemeProfile> Schemes { get; set; } = new();
 }
-
-
 
 /// <summary>
 /// 方案导入导出包，包含方案本体和完整工步内容。
 /// </summary>
 public sealed class SchemeConfigurationPackage
 {
+    /// <summary>
+    /// 导入导出包版本。
+    /// </summary>
     public int Version { get; set; } = 1;
 
+    /// <summary>
+    /// 方案本体。
+    /// </summary>
     public SchemeProfile? Scheme { get; set; }
 
+    /// <summary>
+    /// 方案引用的工步模板集合。
+    /// </summary>
     public ObservableCollection<WorkStepProfile> WorkSteps { get; set; } = new();
 }
