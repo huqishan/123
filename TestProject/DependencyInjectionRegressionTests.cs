@@ -1,4 +1,5 @@
 using Autofac;
+using ControlLibrary.Controls.TestDataTable.Models;
 using ControlLibrary.Models.EventsModels.Test;
 using Module.MES.ViewModels;
 using Module.Test.ViewModels;
@@ -125,6 +126,39 @@ public sealed class DependencyInjectionRegressionTests
             Assert.That(firstStation.ProductBarcode, Is.EqualTo("BARCODE-001"));
             Assert.That(secondStation.TestStatus, Is.EqualTo("Completed"));
             Assert.That(secondStation.ProductBarcode, Is.EqualTo("BARCODE-002"));
+        });
+    }
+
+    [Test]
+    [Apartment(ApartmentState.STA)]
+    public void TestViewModel_StationGridColumns_UsesSingleColumnForSingleStation()
+    {
+        using IContainer container = BuildApplicationContainer();
+        using TestViewModel viewModel = container.Resolve<TestViewModel>();
+
+        Assert.That(viewModel.StationGridColumns, Is.EqualTo(1));
+
+        viewModel.AddStationCommand.Execute(null);
+
+        Assert.That(viewModel.StationGridColumns, Is.EqualTo(2));
+    }
+
+    [Test]
+    [Apartment(ApartmentState.STA)]
+    public void TestMaxViewModel_SingleStep_ExecutesSelectedWorkStep()
+    {
+        using IContainer container = BuildApplicationContainer();
+        using TestMaxViewModel viewModel = container.Resolve<TestMaxViewModel>();
+        TestDataDisplayItem selectedStep = viewModel.WorkSteps.Last();
+
+        viewModel.SelectedWorkStep = selectedStep;
+        viewModel.SingleStepTestCommand.Execute(null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.CurrentWorkStepName, Is.EqualTo(selectedStep.WorkStep));
+            Assert.That(viewModel.SelectedWorkStep, Is.SameAs(selectedStep));
+            Assert.That(viewModel.RunningLogs.First(), Does.Contain(selectedStep.WorkStep));
         });
     }
 

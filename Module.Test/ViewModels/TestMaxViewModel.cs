@@ -253,12 +253,20 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
 
     private void StartSingleStepTest()
     {
-        StartTest("单步测试");
+        TestDataDisplayItem? targetWorkStep = SelectedWorkStep;
+        if (targetWorkStep is null && WorkSteps.Count > 0)
+        {
+            targetWorkStep = WorkSteps.FirstOrDefault(step =>
+                !string.Equals(step.Result, "OK", StringComparison.OrdinalIgnoreCase)) ?? WorkSteps[0];
+            SelectedWorkStep = targetWorkStep;
+        }
+
+        StartTest("单步测试", targetWorkStep);
     }
 
     private void StartContinuousTest()
     {
-        StartTest("连续测试");
+        StartTest("连续测试", null);
     }
 
     private void StopTest()
@@ -274,15 +282,15 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
         AddLog(RunningLogs, $"{DateTime.Now:HH:mm:ss} {StationName} 已停止，进入待机。");
     }
 
-    private void StartTest(string statusText)
+    private void StartTest(string statusText, TestDataDisplayItem? targetWorkStep)
     {
         TestStatus = statusText;
         RunStateText = "测试中";
         StatusBrush = RunningBrush;
-        CurrentWorkStepName = ResolveCurrentWorkStepName();
+        CurrentWorkStepName = ResolveCurrentWorkStepName(targetWorkStep);
         _elapsedStopwatch.Restart();
         UpdateElapsedTime();
-        ApplyCurrentWorkStepElapsedTime(ElapsedTimeText);
+        ApplyCurrentWorkStepElapsedTime(ElapsedTimeText, targetWorkStep);
         AddLog(RunningLogs, $"{DateTime.Now:HH:mm:ss} {StationName} 开始{statusText}，执行 {CurrentWorkStepName}。");
     }
 
@@ -294,7 +302,12 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
 
     private void ApplyCurrentWorkStepElapsedTime(string elapsedTimeText)
     {
-        string workStepName = ResolveCurrentWorkStepName();
+        ApplyCurrentWorkStepElapsedTime(elapsedTimeText, null);
+    }
+
+    private void ApplyCurrentWorkStepElapsedTime(string elapsedTimeText, TestDataDisplayItem? targetWorkStep)
+    {
+        string workStepName = ResolveCurrentWorkStepName(targetWorkStep);
         if (string.IsNullOrWhiteSpace(workStepName))
         {
             return;
@@ -411,6 +424,16 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
 
     private string ResolveCurrentWorkStepName()
     {
+        return ResolveCurrentWorkStepName(null);
+    }
+
+    private string ResolveCurrentWorkStepName(TestDataDisplayItem? targetWorkStep)
+    {
+        if (targetWorkStep is not null && WorkSteps.Contains(targetWorkStep))
+        {
+            return targetWorkStep.WorkStep;
+        }
+
         return WorkSteps.FirstOrDefault(step =>
                    !string.Equals(step.Result, "OK", StringComparison.OrdinalIgnoreCase))?.WorkStep ??
                WorkSteps.FirstOrDefault()?.WorkStep ??

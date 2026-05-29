@@ -45,7 +45,7 @@
                           ItemsSource="{Binding Stations}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <UniformGrid Columns="2" />
+                        <UniformGrid Columns="{Binding StationGridColumns}" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemContainerStyle>

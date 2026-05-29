@@ -229,25 +229,6 @@ namespace Module.Business.Features.SchemeConfiguration
         #region 私有字段
 
         private string _id = Guid.NewGuid().ToString("N");
-        private string _operationType = "设备";
-        private string _operationObject = "System";
-        private string _deviceId = string.Empty;
-        private string _protocolName = string.Empty;
-        private string _commandName = string.Empty;
-        private string _invokeMethod = "等待";
-        private string _operationId = string.Empty;
-        private string _returnValue = string.Empty;
-        private bool _showDataToView;
-        private string _viewDataName = string.Empty;
-        private string _viewJudgeType = string.Empty;
-        private string _viewJudgeCondition = string.Empty;
-        private string _luaScript = string.Empty;
-        private int _delayMilliseconds;
-        private string _remark = string.Empty;
-        private bool _isChecked;
-        private bool _areParametersModified;
-        private int _displayOrder = 1;
-        private ObservableCollection<WorkStepOperationParameter> _parameters = new();
 
         #endregion
 
@@ -268,6 +249,13 @@ namespace Module.Business.Features.SchemeConfiguration
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
 
+        #region 操作类型
+
+        private string _operationType = "设备";
+
+        /// <summary>
+        /// 操作类型
+        /// </summary>
         public string OperationType
         {
             get => _operationType;
@@ -280,6 +268,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 操作对象
+
+        private string _operationObject = "System";
+
+        /// <summary>
+        /// 操作对象
+        /// </summary>
         public string OperationObject
         {
             get => _operationObject;
@@ -293,6 +290,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 设备标识
+
+        private string _deviceId = string.Empty;
+
+        /// <summary>
+        /// 设备标识
+        /// </summary>
         public string DeviceId
         {
             get => string.IsNullOrWhiteSpace(_deviceId) ? _operationObject : _deviceId;
@@ -305,6 +311,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 协议名称
+
+        private string _protocolName = string.Empty;
+
+        /// <summary>
+        /// 协议名称
+        /// </summary>
         public string ProtocolName
         {
             get => _protocolName;
@@ -317,6 +332,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 指令名称
+
+        private string _commandName = string.Empty;
+
+        /// <summary>
+        /// 指令名称
+        /// </summary>
         public string CommandName
         {
             get => _commandName;
@@ -329,6 +353,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 调用方法
+
+        private string _invokeMethod = "等待";
+
+        /// <summary>
+        /// 调用方法
+        /// </summary>
         public string InvokeMethod
         {
             get => _invokeMethod;
@@ -342,6 +375,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 操作标识
+
+        private string _operationId = string.Empty;
+
+        /// <summary>
+        /// 操作标识
+        /// </summary>
         public string OperationId
         {
             get => string.IsNullOrWhiteSpace(_operationId) ? _invokeMethod : _operationId;
@@ -354,6 +396,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 返回值
+
+        private string _returnValue = string.Empty;
+
+        /// <summary>
+        /// 返回值
+        /// </summary>
         public string ReturnValue
         {
             get => _returnValue;
@@ -366,30 +417,75 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 显示到界面
+
+        private bool _showDataToView;
+
+        /// <summary>
+        /// 显示到界面
+        /// </summary>
         public bool ShowDataToView
         {
             get => _showDataToView;
             set => SetField(ref _showDataToView, value);
         }
 
+        #endregion
+
+        #region 显示名称
+
+        private string _viewDataName = string.Empty;
+
+        /// <summary>
+        /// 显示名称
+        /// </summary>
         public string ViewDataName
         {
             get => _viewDataName;
             set => SetField(ref _viewDataName, value ?? string.Empty, true);
         }
 
+        #endregion
+
+        #region 判断类型
+
+        private string _viewJudgeType = string.Empty;
+
+        /// <summary>
+        /// 判断类型
+        /// </summary>
         public string ViewJudgeType
         {
             get => _viewJudgeType;
             set => SetField(ref _viewJudgeType, value ?? string.Empty, true);
         }
 
+        #endregion
+
+        #region 判断条件
+
+        private string _viewJudgeCondition = string.Empty;
+
+        /// <summary>
+        /// 判断条件
+        /// </summary>
         public string ViewJudgeCondition
         {
             get => _viewJudgeCondition;
             set => SetField(ref _viewJudgeCondition, value ?? string.Empty, true);
         }
 
+        #endregion
+
+        #region Lua脚本
+
+        private string _luaScript = string.Empty;
+
+        /// <summary>
+        /// Lua脚本
+        /// </summary>
         public string LuaScript
         {
             get => _luaScript;
@@ -402,6 +498,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 延时时间
+
+        private int _delayMilliseconds;
+
+        /// <summary>
+        /// 延时时间
+        /// </summary>
         public int DelayMilliseconds
         {
             get => _delayMilliseconds;
@@ -415,6 +520,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 备注
+
+        private string _remark = string.Empty;
+
+        /// <summary>
+        /// 备注
+        /// </summary>
         public string Remark
         {
             get => _remark;
@@ -427,6 +541,15 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        #endregion
+
+        #region 是否选中
+
+        private bool _isChecked;
+
+        /// <summary>
+        /// 是否选中
+        /// </summary>
         [JsonIgnore]
         public bool IsChecked
         {
@@ -434,6 +557,15 @@ namespace Module.Business.Features.SchemeConfiguration
             set => SetField(ref _isChecked, value);
         }
 
+        #endregion
+
+        #region 参数是否修改
+
+        private bool _areParametersModified;
+
+        /// <summary>
+        /// 参数是否修改
+        /// </summary>
         [JsonIgnore]
         public bool AreParametersModified
         {
@@ -441,6 +573,15 @@ namespace Module.Business.Features.SchemeConfiguration
             set => SetField(ref _areParametersModified, value);
         }
 
+        #endregion
+
+        #region 显示顺序
+
+        private int _displayOrder = 1;
+
+        /// <summary>
+        /// 显示顺序
+        /// </summary>
         [JsonIgnore]
         public int DisplayOrder
         {
@@ -448,6 +589,15 @@ namespace Module.Business.Features.SchemeConfiguration
             set => SetField(ref _displayOrder, Math.Max(1, value));
         }
 
+        #endregion
+
+        #region 参数集合
+
+        private ObservableCollection<WorkStepOperationParameter> _parameters = new();
+
+        /// <summary>
+        /// 参数集合
+        /// </summary>
         public ObservableCollection<WorkStepOperationParameter> Parameters
         {
             get => _parameters;
@@ -466,6 +616,8 @@ namespace Module.Business.Features.SchemeConfiguration
                 OnPropertyChanged(nameof(DisplayText));
             }
         }
+
+        #endregion
 
         [JsonIgnore]
         public int ParameterCount => Parameters.Count;

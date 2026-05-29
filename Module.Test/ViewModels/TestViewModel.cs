@@ -39,6 +39,8 @@ public sealed class TestViewModel : ViewModelProperties, IDisposable
 
     public string StationCountText => $"共 {Stations.Count} 个工位";
 
+    public int StationGridColumns => Stations.Count <= 1 ? 1 : 2;
+
     public double StationItemHeight
     {
         get => _stationItemHeight;
@@ -107,6 +109,7 @@ public sealed class TestViewModel : ViewModelProperties, IDisposable
             .Max();
         _nextStationIndex = Math.Max(maxNumericSuffix + 1, Stations.Count + 1);
         OnPropertyChanged(nameof(StationCountText));
+        OnPropertyChanged(nameof(StationGridColumns));
         RefreshStationItemHeight();
     }
 
@@ -114,6 +117,7 @@ public sealed class TestViewModel : ViewModelProperties, IDisposable
     {
         Stations.Add(CreateStationViewModel($"工位 {_nextStationIndex++}"));
         OnPropertyChanged(nameof(StationCountText));
+        OnPropertyChanged(nameof(StationGridColumns));
         RefreshStationItemHeight();
     }
 

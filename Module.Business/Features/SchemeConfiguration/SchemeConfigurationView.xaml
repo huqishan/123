@@ -533,7 +533,7 @@ CornerRadius="12">
                                                 <TranslateTransform x:Name="InlineParameterDrawerTranslateTransform" Y="56" />
                                             </Border.RenderTransform>
 
-                                            <Grid DataContext="{Binding ElementName=InlineParameterDrawerSheet, Path=Tag}">
+                                            <Grid DataContext="{Binding InlineParameterEditor}">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
@@ -546,7 +546,7 @@ CornerRadius="12">
                                                         <TextBlock Grid.Row="1"
            Margin="0,10,0,10"
            Foreground="{DynamicResource AppMutedTextBrush}"
-           Text="{Binding DataContext.ActiveParameterOperationSummary, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+           Text="{Binding OperationSummary}"
            TextWrapping="Wrap" />
                                                     </StackPanel>
 
@@ -574,7 +574,7 @@ CornerRadius="12">
                                                                   CanUserAddRows="False"
                                                                   HorizontalScrollBarVisibility="Disabled"
                                                                   IsReadOnly="False"
-                                                                  ItemsSource="{Binding DataContext.ActiveInputParameterCollection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                                  ItemsSource="{Binding InputParameterRows}"
                                                                   Style="{StaticResource ColumnsDataGridStyle}">
                                                             <DataGrid.Columns>
                                                                 <DataGridTextColumn Width="72"
@@ -651,7 +651,7 @@ CornerRadius="12">
                                                                   CanUserAddRows="False"
                                                                   HorizontalScrollBarVisibility="Disabled"
                                                                   IsReadOnly="False"
-                                                                  ItemsSource="{Binding DataContext.ActiveReturnParameterCollection, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                                  ItemsSource="{Binding ReturnParameterRows}"
                                                                   Style="{StaticResource ColumnsDataGridStyle}">
                                                             <DataGrid.Columns>
                                                                 <DataGridTextColumn Width="1.2*"
