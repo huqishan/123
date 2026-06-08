@@ -31,7 +31,7 @@ public sealed class LoginWindowViewModel : ViewModelProperties
     public string Account
     {
         get => _account;
-        set => SetField(ref _account, value ?? string.Empty, true);
+        set => SetField(ref _account, (value ?? string.Empty).Trim());
     }
 
     public string StatusText

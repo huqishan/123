@@ -416,7 +416,7 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
     public string WorkStepCountText => $"{WorkSteps.Count} 个工步";
     public string OperationCountText => SelectedWorkStep is null
         ? "未选择工步"
-        : $"{SelectedWorkStep.OperationCount} 个步骤";
+        : $"{SelectedWorkStep.Steps.Count} 个步骤";
 
     #endregion
 
@@ -479,16 +479,7 @@ internal sealed class SchemeStepEditorState : ViewModelProperties
     /// </summary>
     private void SelectedWorkStep_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(WorkStepProfile.OperationCount)
-            or nameof(WorkStepProfile.OperationSummary)
-            or nameof(WorkStepProfile.StepName))
-        {
-            SelectedWorkStep?.MarkModified();
-        }
-
-        if (e.PropertyName is nameof(WorkStepProfile.OperationCount)
-            or nameof(WorkStepProfile.OperationSummary)
-            or nameof(WorkStepProfile.StepName)
+        if (e.PropertyName is nameof(WorkStepProfile.StepName)
             or nameof(WorkStepProfile.LastModifiedAt)
             or nameof(WorkStepProfile.LastModifiedText)
             or nameof(WorkStepProfile.Steps))
@@ -1792,8 +1783,25 @@ private static readonly Regex ProtocolPlaceholderRegex =
 
         string keyword = SearchText.Trim();
         return Contains(workStep.StepName, keyword) ||
-               Contains(workStep.OperationSummary, keyword) ||
+               Contains(BuildWorkStepOperationSummary(workStep), keyword) ||
                Contains(workStep.LastModifiedText, keyword);
+    }
+
+    private static string BuildWorkStepOperationSummary(WorkStepProfile workStep)
+    {
+        if (workStep is null)
+        {
+            return string.Empty;
+        }
+
+        List<string> items = workStep.Steps
+            .Where(operation => operation is not null)
+            .Select(operation => operation.DisplayText)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Select(text => text.Trim())
+            .ToList();
+
+        return items.Count == 0 ? string.Empty : string.Join(" / ", items);
     }
 
     /// <summary>
@@ -1809,12 +1817,6 @@ private static readonly Regex ProtocolPlaceholderRegex =
     /// </summary>
     private bool ValidateWorkSteps(out string message)
     {
-        if (WorkSteps.Count == 0)
-        {
-            message = string.Empty;
-            return true;
-        }
-
         HashSet<string> stepNames = new(StringComparer.OrdinalIgnoreCase);
         foreach (WorkStepProfile workStep in WorkSteps)
         {

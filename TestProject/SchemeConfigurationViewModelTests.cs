@@ -19,7 +19,15 @@ public class SchemeConfigurationViewModelTests
         {
             OperationObject = "System",
             InvokeMethod = "等待",
-            ReturnValue = "Result"
+            ReturnParameters = new ObservableCollection<WorkStepOperationParameter>
+            {
+                new()
+                {
+                    Name = "返回值",
+                    ParameterName = "Result",
+                    Value = "Result"
+                }
+            }
         };
 
         bool isModified = viewModel.HasModifiedOperationParameters(operation);
@@ -35,8 +43,17 @@ public class SchemeConfigurationViewModelTests
         {
             OperationObject = "System",
             InvokeMethod = "等待",
-            ShowDataToView = true,
-            ViewDataName = "Result"
+            ReturnParameters = new ObservableCollection<WorkStepOperationParameter>
+            {
+                new()
+                {
+                    Name = "返回值",
+                    ParameterName = "Result",
+                    Value = "Result",
+                    ShowDataToView = true,
+                    ViewDataName = "Result"
+                }
+            }
         };
 
         bool isModified = viewModel.HasModifiedOperationParameters(operation);
@@ -52,8 +69,17 @@ public class SchemeConfigurationViewModelTests
         {
             OperationObject = "System",
             InvokeMethod = "等待",
-            ShowDataToView = true,
-            ViewDataName = "Result"
+            ReturnParameters = new ObservableCollection<WorkStepOperationParameter>
+            {
+                new()
+                {
+                    Name = "返回值",
+                    ParameterName = "Result",
+                    Value = "Result",
+                    ShowDataToView = true,
+                    ViewDataName = "Result"
+                }
+            }
         };
 
         Assert.That(operation.AreParametersModified, Is.False);
@@ -82,7 +108,7 @@ public class SchemeConfigurationViewModelTests
         {
             SchemeName = "Scheme"
         };
-        scheme.Steps.Add(new SchemeWorkStepItem
+        scheme.Steps.Add(new WorkStepProfile
         {
             WorkStepId = template.Id,
             StepName = template.StepName
@@ -123,15 +149,31 @@ public class SchemeConfigurationViewModelTests
         {
             OperationObject = "System",
             InvokeMethod = "前序步骤",
-            ReturnValue = "PrevKey"
+            ReturnParameters = new ObservableCollection<WorkStepOperationParameter>
+            {
+                new()
+                {
+                    Name = "返回值",
+                    ParameterName = "PrevKey",
+                    Value = "PrevKey"
+                }
+            }
         };
 
         WorkStepOperation currentOperation = new()
         {
             OperationObject = "System",
             InvokeMethod = "当前步骤",
-            ReturnValue = "CurrentKey",
-            Parameters = new ObservableCollection<WorkStepOperationParameter>
+            ReturnParameters = new ObservableCollection<WorkStepOperationParameter>
+            {
+                new()
+                {
+                    Name = "返回值",
+                    ParameterName = "CurrentKey",
+                    Value = "CurrentKey"
+                }
+            },
+            InputParameters = new ObservableCollection<WorkStepOperationParameter>
             {
                 new()
                 {
@@ -159,5 +201,56 @@ public class SchemeConfigurationViewModelTests
 
         Assert.That(parameter.ValueOptions, Does.Contain("PrevKey"));
         Assert.That(parameter.ValueOptions, Does.Not.Contain("CurrentKey"));
+    }
+    [Test]
+    public void SchemeLastModifiedAt_WhenSchemeStepChanges_UpdatesSchemeTime()
+    {
+        SchemeConfigurationViewModel viewModel = new();
+        WorkStepProfile step = new()
+        {
+            StepName = "Step 1"
+        };
+        SchemeProfile scheme = new()
+        {
+            SchemeName = "Scheme",
+            Steps = new ObservableCollection<WorkStepProfile> { step }
+        };
+
+        viewModel.Schemes.Add(scheme);
+        scheme.LastModifiedAt = DateTime.Now.AddMinutes(-5);
+
+        DateTime original = scheme.LastModifiedAt;
+        step.StepName = "Step 2";
+
+        Assert.That(scheme.LastModifiedAt, Is.GreaterThan(original));
+    }
+
+    [Test]
+    public void SchemeLastModifiedAt_WhenOperationChanges_UpdatesSchemeTime()
+    {
+        WorkStepOperation operation = new()
+        {
+            OperationObject = "System",
+            InvokeMethod = "Before"
+        };
+        WorkStepProfile step = new()
+        {
+            StepName = "Step 1",
+            Operations = new ObservableCollection<WorkStepOperation> { operation }
+        };
+        SchemeProfile scheme = new()
+        {
+            SchemeName = "Scheme",
+            Steps = new ObservableCollection<WorkStepProfile> { step }
+        };
+        SchemeConfigurationViewModel viewModel = new();
+
+        viewModel.Schemes.Add(scheme);
+        scheme.LastModifiedAt = DateTime.Now.AddMinutes(-5);
+
+        DateTime original = scheme.LastModifiedAt;
+        operation.InvokeMethod = "After";
+
+        Assert.That(scheme.LastModifiedAt, Is.GreaterThan(original));
     }
 }

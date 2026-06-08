@@ -4,6 +4,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -124,12 +125,19 @@ public partial class StationOperationEditorView : UserControl
             ? operation.InvokeMethod
             : operation.CommandName;
         ViewModel.EditingInvokeMethod = operation.InvokeMethod;
-        ViewModel.EditingReturnValue = operation.ReturnValue;
+        WorkStepOperationParameter? primaryReturnParameter =
+            WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(operation);
+        ViewModel.EditingReturnValue =
+            WorkStepOperationRuntimeMetadata.GetReturnParameterKey(primaryReturnParameter);
+        ViewModel.EditingShowDataToView = primaryReturnParameter?.ShowDataToView ?? false;
+        ViewModel.EditingViewDataName = primaryReturnParameter?.ViewDataName ?? string.Empty;
+        ViewModel.EditingViewJudgeType = primaryReturnParameter?.ViewJudgeType ?? string.Empty;
+        ViewModel.EditingViewJudgeCondition = primaryReturnParameter?.ViewJudgeCondition ?? string.Empty;
         ViewModel.EditingModifyInvokeParameters = true;
         ViewModel.EditingInvokeParameters.Clear();
 
         IEnumerable<WorkStepOperationParameter> sourceParameters = parameters is null
-            ? operation.Parameters.OrderBy(parameter => parameter.Sequence)
+            ? WorkStepOperationRuntimeMetadata.GetOrderedInputParameters(operation)
             : parameters.OrderBy(parameter => parameter.Sequence);
 
         foreach (WorkStepOperationParameter parameter in sourceParameters)
@@ -235,6 +243,7 @@ public partial class StationOperationEditorView : UserControl
             try
             {
                 ViewModel.EditingReturnValue = string.Empty;
+                ClearDisplayOptions();
                 ViewModel.ClearEditingReturnParameters();
             }
             finally
@@ -277,16 +286,82 @@ public partial class StationOperationEditorView : UserControl
     /// </summary>
     private WorkStepOperation CreateEditingOperationSnapshot()
     {
+        ObservableCollection<WorkStepOperationParameter> inputParameters =
+            WorkStepOperationRuntimeMetadata.CloneParameters(ViewModel?.EditingInvokeParameters);
+        ObservableCollection<WorkStepOperationParameter> returnParameters = CreateEditingReturnParameterSnapshot();
+
         return new WorkStepOperation
         {
             OperationObject = ViewModel?.EditingOperationObject ?? string.Empty,
-            DeviceId = ViewModel?.EditingOperationObject ?? string.Empty,
-            ProtocolName = ViewModel?.EditingProtocolName ?? string.Empty,
-            CommandName = ViewModel?.EditingCommandName ?? string.Empty,
             InvokeMethod = ViewModel?.EditingInvokeMethod ?? string.Empty,
-            OperationId = ViewModel?.EditingInvokeMethod ?? string.Empty,
-            ReturnValue = ViewModel?.EditingReturnValue ?? string.Empty
+            DelayMilliseconds = 0,
+            Remark = string.Empty,
+            InputParameters = inputParameters,
+            ReturnParameters = returnParameters
         };
+    }
+
+    private ObservableCollection<WorkStepOperationParameter> CreateEditingReturnParameterSnapshot()
+    {
+        if (ViewModel is null || ViewModel.IsLuaOperationSelected)
+        {
+            return [];
+        }
+
+        List<WorkStepOperationParameter> parameters = ViewModel.EditingReturnParameters
+            .Select(parameter => parameter.Clone())
+            .OrderBy(parameter => parameter.Sequence)
+            .ToList();
+
+        string primaryKey = ViewModel.EditingReturnValue?.Trim() ?? string.Empty;
+        WorkStepOperationParameter? primaryParameter = parameters.FirstOrDefault(parameter =>
+            string.Equals(
+                WorkStepOperationRuntimeMetadata.GetReturnParameterKey(parameter),
+                primaryKey,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (primaryParameter is null &&
+            (!string.IsNullOrWhiteSpace(primaryKey) ||
+             ViewModel.EditingShowDataToView ||
+             !string.IsNullOrWhiteSpace(ViewModel.EditingViewDataName) ||
+             !string.IsNullOrWhiteSpace(ViewModel.EditingViewJudgeType) ||
+             !string.IsNullOrWhiteSpace(ViewModel.EditingViewJudgeCondition)))
+        {
+            primaryParameter = new WorkStepOperationParameter
+            {
+                Sequence = parameters.Count + 1,
+                Name = "返回值",
+                ParameterName = primaryKey,
+                Value = primaryKey
+            };
+            parameters.Add(primaryParameter);
+        }
+
+        if (primaryParameter is not null)
+        {
+            primaryParameter.ParameterName = primaryKey;
+            primaryParameter.Value = primaryKey;
+            primaryParameter.ShowDataToView = ViewModel.EditingShowDataToView;
+            primaryParameter.ViewDataName = ViewModel.EditingViewDataName?.Trim() ?? string.Empty;
+            primaryParameter.ViewJudgeType = ViewModel.EditingViewJudgeType?.Trim() ?? string.Empty;
+            primaryParameter.ViewJudgeCondition = ViewModel.EditingViewJudgeCondition?.Trim() ?? string.Empty;
+        }
+
+        parameters = parameters
+            .Where(parameter =>
+                !string.IsNullOrWhiteSpace(WorkStepOperationRuntimeMetadata.GetReturnParameterKey(parameter)) ||
+                parameter.ShowDataToView ||
+                !string.IsNullOrWhiteSpace(parameter.ViewDataName) ||
+                !string.IsNullOrWhiteSpace(parameter.ViewJudgeType) ||
+                !string.IsNullOrWhiteSpace(parameter.ViewJudgeCondition))
+            .Select((parameter, index) =>
+            {
+                parameter.Sequence = index + 1;
+                return parameter;
+            })
+            .ToList();
+
+        return new ObservableCollection<WorkStepOperationParameter>(parameters);
     }
 
     private static T? FindAncestor<T>(DependencyObject? source)

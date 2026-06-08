@@ -1,6 +1,7 @@
 using ControlLibrary.Controls.FlowchartEditor.Models;
 using Module.Business.Features.SchemeConfiguration;
 using Module.Business.Models;
+using Module.Business.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -76,7 +77,7 @@ public partial class StationConfigurationView : UserControl
             return;
         }
 
-        node.MetadataJson = JsonSerializer.Serialize(operation);
+        node.MetadataJson = SerializeNodeOperation(operation);
         node.Text = BuildNodeText(node.Kind, operation);
 
         ViewModel.SelectedStation.FlowchartDocument = document;
@@ -143,14 +144,7 @@ public partial class StationConfigurationView : UserControl
         return new WorkStepOperation
         {
             OperationObject = operationObject,
-            DeviceId = operationObject,
             InvokeMethod = string.Empty,
-            OperationId = string.Empty,
-            ReturnValue = string.Empty,
-            ShowDataToView = false,
-            ViewDataName = string.Empty,
-            ViewJudgeType = string.Empty,
-            ViewJudgeCondition = string.Empty,
             DelayMilliseconds = 0,
             Remark = summary
         };
@@ -275,16 +269,9 @@ public partial class StationConfigurationView : UserControl
             yield break;
         }
 
-        if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
-        {
-            yield return operation.ReturnValue.Trim();
-        }
-
         foreach (WorkStepOperationParameter parameter in operationEditorViewModel.CreateReturnParametersFromOperation(operation))
         {
-            string value = string.IsNullOrWhiteSpace(parameter.ParameterName)
-                ? parameter.Value
-                : parameter.ParameterName;
+            string value = WorkStepOperationRuntimeMetadata.GetReturnParameterKey(parameter);
             if (!string.IsNullOrWhiteSpace(value))
             {
                 yield return value.Trim();
@@ -305,13 +292,21 @@ public partial class StationConfigurationView : UserControl
 
         try
         {
-            operation = JsonSerializer.Deserialize<WorkStepOperation>(metadataJson);
+            WorkStepOperation? parsed = JsonSerializer.Deserialize<WorkStepOperation>(metadataJson);
+            operation = parsed is null
+                ? null
+                : BusinessConfigurationStore.NormalizeWorkStepOperation(parsed);
             return operation is not null;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static string SerializeNodeOperation(WorkStepOperation operation)
+    {
+        return JsonSerializer.Serialize(BusinessConfigurationStore.NormalizeWorkStepOperation(operation));
     }
 
     /// <summary>
