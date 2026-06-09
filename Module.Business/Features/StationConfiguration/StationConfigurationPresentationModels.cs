@@ -29,7 +29,7 @@ public sealed class StationProfile : ViewModelProperties
         get => _stationName;
         set
         {
-            if (SetField(ref _stationName, (value ?? string.Empty).Trim()))
+            if (SetField(ref _stationName, value ?? string.Empty, true))
             {
                 RaiseSummaryChanged();
             }
@@ -41,7 +41,7 @@ public sealed class StationProfile : ViewModelProperties
         get => _stationCode;
         set
         {
-            if (SetField(ref _stationCode, (value ?? string.Empty).Trim()))
+            if (SetField(ref _stationCode, value ?? string.Empty, true))
             {
                 RaiseSummaryChanged();
             }
@@ -196,7 +196,7 @@ public sealed class FlowchartProfile : ViewModelProperties
     public string Name
     {
         get => _name;
-        set => SetField(ref _name, (value ?? string.Empty).Trim());
+        set => SetField(ref _name, value ?? string.Empty, true);
     }
 
     public FlowchartDocument Document

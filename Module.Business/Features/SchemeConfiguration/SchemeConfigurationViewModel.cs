@@ -20,7 +20,7 @@ namespace Module.Business.Features.SchemeConfiguration;
 
 public sealed class SchemeConfigurationViewModel : ViewModelProperties
 {
-    #region çŠ¶æ€é¢œè‰²
+    #region ×´Ì¬ÑÕÉ«
 
     private static readonly Brush SuccessBrush =
         new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A"));
@@ -33,26 +33,31 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region ç§æœ‰å­—æ®µ
+    #region Ë½ÓĞ×Ö¶Î
 
     private SchemeConfigurationCatalog _catalog = BusinessConfigurationStore.LoadCatalog();
     private readonly SchemeStepEditorState _schemeStepEditor = new();
+    private SchemeProfile? _selectedScheme;
+    private SchemeWorkStepItem? _selectedSchemeStep;
     private WorkStepProfile? _schemeStepEditorHostWorkStep;
     private WorkStepOperation? _trackedInlineOperation;
     private readonly List<RemovedSchemeStepUndoItem> _removedSchemeStepUndoItems = [];
-    private readonly HashSet<string> _dirtySchemeIds = new(StringComparer.Ordinal);
-    private readonly Dictionary<SchemeProfile, ObservableCollection<WorkStepProfile>> _hookedSchemeSteps = new();
-    private readonly Dictionary<ObservableCollection<WorkStepProfile>, SchemeProfile> _schemeStepCollections = new();
-    private readonly Dictionary<WorkStepProfile, SchemeProfile> _schemeStepOwners = new();
+    private string _searchText = string.Empty;
+    private string _pageStatusText = "µÈ´ı±à¼­";
+    private Brush _pageStatusBrush = NeutralBrush;
     private DateTime _lastCreateOrCopyCommandAt = DateTime.MinValue;
     private bool _isSynchronizingInlineOperationSelection;
+    private WorkStepOperationParameter? _selectedEditingReturnParameter;
+    private string _activeParameterOperationSummary = string.Empty;
+    private IEnumerable? _activeInputParameterCollection;
+    private IEnumerable? _activeReturnParameterCollection;
 
     #endregion
 
-    #region æ’¤é”€è®°å½•
+    #region ³·»Ø¼ÇÂ¼
 
     /// <summary>
-    /// ç”¨äºæ¢å¤è¢«åˆ é™¤å·¥æ­¥çš„è®°å½•ã€‚
+    /// ·½°¸¹¤²½É¾³ıºóµÄ³·»Ø¼ÇÂ¼¡£
     /// </summary>
     private sealed class RemovedSchemeStepUndoItem
     {
@@ -60,19 +65,19 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
         public int StepIndex { get; init; }
 
-        public WorkStepProfile SchemeStep { get; init; } = new();
+        public SchemeWorkStepItem SchemeStep { get; init; } = new();
     }
 
     #endregion
 
-    #region å…¬å¼€å±æ€§
+    #region ¼¯ºÏÊôĞÔ
 
     public ObservableCollection<SchemeProfile> Schemes => _catalog.Schemes;
 
     public ICollectionView SchemesView { get; private set; } = null!;
 
     /// <summary>
-    /// å†…è”ç¼–è¾‘æ—¶å¯é€‰çš„æ“ä½œå¯¹è±¡åˆ—è¡¨ã€‚
+    /// ¸´ÓÃ²½Öè±à¼­Æ÷ÄÜÁ¦¡£
     /// </summary>
 
     public ObservableCollection<string> InlineOperationObjectOptions { get; } = new();
@@ -81,7 +86,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     public ObservableCollection<SchemeProfile> SchemeNameCollection => Schemes;
 
-    public ObservableCollection<WorkStepProfile>? SchemeWorkStepCollection => SelectedScheme?.Steps;
+    public ObservableCollection<SchemeWorkStepItem>? SchemeWorkStepCollection => SelectedScheme?.Steps;
 
     public ObservableCollection<WorkStepOperation>? StepCollection => _schemeStepEditor.SelectedWorkStep?.Steps;
 
@@ -101,39 +106,24 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     public ObservableCollection<WorkStepOperationParameter> EditingReturnParameters { get; } = new();
 
     public InlineParameterEditorViewModel InlineParameterEditor { get; }
-    #region å½“å‰å‚æ•°æ“ä½œæ‘˜è¦
-    private string _activeParameterOperationSummary = string.Empty;
-    /// <summary>
-    /// å½“å‰å‚æ•°æ“ä½œæ‘˜è¦
-    /// </summary>
+
     public string ActiveParameterOperationSummary
     {
         get => _activeParameterOperationSummary;
         private set => SetField(ref _activeParameterOperationSummary, value ?? string.Empty);
     }
-    #endregion
-    #region å½“å‰è¾“å…¥å‚æ•°é›†åˆ
-    private IEnumerable? _activeInputParameterCollection;
-    /// <summary>
-    /// å½“å‰è¾“å…¥å‚æ•°é›†åˆ
-    /// </summary>
+
     public IEnumerable? ActiveInputParameterCollection
     {
         get => _activeInputParameterCollection;
         private set => SetField(ref _activeInputParameterCollection, value);
     }
-    #endregion
-    #region å½“å‰è¿”å›å‚æ•°é›†åˆ
-    private IEnumerable? _activeReturnParameterCollection;
-    /// <summary>
-    /// å½“å‰è¿”å›å‚æ•°é›†åˆ
-    /// </summary>
+
     public IEnumerable? ActiveReturnParameterCollection
     {
         get => _activeReturnParameterCollection;
         private set => SetField(ref _activeReturnParameterCollection, value);
     }
-    #endregion
 
     public ObservableCollection<string> ParameterTypeCollection => _schemeStepEditor.ParameterTypeOptions;
 
@@ -254,17 +244,12 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         get => _schemeStepEditor.SelectedEditingInvokeParameter;
         set => _schemeStepEditor.SelectedEditingInvokeParameter = value;
     }
-    #region é€‰ä¸­çš„è¿”å›å‚æ•°
-    private WorkStepOperationParameter? _selectedEditingReturnParameter;
-    /// <summary>
-    /// é€‰ä¸­çš„è¿”å›å‚æ•°
-    /// </summary>
+
     public WorkStepOperationParameter? SelectedEditingReturnParameter
     {
         get => _selectedEditingReturnParameter;
         set => SetField(ref _selectedEditingReturnParameter, value);
     }
-    #endregion
 
     public bool IsLuaOperationSelected => _schemeStepEditor.IsLuaOperationSelected;
 
@@ -282,12 +267,8 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region å½“å‰é€‰ä¸­é¡¹
-    #region æœç´¢æ–‡æœ¬
-    private string _searchText = string.Empty;
-    /// <summary>
-    /// æœç´¢æ–‡æœ¬
-    /// </summary>
+    #region µ±Ç°Ñ¡ÔñÓëËÑË÷
+
     public string SearchText
     {
         get => _searchText;
@@ -301,12 +282,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             SchemesView.Refresh();
         }
     }
-    #endregion
-    #region é€‰ä¸­æ–¹æ¡ˆ
-    private SchemeProfile? _selectedScheme;
-    /// <summary>
-    /// é€‰ä¸­æ–¹æ¡ˆ
-    /// </summary>
+
     public SchemeProfile? SelectedScheme
     {
         get => _selectedScheme;
@@ -335,13 +311,8 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             RaiseCommandStatesChanged();
         }
     }
-    #endregion
-    #region é€‰ä¸­æ–¹æ¡ˆå·¥æ­¥
-    private WorkStepProfile? _selectedSchemeStep;
-    /// <summary>
-    /// é€‰ä¸­æ–¹æ¡ˆå·¥æ­¥
-    /// </summary>
-    public WorkStepProfile? SelectedSchemeStep
+
+    public SchemeWorkStepItem? SelectedSchemeStep
     {
         get => _selectedSchemeStep;
         set
@@ -373,44 +344,32 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #endregion
+    #region Ò³ÃæÕ¹Ê¾ÊôĞÔ
 
-    #region é¡µé¢å±•ç¤ºä¿¡æ¯
-    #region é¡µé¢çŠ¶æ€æ–‡æœ¬
-    private string _pageStatusText = "ç­‰å¾…ç¼–è¾‘";
-    /// <summary>
-    /// é¡µé¢çŠ¶æ€æ–‡æœ¬
-    /// </summary>
     public string PageStatusText
     {
         get => _pageStatusText;
         private set => SetField(ref _pageStatusText, value);
     }
-    #endregion
-    #region é¡µé¢çŠ¶æ€é¢œè‰²
-    private Brush _pageStatusBrush = NeutralBrush;
-    /// <summary>
-    /// é¡µé¢çŠ¶æ€é¢œè‰²
-    /// </summary>
+
     public Brush PageStatusBrush
     {
         get => _pageStatusBrush;
         private set => SetField(ref _pageStatusBrush, value);
     }
-    #endregion
 
-    public string SchemeCountText => $"{Schemes.Count} ä¸ªæ–¹æ¡ˆ";
+    public string SchemeCountText => $"{Schemes.Count} ¸ö·½°¸";
 
     public string SchemeStepCountText => SelectedScheme is null
-        ? "æœªé€‰æ‹©æ–¹æ¡ˆ"
-        : $"{SelectedScheme.Steps.Count} ä¸ªå·¥æ­¥";
+        ? "Î´Ñ¡Ôñ·½°¸"
+        : $"{SelectedScheme.StepCount} ¸ö¹¤²½";
 
     public string SchemeStepOperationCountText => SelectedSchemeStep is null
-        ? "æœªé€‰æ‹©å·¥æ­¥"
-        : $"{SelectedSchemeStep.Operations.Count} ä¸ªæ­¥éª¤";
+        ? "Î´Ñ¡Ôñ¹¤²½"
+        : $"{SelectedSchemeStep.Operations.Count} ¸ö²½Öè";
 
     /// <summary>
-    /// æ–¹æ¡ˆå·¥æ­¥å¯åŠ¨å¼€å…³è¡¨å¤´çš„å…¨é€‰çŠ¶æ€ã€‚
+    /// ·½°¸¹¤²½ÆôÓÃÁĞÍ·µÄÈ«Ñ¡×´Ì¬¡£
     /// </summary>
     public bool AreAllSchemeStepsStartupEnabled
     {
@@ -424,7 +383,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
                 return;
             }
 
-            foreach (WorkStepProfile step in SelectedScheme.Steps
+            foreach (SchemeWorkStepItem step in SelectedScheme.Steps
                          .Where(step => step.IsStartupEnabled != value)
                          .ToList())
             {
@@ -438,7 +397,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region é¡µé¢å‘½ä»¤
+    #region ÃüÁîÊôĞÔ
 
     public ICommand NewSchemeCommand { get; private set; } = null!;
 
@@ -460,28 +419,23 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region äº‹ä»¶å¤„ç†
+    #region ÊôĞÔÁª¶¯
 
     /// <summary>
-    /// å½“é€‰ä¸­æ–¹æ¡ˆå±æ€§å˜åŒ–æ—¶ï¼Œåˆ·æ–°é¡µé¢ç»Ÿè®¡å’Œç­›é€‰ç»“æœã€‚
+    /// ·½°¸×ÔÉíÊôĞÔ±ä»¯Ê±£¬Ë¢ĞÂÒ³ÃæÍ³¼ÆÓëÉ¸Ñ¡¡£
     /// </summary>
     private void SelectedScheme_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SchemeProfile.SchemeName)
+        if (e.PropertyName is nameof(SchemeProfile.StepCount)
+            or nameof(SchemeProfile.SchemeName)
             or nameof(SchemeProfile.LastModifiedAt)
-            or nameof(SchemeProfile.LastModifiedText)
-            or nameof(SchemeProfile.Steps))
+            or nameof(SchemeProfile.LastModifiedText))
         {
-            if (e.PropertyName != nameof(SchemeProfile.LastModifiedAt) &&
-                e.PropertyName != nameof(SchemeProfile.LastModifiedText))
-            {
-                MarkSchemeDirty(sender as SchemeProfile);
-            }
-
             RaisePageSummaryChanged();
         }
 
-        if (e.PropertyName == nameof(SchemeProfile.Steps))
+        if (e.PropertyName is nameof(SchemeProfile.StepCount)
+            or nameof(SchemeProfile.Steps))
         {
             SchemesView.Refresh();
         }
@@ -494,17 +448,17 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// å½“é€‰ä¸­æ–¹æ¡ˆå·¥æ­¥å±æ€§å˜åŒ–æ—¶ï¼ŒåŒæ­¥å³ä¾§æ­¥éª¤ç¼–è¾‘å™¨å’Œç»Ÿè®¡ä¿¡æ¯ã€‚
+    /// µ±Ç°Ñ¡ÖĞ·½°¸¹¤²½±ä»¯Ê±£¬Í¬²½ÓÒ²à²½Öè±à¼­Æ÷ÓëÍ³¼ÆĞÅÏ¢¡£
     /// </summary>
     private void SelectedSchemeStep_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(WorkStepProfile.Operations))
+        if (e.PropertyName == nameof(SchemeWorkStepItem.Operations))
         {
             BindSchemeStepEditor();
         }
 
-        if (e.PropertyName is nameof(WorkStepProfile.StepName)
-            or nameof(WorkStepProfile.SchemeStepName))
+        if (e.PropertyName is nameof(SchemeWorkStepItem.StepName)
+            or nameof(SchemeWorkStepItem.SchemeStepName))
         {
             if (_schemeStepEditorHostWorkStep is not null)
             {
@@ -512,20 +466,10 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             }
         }
 
-        if (e.PropertyName is nameof(WorkStepProfile.IsStartupEnabled)
-            or nameof(WorkStepProfile.StepName)
-            or nameof(WorkStepProfile.SchemeStepName)
-            or nameof(WorkStepProfile.WorkStepId)
-            or nameof(WorkStepProfile.Operations)
-            or nameof(WorkStepProfile.Parameters))
-        {
-            MarkSchemeDirty(SelectedScheme);
-        }
-
-        if (e.PropertyName is nameof(WorkStepProfile.IsStartupEnabled)
-            or nameof(WorkStepProfile.Operations)
-            or nameof(WorkStepProfile.LastModifiedAt)
-            or nameof(WorkStepProfile.LastModifiedText))
+        if (e.PropertyName is nameof(SchemeWorkStepItem.IsStartupEnabled)
+            or nameof(SchemeWorkStepItem.Operations)
+            or nameof(SchemeWorkStepItem.LastModifiedAt)
+            or nameof(SchemeWorkStepItem.LastModifiedText))
         {
             OnPropertyChanged(nameof(SchemeStepOperationCountText));
             OnPropertyChanged(nameof(AreAllSchemeStepsStartupEnabled));
@@ -533,7 +477,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// åŒæ­¥æ­¥éª¤ç¼–è¾‘å™¨å±æ€§å˜åŒ–åˆ°é¡µé¢çŠ¶æ€ã€‚
+    /// Í¬²½²½Öè±à¼­Æ÷ÊôĞÔ±ä»¯µ½Ò³Ãæ×´Ì¬¡£
     /// </summary>
     private void SchemeStepEditor_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -837,7 +781,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     public void BeginStandaloneOperationEdit(
         WorkStepOperation? operation,
-        string stepName = "å·¥æ­¥",
+        string stepName = "¹¤²½",
         bool isDecisionOperationMode = false)
     {
         _schemeStepEditor.BeginStandaloneOperationEdit(operation, stepName, isDecisionOperationMode);
@@ -930,7 +874,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// å°†æ­¥éª¤ç¼–è¾‘å™¨é‡æ–°ç»‘å®šåˆ°å½“å‰é€‰ä¸­çš„æ–¹æ¡ˆå·¥æ­¥ã€‚
+    /// ÈÃ¹²Ïí²½Öè±à¼­Æ÷ÖØĞÂ°ó¶¨µ½µ±Ç°·½°¸¹¤²½¡£
     /// </summary>
     private void BindSchemeStepEditor()
     {
@@ -962,7 +906,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region åºåˆ—åŒ–é€‰é¡¹
+    #region ĞòÁĞ»¯ÅäÖÃ
 
     private static readonly JsonSerializerOptions SchemePackageJsonOptions = new()
     {
@@ -972,7 +916,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region æ„é€ ä¸åˆå§‹åŒ–
+    #region ¹¹ÔìÓë³õÊ¼»¯
 
     public SchemeConfigurationViewModel()
     {
@@ -980,19 +924,18 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             operation => _schemeStepEditor.CreateReturnParametersFromOperation(operation),
             (operation, parameters) => _schemeStepEditor.HasModifiedOperationParameters(operation, parameters));
         _schemeStepEditor.PropertyChanged += SchemeStepEditor_PropertyChanged;
-        HookSchemes(Schemes);
         Schemes.CollectionChanged += Schemes_CollectionChanged;
         SchemesView = CollectionViewSource.GetDefaultView(Schemes);
         SchemesView.Filter = FilterSchemes;
         InitializeCommands();
         SelectedScheme = Schemes.FirstOrDefault();
         SetPageStatus(
-            Schemes.Count == 0 ? "æš‚æ— æ–¹æ¡ˆé…ç½®ï¼Œè¯·ç‚¹å‡»æ–°å¢ã€‚" : $"å·²åŠ è½½ {Schemes.Count} ä¸ªæ–¹æ¡ˆã€‚",
+            Schemes.Count == 0 ? "ÔİÎŞ·½°¸ÅäÖÃ£¬Çëµã»÷ĞÂÔö¡£" : $"ÒÑ¼ÓÔØ {Schemes.Count} ¸ö·½°¸¡£",
             NeutralBrush);
     }
 
     /// <summary>
-    /// åˆå§‹åŒ–é¡µé¢å‘½ä»¤ã€‚
+    /// ³õÊ¼»¯Ò³ÃæÃüÁî¡£
     /// </summary>
     private void InitializeCommands()
     {
@@ -1011,10 +954,10 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region æ–¹æ¡ˆç®¡ç†
+    #region ·½°¸ÅäÖÃÃüÁî
 
     /// <summary>
-    /// åˆ›å»ºä¸€ä¸ªé»˜è®¤æ–¹æ¡ˆå¹¶é€‰ä¸­ã€‚
+    /// ĞÂÔöÒ»¸öÄ¬ÈÏ·½°¸²¢Á¢¼´Ñ¡ÖĞ¡£
     /// </summary>
     private void NewScheme()
     {
@@ -1023,15 +966,14 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
-        SchemeProfile scheme = CreateScheme(GenerateUniqueSchemeName("æ–¹æ¡ˆ"));
+        SchemeProfile scheme = CreateScheme(GenerateUniqueSchemeName("·½°¸"));
         Schemes.Add(scheme);
-        MarkSchemeDirty(scheme);
         SelectCreatedScheme(scheme);
-        SetPageStatus("å·²æ–°å¢æ–¹æ¡ˆã€‚", SuccessBrush);
+        SetPageStatus("ÒÑĞÂÔö·½°¸¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// å¤åˆ¶å½“å‰é€‰ä¸­çš„æ–¹æ¡ˆåŠå…¶å·¥æ­¥ã€‚
+    /// ¸´ÖÆµ±Ç°Ñ¡ÖĞµÄ·½°¸¼°Æä¹¤²½¡£
     /// </summary>
     private void DuplicateSelectedScheme()
     {
@@ -1042,13 +984,12 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
         SchemeProfile scheme = CreateCopyScheme(SelectedScheme);
         Schemes.Add(scheme);
-        MarkSchemeDirty(scheme);
         SelectCreatedScheme(scheme);
-        SetPageStatus($"å·²å¤åˆ¶æ–¹æ¡ˆï¼š{scheme.SchemeName}ã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑ¸´ÖÆ·½°¸£º{scheme.SchemeName}¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// åˆ é™¤å½“å‰é€‰ä¸­çš„æ–¹æ¡ˆã€‚
+    /// É¾³ıµ±Ç°Ñ¡ÖĞµÄ·½°¸¡£
     /// </summary>
     private void DeleteSelectedScheme()
     {
@@ -1066,11 +1007,11 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             : Schemes[Math.Clamp(index, 0, Schemes.Count - 1)];
 
         ClearRemovedSchemeStepUndo(deletedSchemeId);
-        SetPageStatus("å·²åˆ é™¤æ–¹æ¡ˆï¼Œä¿å­˜åç”Ÿæ•ˆã€‚", WarningBrush);
+        SetPageStatus("ÒÑÉ¾³ı·½°¸£¬±£´æºóÉúĞ§¡£", WarningBrush);
     }
 
     /// <summary>
-    /// ä¿å­˜å…¨éƒ¨æ–¹æ¡ˆé…ç½®ã€‚
+    /// ±£´æÈ«²¿·½°¸ÅäÖÃ¡£
     /// </summary>
     private void SaveSchemes()
     {
@@ -1080,25 +1021,18 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
-        DateTime savedAt = DateTime.Now;
-        foreach (SchemeProfile scheme in Schemes.Where(scheme => _dirtySchemeIds.Contains(scheme.Id)))
-        {
-            scheme.LastModifiedAt = savedAt;
-        }
-        _dirtySchemeIds.Clear();
-
         BusinessConfigurationStore.SaveCatalog(_catalog);
-        SetPageStatus($"å·²ä¿å­˜ {Schemes.Count} ä¸ªæ–¹æ¡ˆã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑ±£´æ {Schemes.Count} ¸ö·½°¸¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// ä»æœ¬åœ°æ–‡ä»¶å¯¼å…¥æ–¹æ¡ˆé…ç½®ã€‚
+    /// ´Ó±¾µØÎÄ¼şµ¼Èë·½°¸ÅäÖÃ¡£
     /// </summary>
     private void ImportScheme()
     {
         OpenFileDialog dialog = new()
         {
-            Filter = "æ–¹æ¡ˆæ–‡ä»¶ (*.scheme.json)|*.scheme.json|JSON æ–‡ä»¶ (*.json)|*.json|æ‰€æœ‰æ–‡ä»¶ (*.*)|*.*",
+            Filter = "·½°¸ÎÄ¼ş (*.scheme.json)|*.scheme.json|JSON ÎÄ¼ş (*.json)|*.json|ËùÓĞÎÄ¼ş (*.*)|*.*",
             DefaultExt = ".scheme.json"
         };
 
@@ -1115,7 +1049,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
             if (package?.Scheme is null)
             {
-                SetPageStatus("å¯¼å…¥å¤±è´¥ï¼šæ–¹æ¡ˆæ–‡ä»¶ä¸ºç©ºæˆ–æ ¼å¼æ— æ•ˆã€‚", WarningBrush);
+                SetPageStatus("µ¼ÈëÊ§°Ü£º·½°¸ÎÄ¼şÎª¿Õ»ò¸ñÊ½ÎŞĞ§¡£", WarningBrush);
                 return;
             }
 
@@ -1123,24 +1057,24 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         }
         catch (Exception ex)
         {
-            SetPageStatus($"å¯¼å…¥æ–¹æ¡ˆå¤±è´¥ï¼š{ex.Message}", WarningBrush);
+            SetPageStatus($"µ¼Èë·½°¸Ê§°Ü£º{ex.Message}", WarningBrush);
         }
     }
 
     /// <summary>
-    /// å¯¼å‡ºå½“å‰é€‰ä¸­çš„æ–¹æ¡ˆã€‚
+    /// µ¼³öµ±Ç°Ñ¡ÖĞµÄ·½°¸¡£
     /// </summary>
     private void ExportSelectedScheme()
     {
         if (SelectedScheme is null)
         {
-            SetPageStatus("è¯·é€‰æ‹©è¦å¯¼å‡ºçš„æ–¹æ¡ˆã€‚", WarningBrush);
+            SetPageStatus("ÇëÏÈÑ¡ÔñÒªµ¼³öµÄ·½°¸¡£", WarningBrush);
             return;
         }
 
         SaveFileDialog dialog = new()
         {
-            Filter = "æ–¹æ¡ˆæ–‡ä»¶ (*.scheme.json)|*.scheme.json|JSON æ–‡ä»¶ (*.json)|*.json|æ‰€æœ‰æ–‡ä»¶ (*.*)|*.*",
+            Filter = "·½°¸ÎÄ¼ş (*.scheme.json)|*.scheme.json|JSON ÎÄ¼ş (*.json)|*.json|ËùÓĞÎÄ¼ş (*.*)|*.*",
             DefaultExt = ".scheme.json",
             FileName = $"{SanitizeFileName(SelectedScheme.SchemeName)}.scheme.json"
         };
@@ -1155,20 +1089,20 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             SchemeConfigurationPackage package = CreateSchemePackage(SelectedScheme);
             string json = JsonSerializer.Serialize(package, SchemePackageJsonOptions);
             File.WriteAllText(dialog.FileName, json);
-            SetPageStatus($"å·²å¯¼å‡ºæ–¹æ¡ˆï¼š{dialog.FileName}", SuccessBrush);
+            SetPageStatus($"ÒÑµ¼³ö·½°¸£º{dialog.FileName}", SuccessBrush);
         }
         catch (Exception ex)
         {
-            SetPageStatus($"å¯¼å‡ºæ–¹æ¡ˆå¤±è´¥ï¼š{ex.Message}", WarningBrush);
+            SetPageStatus($"µ¼³ö·½°¸Ê§°Ü£º{ex.Message}", WarningBrush);
         }
     }
 
     #endregion
 
-    #region å·¥æ­¥ç®¡ç†
+    #region ·½°¸¹¤²½ÃüÁî
 
     /// <summary>
-    /// åœ¨å½“å‰æ–¹æ¡ˆä¸­æ–°å¢å·¥æ­¥ã€‚
+    /// ÔÚµ±Ç°·½°¸ÖĞĞÂÔö¹¤²½¡£
     /// </summary>
     private void AddWorkStepToScheme()
     {
@@ -1177,19 +1111,18 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
-        WorkStepProfile schemeStep = CreateEmptySchemeStep(GenerateUniqueSchemeStepName("å·¥æ­¥"));
+        SchemeWorkStepItem schemeStep = CreateEmptySchemeStep(GenerateUniqueSchemeStepName("¹¤²½"));
         int insertIndex = SelectedSchemeStep is null
             ? SelectedScheme.Steps.Count
             : Math.Clamp(SelectedScheme.Steps.IndexOf(SelectedSchemeStep) + 1, 0, SelectedScheme.Steps.Count);
 
         SelectedScheme.Steps.Insert(insertIndex, schemeStep);
-        MarkSchemeDirty(SelectedScheme);
         SelectedSchemeStep = schemeStep;
-        SetPageStatus($"å·²æ–°å¢æ–¹æ¡ˆå·¥æ­¥ï¼š{schemeStep.SchemeStepName}ã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑĞÂÔö·½°¸¹¤²½£º{schemeStep.SchemeStepName}¡£", SuccessBrush);
     }
 
     /// <summary>
-    /// åˆ é™¤å½“å‰é€‰ä¸­çš„æ–¹æ¡ˆå·¥æ­¥å¹¶å†™å…¥æ’¤é”€æ ˆã€‚
+    /// É¾³ıµ±Ç°Ñ¡ÖĞµÄ·½°¸¹¤²½£¬²¢Ğ´Èë³·»ØÕ»¡£
     /// </summary>
     private void RemoveSelectedSchemeStep()
     {
@@ -1201,16 +1134,15 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         int index = SelectedScheme.Steps.IndexOf(SelectedSchemeStep);
         RememberRemovedSchemeStep(SelectedSchemeStep, index, SelectedScheme);
         SelectedScheme.Steps.Remove(SelectedSchemeStep);
-        MarkSchemeDirty(SelectedScheme);
         SelectedSchemeStep = SelectedScheme.Steps.Count == 0
             ? null
             : SelectedScheme.Steps[Math.Clamp(index, 0, SelectedScheme.Steps.Count - 1)];
 
-        SetPageStatus("å·²åˆ é™¤æ–¹æ¡ˆå·¥æ­¥ã€‚", WarningBrush);
+        SetPageStatus("ÒÑÉ¾³ı·½°¸¹¤²½¡£", WarningBrush);
     }
 
     /// <summary>
-    /// æ’¤å›å½“å‰æ–¹æ¡ˆæœ€è¿‘ä¸€æ¬¡åˆ é™¤çš„å·¥æ­¥å¹¶æ¢å¤ã€‚
+    /// ³·»Øµ±Ç°·½°¸×î½üÒ»´ÎÉ¾³ıµÄ¹¤²½£¬¿ÉÁ¬Ğø³·»Ø¡£
     /// </summary>
     private void UndoRemoveSchemeStep()
     {
@@ -1220,27 +1152,26 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         }
 
         int insertIndex = Math.Clamp(undoItem.StepIndex, 0, SelectedScheme.Steps.Count);
-        WorkStepProfile restoredStep = undoItem.SchemeStep.Clone();
+        SchemeWorkStepItem restoredStep = undoItem.SchemeStep.Clone();
         restoredStep.Id = Guid.NewGuid().ToString("N");
         SelectedScheme.Steps.Insert(insertIndex, restoredStep);
-        MarkSchemeDirty(SelectedScheme);
         SelectedSchemeStep = restoredStep;
 
-        SetPageStatus($"å·²æ’¤å›åˆ é™¤çš„å·¥æ­¥ï¼š{restoredStep.SchemeStepName}ã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑ³·»ØÉ¾³ıµÄ¹¤²½£º{restoredStep.SchemeStepName}¡£", SuccessBrush);
         RaiseCommandStatesChanged();
     }
 
     /// <summary>
-    /// è°ƒæ•´æ–¹æ¡ˆå·¥æ­¥é¡ºåºã€‚
+    /// µ÷Õû·½°¸¹¤²½Ë³Ğò¡£
     /// </summary>
-    public void MoveSchemeStep(WorkStepProfile draggedSchemeStep, WorkStepProfile targetSchemeStep, bool insertAfter)
+    public void MoveSchemeStep(SchemeWorkStepItem draggedSchemeStep, SchemeWorkStepItem targetSchemeStep, bool insertAfter)
     {
         if (SelectedScheme is null)
         {
             return;
         }
 
-        ObservableCollection<WorkStepProfile> steps = SelectedScheme.Steps;
+        ObservableCollection<SchemeWorkStepItem> steps = SelectedScheme.Steps;
         int oldIndex = steps.IndexOf(draggedSchemeStep);
         int targetIndex = steps.IndexOf(targetSchemeStep);
         if (oldIndex < 0 || targetIndex < 0 || oldIndex == targetIndex)
@@ -1261,24 +1192,23 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         }
 
         steps.Move(oldIndex, newIndex);
-        MarkSchemeDirty(SelectedScheme);
         SelectedSchemeStep = draggedSchemeStep;
-        SetPageStatus("å·²è°ƒæ•´å·¥æ­¥é¡ºåºã€‚", SuccessBrush);
+        SetPageStatus("ÒÑµ÷Õû¹¤²½Ë³Ğò¡£", SuccessBrush);
         RaiseCommandStatesChanged();
     }
 
     #endregion
 
-    #region æ ¡éªŒä¸ç­›é€‰
+    #region Ğ£ÑéÓëËÑË÷
 
     /// <summary>
-    /// ä¿å­˜å‰æ ¡éªŒæ–¹æ¡ˆæ•°æ®ã€‚
+    /// ±£´æÇ°Ğ£Ñé·½°¸Êı¾İ¡£
     /// </summary>
     private bool ValidateSchemes(out string message)
     {
         if (Schemes.Count == 0)
         {
-            message = "è¯·è‡³å°‘ä¿ç•™ä¸€ä¸ªæ–¹æ¡ˆã€‚";
+            message = "ÇëÖÁÉÙ±£ÁôÒ»¸ö·½°¸¡£";
             return false;
         }
 
@@ -1288,21 +1218,21 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         {
             if (string.IsNullOrWhiteSpace(scheme.SchemeName))
             {
-                message = "æ–¹æ¡ˆåç§°ä¸èƒ½ä¸ºç©ºã€‚";
+                message = "·½°¸Ãû³Æ²»ÄÜÎª¿Õ¡£";
                 return false;
             }
 
             if (!schemeNames.Add(scheme.SchemeName.Trim()))
             {
-                message = $"æ–¹æ¡ˆåç§°é‡å¤ï¼š{scheme.SchemeName}";
+                message = $"·½°¸Ãû³ÆÖØ¸´£º{scheme.SchemeName}";
                 return false;
             }
 
-            foreach (WorkStepProfile schemeStep in scheme.Steps)
+            foreach (SchemeWorkStepItem schemeStep in scheme.Steps)
             {
                 if (string.IsNullOrWhiteSpace(schemeStep.SchemeStepName))
                 {
-                    message = $"æ–¹æ¡ˆâ€œ{scheme.SchemeName}â€å­˜åœ¨æœªå‘½åå·¥æ­¥ã€‚";
+                    message = $"·½°¸¡°{scheme.SchemeName}¡±´æÔÚÎ´ÃüÃû¹¤²½¡£";
                     return false;
                 }
             }
@@ -1313,7 +1243,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// æ ¹æ®å…³é”®å­—ç­›é€‰æ–¹æ¡ˆåˆ—è¡¨ã€‚
+    /// °´¹Ø¼ü×Ö¹ıÂË·½°¸ÁĞ±í¡£
     /// </summary>
     private bool FilterSchemes(object item)
     {
@@ -1342,7 +1272,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region å¯¼å…¥å¯¼å‡ºè¾…åŠ©
+    #region µ¼Èëµ¼³ö¸¨Öú
 
     private SchemeConfigurationPackage CreateSchemePackage(SchemeProfile scheme)
     {
@@ -1355,7 +1285,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// å¯¼å…¥æ–¹æ¡ˆæ•°æ®ï¼Œå¹¶åœ¨å¿…è¦æ—¶è¡¥å…¨å·¥æ­¥å¿«ç…§ã€‚
+    /// µ¼Èë·½°¸°ü£¬²¢ÔÚ±ØÒªÊ±²¹ÆëÄÚÇ¶¹¤²½¿ìÕÕ¡£
     /// </summary>
     private void ImportSchemePackage(SchemeConfigurationPackage package)
     {
@@ -1363,7 +1293,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         scheme.Id = Guid.NewGuid().ToString("N");
         scheme.SchemeName = GenerateUniqueImportedSchemeName(scheme.SchemeName);
 
-        foreach (WorkStepProfile schemeStep in scheme.Steps)
+        foreach (SchemeWorkStepItem schemeStep in scheme.Steps)
         {
             schemeStep.Id = Guid.NewGuid().ToString("N");
 
@@ -1372,7 +1302,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
                 WorkStepProfile? sourceWorkStep = FindPackageWorkStep(package, schemeStep);
                 if (sourceWorkStep is null)
                 {
-                    SetPageStatus($"å¯¼å…¥å¤±è´¥ï¼šå·¥æ­¥â€œ{schemeStep.SchemeStepName}â€ç¼ºå°‘æ­¥éª¤å†…å®¹ã€‚", WarningBrush);
+                    SetPageStatus($"µ¼ÈëÊ§°Ü£º¹¤²½¡°{schemeStep.SchemeStepName}¡±È±ÉÙ²½ÖèÄÚÈİ¡£", WarningBrush);
                     return;
                 }
 
@@ -1387,17 +1317,16 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
             if (string.IsNullOrWhiteSpace(schemeStep.StepName))
             {
-                schemeStep.StepName = GenerateUniqueSchemeStepName("å·¥æ­¥", scheme);
+                schemeStep.StepName = GenerateUniqueSchemeStepName("¹¤²½", scheme);
             }
         }
 
         Schemes.Add(scheme);
-        MarkSchemeDirty(scheme);
         SelectCreatedScheme(scheme);
-        SetPageStatus($"å·²å¯¼å…¥æ–¹æ¡ˆï¼š{scheme.SchemeName}ã€‚", SuccessBrush);
+        SetPageStatus($"ÒÑµ¼Èë·½°¸£º{scheme.SchemeName}¡£", SuccessBrush);
     }
 
-    private static WorkStepProfile? FindPackageWorkStep(SchemeConfigurationPackage package, WorkStepProfile schemeStep)
+    private static WorkStepProfile? FindPackageWorkStep(SchemeConfigurationPackage package, SchemeWorkStepItem schemeStep)
     {
         IEnumerable<WorkStepProfile> packageWorkSteps = package.WorkSteps ?? new ObservableCollection<WorkStepProfile>();
         string operationSummary = BuildOperationSummary(schemeStep.Operations);
@@ -1407,16 +1336,16 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
                    MatchesSchemeStepSnapshot(workStep, schemeStep)) ??
                packageWorkSteps.FirstOrDefault(workStep =>
                    TextEquals(workStep.StepName, schemeStep.StepName) &&
-                   TextEquals(BuildOperationSummary(workStep.Steps), operationSummary)) ??
+                   TextEquals(workStep.OperationSummary, operationSummary)) ??
                (string.IsNullOrWhiteSpace(operationSummary)
                    ? packageWorkSteps.FirstOrDefault(workStep => TextEquals(workStep.StepName, schemeStep.StepName))
                    : null) ??
                (string.IsNullOrWhiteSpace(schemeStep.StepName)
-                   ? packageWorkSteps.FirstOrDefault(workStep => TextEquals(BuildOperationSummary(workStep.Steps), operationSummary))
+                   ? packageWorkSteps.FirstOrDefault(workStep => TextEquals(workStep.OperationSummary, operationSummary))
                    : null);
     }
 
-    private static bool MatchesSchemeStepSnapshot(WorkStepProfile workStep, WorkStepProfile schemeStep)
+    private static bool MatchesSchemeStepSnapshot(WorkStepProfile workStep, SchemeWorkStepItem schemeStep)
     {
         if (!string.IsNullOrWhiteSpace(schemeStep.StepName) &&
             !string.IsNullOrWhiteSpace(workStep.StepName) &&
@@ -1427,7 +1356,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
         string operationSummary = BuildOperationSummary(schemeStep.Operations);
         if (!string.IsNullOrWhiteSpace(operationSummary) &&
-            !TextEquals(BuildOperationSummary(workStep.Steps), operationSummary))
+            !TextEquals(workStep.OperationSummary, operationSummary))
         {
             return false;
         }
@@ -1459,7 +1388,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     private static string SanitizeFileName(string fileName)
     {
-        string safeName = string.IsNullOrWhiteSpace(fileName) ? "æ–¹æ¡ˆ" : fileName.Trim();
+        string safeName = string.IsNullOrWhiteSpace(fileName) ? "·½°¸" : fileName.Trim();
         foreach (char invalidChar in Path.GetInvalidFileNameChars())
         {
             safeName = safeName.Replace(invalidChar, '_');
@@ -1470,7 +1399,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region åˆ›å»ºè¾…åŠ©
+    #region ¹¤³§ÓëÃüÃû
 
     private SchemeProfile CreateScheme(string schemeName)
     {
@@ -1480,9 +1409,9 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         };
     }
 
-    private WorkStepProfile CreateEmptySchemeStep(string schemeStepName)
+    private SchemeWorkStepItem CreateEmptySchemeStep(string schemeStepName)
     {
-        return new WorkStepProfile
+        return new SchemeWorkStepItem
         {
             StepName = schemeStepName,
             IsStartupEnabled = true,
@@ -1496,10 +1425,10 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         {
             Id = Guid.NewGuid().ToString("N"),
             SchemeName = GenerateCopySchemeName(source.SchemeName),
-            Steps = new ObservableCollection<WorkStepProfile>(
+            Steps = new ObservableCollection<SchemeWorkStepItem>(
                 source.Steps.Select(step =>
                 {
-                    WorkStepProfile clone = step.Clone();
+                    SchemeWorkStepItem clone = step.Clone();
                     clone.Id = Guid.NewGuid().ToString("N");
                     return clone;
                 }))
@@ -1545,7 +1474,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     private string GenerateUniqueImportedSchemeName(string schemeName)
     {
         HashSet<string> existingNames = new(Schemes.Select(scheme => scheme.SchemeName), StringComparer.OrdinalIgnoreCase);
-        string baseName = string.IsNullOrWhiteSpace(schemeName) ? "æ–¹æ¡ˆ" : schemeName.Trim();
+        string baseName = string.IsNullOrWhiteSpace(schemeName) ? "·½°¸" : schemeName.Trim();
         string candidate = baseName;
         int index = 2;
 
@@ -1561,8 +1490,8 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     private string GenerateCopySchemeName(string baseName)
     {
         HashSet<string> existingNames = new(Schemes.Select(scheme => scheme.SchemeName), StringComparer.OrdinalIgnoreCase);
-        string normalizedName = string.IsNullOrWhiteSpace(baseName) ? "æ–¹æ¡ˆ" : baseName.Trim();
-        string copyName = $"{normalizedName} å‰¯æœ¬";
+        string normalizedName = string.IsNullOrWhiteSpace(baseName) ? "·½°¸" : baseName.Trim();
+        string copyName = $"{normalizedName} ¸±±¾";
         if (!existingNames.Contains(copyName))
         {
             return copyName;
@@ -1585,7 +1514,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             scheme?.Steps.Select(step => step.SchemeStepName) ?? Enumerable.Empty<string>(),
             StringComparer.OrdinalIgnoreCase);
 
-        string baseName = string.IsNullOrWhiteSpace(prefix) ? "å·¥æ­¥" : prefix.Trim();
+        string baseName = string.IsNullOrWhiteSpace(prefix) ? "¹¤²½" : prefix.Trim();
         string candidate = baseName;
         int index = 1;
 
@@ -1600,7 +1529,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region åˆ é™¤æ’¤é”€
+    #region É¾³ı³·»Ø
 
     private bool CanUndoRemoveSchemeStep()
     {
@@ -1609,7 +1538,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
                    string.Equals(item.SchemeId, SelectedScheme.Id, StringComparison.Ordinal));
     }
 
-    private void RememberRemovedSchemeStep(WorkStepProfile schemeStep, int index, SchemeProfile scheme)
+    private void RememberRemovedSchemeStep(SchemeWorkStepItem schemeStep, int index, SchemeProfile scheme)
     {
         _removedSchemeStepUndoItems.Add(new RemovedSchemeStepUndoItem
         {
@@ -1640,164 +1569,6 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         return false;
     }
 
-    private void HookSchemes(IEnumerable<SchemeProfile> schemes)
-    {
-        foreach (SchemeProfile scheme in schemes)
-        {
-            HookScheme(scheme);
-        }
-    }
-
-    private void HookScheme(SchemeProfile scheme)
-    {
-        scheme.PropertyChanged += Scheme_PropertyChanged;
-        HookSchemeSteps(scheme, scheme.Steps);
-    }
-
-    private void UnhookScheme(SchemeProfile scheme)
-    {
-        scheme.PropertyChanged -= Scheme_PropertyChanged;
-        UnhookSchemeSteps(scheme);
-    }
-
-    private void HookSchemeSteps(SchemeProfile scheme, ObservableCollection<WorkStepProfile> steps)
-    {
-        _hookedSchemeSteps[scheme] = steps;
-        _schemeStepCollections[steps] = scheme;
-        steps.CollectionChanged += SchemeSteps_CollectionChanged;
-
-        foreach (WorkStepProfile step in steps)
-        {
-            HookSchemeStep(scheme, step);
-        }
-
-        RefreshSchemeStepDisplayOrders(steps);
-    }
-
-    private void UnhookSchemeSteps(SchemeProfile scheme)
-    {
-        if (!_hookedSchemeSteps.TryGetValue(scheme, out ObservableCollection<WorkStepProfile>? steps))
-        {
-            return;
-        }
-
-        steps.CollectionChanged -= SchemeSteps_CollectionChanged;
-        foreach (WorkStepProfile step in steps)
-        {
-            UnhookSchemeStep(step);
-        }
-
-        _hookedSchemeSteps.Remove(scheme);
-        _schemeStepCollections.Remove(steps);
-    }
-
-    private void HookSchemeStep(SchemeProfile scheme, WorkStepProfile step)
-    {
-        if (_schemeStepOwners.TryGetValue(step, out SchemeProfile? existingOwner) &&
-            ReferenceEquals(existingOwner, scheme))
-        {
-            return;
-        }
-
-        if (existingOwner is not null)
-        {
-            step.PropertyChanged -= SchemeStep_PropertyChanged;
-        }
-
-        _schemeStepOwners[step] = scheme;
-        step.PropertyChanged += SchemeStep_PropertyChanged;
-    }
-
-    private void UnhookSchemeStep(WorkStepProfile step)
-    {
-        step.PropertyChanged -= SchemeStep_PropertyChanged;
-        _schemeStepOwners.Remove(step);
-    }
-
-    private void Scheme_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (sender is not SchemeProfile scheme)
-        {
-            return;
-        }
-
-        if (e.PropertyName == nameof(SchemeProfile.Steps))
-        {
-            UnhookSchemeSteps(scheme);
-            HookSchemeSteps(scheme, scheme.Steps);
-            SchemesView.Refresh();
-        }
-
-        if (e.PropertyName is nameof(SchemeProfile.SchemeName)
-            or nameof(SchemeProfile.Steps))
-        {
-            TouchScheme(scheme);
-        }
-    }
-
-    private void SchemeSteps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (sender is not ObservableCollection<WorkStepProfile> steps ||
-            !_schemeStepCollections.TryGetValue(steps, out SchemeProfile? scheme))
-        {
-            return;
-        }
-
-        if (e.OldItems is not null)
-        {
-            foreach (WorkStepProfile step in e.OldItems.OfType<WorkStepProfile>())
-            {
-                UnhookSchemeStep(step);
-            }
-        }
-
-        if (e.NewItems is not null)
-        {
-            foreach (WorkStepProfile step in e.NewItems.OfType<WorkStepProfile>())
-            {
-                HookSchemeStep(scheme, step);
-            }
-        }
-
-        RefreshSchemeStepDisplayOrders(steps);
-        TouchScheme(scheme);
-    }
-
-    private void SchemeStep_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (sender is not WorkStepProfile step ||
-            !_schemeStepOwners.TryGetValue(step, out SchemeProfile? scheme))
-        {
-            return;
-        }
-
-        if (e.PropertyName == nameof(WorkStepProfile.LastModifiedAt))
-        {
-            TouchScheme(scheme);
-        }
-    }
-
-    private void TouchScheme(SchemeProfile scheme)
-    {
-        MarkSchemeDirty(scheme);
-        scheme.LastModifiedAt = DateTime.Now;
-    }
-
-    private static void RefreshSchemeStepDisplayOrders(ObservableCollection<WorkStepProfile> steps)
-    {
-        for (int index = 0; index < steps.Count; index++)
-        {
-            steps[index].DisplayOrder = index + 1;
-        }
-    }
-
-    private void MarkSchemeDirty(SchemeProfile? scheme)
-    {
-        if (scheme is not null && !string.IsNullOrWhiteSpace(scheme.Id))
-        {
-            _dirtySchemeIds.Add(scheme.Id);
-        }
-    }
     private void ClearRemovedSchemeStepUndo(string? schemeId = null)
     {
         if (string.IsNullOrWhiteSpace(schemeId))
@@ -1815,26 +1586,10 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     #endregion
 
-    #region é¡µé¢çŠ¶æ€åˆ·æ–°
+    #region Ò³Ãæ×´Ì¬ÓëÃüÁîË¢ĞÂ
 
     private void Schemes_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.OldItems is not null)
-        {
-            foreach (SchemeProfile scheme in e.OldItems.OfType<SchemeProfile>())
-            {
-                UnhookScheme(scheme);
-            }
-        }
-
-        if (e.NewItems is not null)
-        {
-            foreach (SchemeProfile scheme in e.NewItems.OfType<SchemeProfile>())
-            {
-                HookScheme(scheme);
-            }
-        }
-
         RaisePageSummaryChanged();
         SchemesView.Refresh();
         RaiseCommandStatesChanged();

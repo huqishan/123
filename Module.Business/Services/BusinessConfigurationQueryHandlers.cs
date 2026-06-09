@@ -59,7 +59,7 @@ public sealed class GetBusinessSchemesRequestHandler
     /// </summary>
     /// <param name="step">方案工步配置。</param>
     /// <returns>用于展示的工步名称。</returns>
-    private static string ResolveWorkStepName(WorkStepProfile step)
+    private static string ResolveWorkStepName(SchemeWorkStepItem step)
     {
         return string.IsNullOrWhiteSpace(step.StepName)
             ? step.SchemeStepName

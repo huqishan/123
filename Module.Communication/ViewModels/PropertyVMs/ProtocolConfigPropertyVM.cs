@@ -28,7 +28,7 @@ namespace Module.Communication.ViewModels.PropertyVMs
         public string Name
         {
             get => _name;
-            set => SetField(ref _name, value?.Trim() ?? string.Empty);
+            set => SetField(ref _name, value, true);
         }
 
         public ProtocolCommandConfig? SelectedCommand

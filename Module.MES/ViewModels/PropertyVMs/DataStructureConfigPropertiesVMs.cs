@@ -684,7 +684,7 @@ public enum DataStructureFieldDropMode
 
         private bool SetContentField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
         {
-            if (!SetField(ref field, value, true, propertyName))
+            if (!SetField(ref field, value, propertyName))
             {
                 return false;
             }

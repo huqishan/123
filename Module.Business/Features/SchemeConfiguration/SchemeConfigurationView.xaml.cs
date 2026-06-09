@@ -1,4 +1,4 @@
-using Module.Business.Models;
+﻿using Module.Business.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -18,7 +18,7 @@ namespace Module.Business.Features.SchemeConfiguration
     public partial class SchemeConfigurationView : UserControl
     {
         #region 拖拽数据格式
-        private const string SchemeStepDragDataFormat = "Module.Business.WorkStepProfile";
+        private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
         private const string OperationDragDataFormat = "Module.Business.WorkStepOperation";
         private const double OperationDrawerClosedOffset = 56d;
         private const double InlineParameterDrawerClosedOffset = 56d;
@@ -32,7 +32,7 @@ namespace Module.Business.Features.SchemeConfiguration
         private Point _schemeStepDragStartPoint;
         private Point _operationDragStartPoint;
         private Point _operationMethodDragStartPoint;
-        private WorkStepProfile? _pendingDraggedSchemeStep;
+        private SchemeWorkStepItem? _pendingDraggedSchemeStep;
         private WorkStepOperation? _pendingDraggedOperation;
         private StationOperationMethodItem? _pendingDraggedOperationMethod;
         private bool _isInlineParameterDrawerOpen;
@@ -167,7 +167,7 @@ namespace Module.Business.Features.SchemeConfiguration
             }
 
             _schemeStepDragStartPoint = e.GetPosition(SchemeStepsDataGrid);
-            _pendingDraggedSchemeStep = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as WorkStepProfile;
+            _pendingDraggedSchemeStep = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as SchemeWorkStepItem;
         }
 
         /// <summary>
@@ -187,7 +187,7 @@ namespace Module.Business.Features.SchemeConfiguration
                 return;
             }
 
-            WorkStepProfile draggedSchemeStep = _pendingDraggedSchemeStep;
+            SchemeWorkStepItem draggedSchemeStep = _pendingDraggedSchemeStep;
             _pendingDraggedSchemeStep = null;
 
             DataObject dataObject = new();
@@ -241,7 +241,7 @@ namespace Module.Business.Features.SchemeConfiguration
         /// </summary>
         private void SchemeStepsDataGrid_Drop(object sender, DragEventArgs e)
         {
-            if (TryGetSchemeStepDropInfo(e, out WorkStepProfile? draggedSchemeStep, out WorkStepProfile? targetSchemeStep, out bool insertAfter) &&
+            if (TryGetSchemeStepDropInfo(e, out SchemeWorkStepItem? draggedSchemeStep, out SchemeWorkStepItem? targetSchemeStep, out bool insertAfter) &&
                 draggedSchemeStep is not null &&
                 targetSchemeStep is not null)
             {
@@ -258,14 +258,14 @@ namespace Module.Business.Features.SchemeConfiguration
         /// </summary>
         private bool TryGetSchemeStepDropInfo(
             DragEventArgs e,
-            out WorkStepProfile? draggedSchemeStep,
-            out WorkStepProfile? targetSchemeStep,
+            out SchemeWorkStepItem? draggedSchemeStep,
+            out SchemeWorkStepItem? targetSchemeStep,
             out bool insertAfter)
         {
             draggedSchemeStep = e.Data.GetDataPresent(SchemeStepDragDataFormat)
-                ? e.Data.GetData(SchemeStepDragDataFormat) as WorkStepProfile
+                ? e.Data.GetData(SchemeStepDragDataFormat) as SchemeWorkStepItem
                 : null;
-            targetSchemeStep = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as WorkStepProfile;
+            targetSchemeStep = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as SchemeWorkStepItem;
             insertAfter = false;
 
             if (draggedSchemeStep is null || targetSchemeStep is null || ReferenceEquals(draggedSchemeStep, targetSchemeStep))

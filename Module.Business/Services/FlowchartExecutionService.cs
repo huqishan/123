@@ -470,7 +470,8 @@ public static class FlowchartExecutionService
         out bool result,
         out string message)
     {
-        List<string> values = WorkStepOperationRuntimeMetadata.GetOrderedInputParameters(operation)
+        List<string> values = operation.Parameters
+            .OrderBy(parameter => parameter.Sequence)
             .Select(parameter => ResolveParameterValue(parameter, returnValues))
             .ToList();
 
@@ -550,7 +551,7 @@ public static class FlowchartExecutionService
                 return false;
             }
 
-            operation = BusinessConfigurationStore.NormalizeWorkStepOperation(parsed);
+            operation = parsed;
             return true;
         }
         catch

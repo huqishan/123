@@ -156,7 +156,7 @@ CornerRadius="999">
                     </Border>
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="400" />
+                            <ColumnDefinition Width="0.78*" />
                             <ColumnDefinition Width="16" />
                             <ColumnDefinition Width="1.35*" />
                         </Grid.ColumnDefinitions>
@@ -287,6 +287,85 @@ CornerRadius="12">
                 Background="{DynamicResource PrimaryButtonBrush}" />
                                         </Canvas>
                                     </Grid>
+                                </Grid>
+                                
+                                <Grid x:Name="OperationDrawerHost" Margin="-16" Grid.ColumnSpan="3" Panel.ZIndex="30" Opacity="0" IsHitTestVisible="False">
+                                    <Border Background="#3A000000" MouseLeftButtonDown="OperationDrawerBackdrop_MouseLeftButtonDown" />
+
+                                    <Border Style="{StaticResource DrawerBorderStyle}">
+                                        <Border.RenderTransform>
+                                            <TranslateTransform x:Name="OperationDrawerTranslateTransform" X="-56" />
+                                        </Border.RenderTransform>
+
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="*" />
+                                            </Grid.RowDefinitions>
+
+                                            <DockPanel LastChildFill="False">
+                                                <StackPanel DockPanel.Dock="Left">
+                                                    <TextBlock Style="{StaticResource SectionTitleStyle}"
+                   Text="{Binding StepEditorTitle}" />
+                                                    <TextBlock Margin="0,8,0,0"
+                   Foreground="{DynamicResource AppMutedTextBrush}"
+                   Text="{Binding StepEditorHostStepName}" />
+                                                </StackPanel>
+                                                <StackPanel DockPanel.Dock="Right"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal">
+                                                    <Button Content="{DynamicResource 取消}"
+                Command="{Binding CloseStepEditorCommand}"
+                Style="{StaticResource ActionButtonStyle}" />
+                                                    <Button Content="{DynamicResource 保存}"
+                Command="{Binding SaveStepEditorCommand}"
+                Style="{StaticResource PrimaryActionButtonStyle}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                            <StackPanel Margin="0,14,0,0" Grid.Row="1">
+                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 操作对象}" />
+                                                <ComboBox x:Name="operationObj"
+Style="{StaticResource EditableInputComboBoxStyle}"
+ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+ItemsSource="{Binding OperationObjectCollection}"
+Text="{Binding EditingOperationObject, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <Grid Grid.Row="2">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+                                                <StackPanel Margin="0,14,0,0" Visibility="{Binding ElementName=luaEditorGrid, Path=Visibility,Converter={StaticResource inv2V}}">
+                                                    <DockPanel Margin="0,0,0,8" LastChildFill="False">
+                                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 支持的方法/指令}" />
+                                                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 拖拽到步骤编辑}" />
+                                                    </DockPanel>
+                                                    
+                                                </StackPanel>
+                                                <Grid x:Name="luaEditorGrid"
+                                                      Grid.Row="1"
+                                                      Margin="0,14,0,0"
+                                                      Visibility="{Binding ElementName=operationObj, Path=SelectedValue,Converter={StaticResource comp2V}, ConverterParameter='Lua'}">
+                                                    <luaEditor:LuaScriptCompilerView ScriptText="{Binding EditingLuaScript, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                </Grid>
+                                                <DataGrid x:Name="OperationMethodDataGrid" Grid.Row="1" Visibility="{Binding ElementName=luaEditorGrid, Path=Visibility,Converter={StaticResource inv2V}}"
+HorizontalScrollBarVisibility="Disabled"
+AutoGenerateColumns="False"
+IsReadOnly="True"
+ItemsSource="{Binding StationOperationMethodCollection}"
+SelectedItem="{Binding SelectedStationOperationMethod, Mode=TwoWay}"
+Style="{StaticResource ColumnsDataGridStyle}">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Width="1.2*"
+                  Header="{DynamicResource 方法/指令}"
+                  ElementStyle="{StaticResource CellTextBlockStyle}"
+                  Binding="{Binding InvokeMethod}" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -722,84 +801,6 @@ CornerRadius="12">
             </Border>
 
             
-        </Grid>
-
-        <Grid Grid.Column="0" HorizontalAlignment="Left" Width="830" Grid.ColumnSpan="3" x:Name="OperationDrawerHost" Panel.ZIndex="30" Opacity="0" IsHitTestVisible="False">
-            <Border Background="#3A000000" MouseLeftButtonDown="OperationDrawerBackdrop_MouseLeftButtonDown" />
-            <Border Style="{StaticResource DrawerBorderStyle}">
-                <Border.RenderTransform>
-                    <TranslateTransform x:Name="OperationDrawerTranslateTransform" X="-56" />
-                </Border.RenderTransform>
-
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <DockPanel LastChildFill="False">
-                        <StackPanel DockPanel.Dock="Left">
-                            <TextBlock Style="{StaticResource SectionTitleStyle}"
-                   Text="{Binding StepEditorTitle}" />
-                            <TextBlock Margin="0,8,0,0"
-                   Foreground="{DynamicResource AppMutedTextBrush}"
-                   Text="{Binding StepEditorHostStepName}" />
-                        </StackPanel>
-                        <StackPanel DockPanel.Dock="Right"
-                HorizontalAlignment="Right"
-                Orientation="Horizontal">
-                            <Button Content="{DynamicResource 取消}"
-                Command="{Binding CloseStepEditorCommand}"
-                Style="{StaticResource ActionButtonStyle}" />
-                            <Button Content="{DynamicResource 保存}"
-                Command="{Binding SaveStepEditorCommand}"
-                Style="{StaticResource PrimaryActionButtonStyle}" />
-                        </StackPanel>
-                    </DockPanel>
-                    <StackPanel Margin="0,14,0,0" Grid.Row="1">
-                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 操作对象}" />
-                        <ComboBox x:Name="operationObj"
-Style="{StaticResource EditableInputComboBoxStyle}"
-ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-ItemsSource="{Binding OperationObjectCollection}"
-Text="{Binding EditingOperationObject, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                    <Grid Grid.Row="2">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <StackPanel Margin="0,14,0,0" Visibility="{Binding ElementName=luaEditorGrid, Path=Visibility,Converter={StaticResource inv2V}}">
-                            <DockPanel Margin="0,0,0,8" LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 支持的方法/指令}" />
-                                <TextBlock DockPanel.Dock="Right" Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 拖拽到步骤编辑}" />
-                            </DockPanel>
-
-                        </StackPanel>
-                        <Grid x:Name="luaEditorGrid"
-                                                      Grid.Row="1"
-                                                      Margin="0,14,0,0"
-                                                      Visibility="{Binding ElementName=operationObj, Path=SelectedValue,Converter={StaticResource comp2V}, ConverterParameter='Lua'}">
-                            <luaEditor:LuaScriptCompilerView ScriptText="{Binding EditingLuaScript, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        </Grid>
-                        <DataGrid x:Name="OperationMethodDataGrid" Grid.Row="1" Visibility="{Binding ElementName=luaEditorGrid, Path=Visibility,Converter={StaticResource inv2V}}"
-HorizontalScrollBarVisibility="Disabled"
-AutoGenerateColumns="False"
-IsReadOnly="True"
-ItemsSource="{Binding StationOperationMethodCollection}"
-SelectedItem="{Binding SelectedStationOperationMethod, Mode=TwoWay}"
-Style="{StaticResource ColumnsDataGridStyle}">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Width="1.2*"
-                  Header="{DynamicResource 方法/指令}"
-                  ElementStyle="{StaticResource CellTextBlockStyle}"
-                  Binding="{Binding InvokeMethod}" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Grid>
-                </Grid>
-            </Border>
         </Grid>
     </Grid>
 </UserControl>

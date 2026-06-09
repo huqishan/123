@@ -81,13 +81,13 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
     public string StationName
     {
         get => _stationName;
-        set => SetField(ref _stationName, (value ?? string.Empty).Trim());
+        set => SetField(ref _stationName, value ?? string.Empty, true);
     }
 
     public string LineName
     {
         get => _lineName;
-        set => SetField(ref _lineName, (value ?? string.Empty).Trim());
+        set => SetField(ref _lineName, value ?? string.Empty, true);
     }
 
     public string TestStatus
@@ -117,7 +117,7 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
     public string WorkOrderNo
     {
         get => _workOrderNo;
-        set => SetField(ref _workOrderNo, (value ?? string.Empty).Trim());
+        set => SetField(ref _workOrderNo, value ?? string.Empty, true);
     }
 
     public string SelectedProductName
@@ -125,7 +125,7 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
         get => _selectedProductName;
         set
         {
-            if (SetField(ref _selectedProductName, (value ?? string.Empty).Trim()))
+            if (SetField(ref _selectedProductName, value ?? string.Empty, true))
             {
                 ProductName = _selectedProductName;
             }
@@ -473,20 +473,20 @@ public sealed class TestMaxViewModel : ViewModelProperties, IDisposable
             item.IsCurrent = ReferenceEquals(item, currentWorkStep);
         }
 
-        SetField(ref _selectedWorkStep, currentWorkStep, true, nameof(SelectedWorkStep));
+        SetField(ref _selectedWorkStep, currentWorkStep, nameof(SelectedWorkStep));
     }
 
     private void SelectWorkStep(TestDataDisplayItem? workStep)
     {
         if (workStep is null)
         {
-            SetField(ref _selectedWorkStep, null, true, nameof(SelectedWorkStep));
+            SetField(ref _selectedWorkStep, null, nameof(SelectedWorkStep));
             RefreshCurrentWorkStepMarkers();
             return;
         }
 
-        SetField(ref _selectedWorkStep, workStep, true, nameof(SelectedWorkStep));
-        SetField(ref _currentWorkStepName, workStep.WorkStep, true, nameof(CurrentWorkStepName));
+        SetField(ref _selectedWorkStep, workStep, nameof(SelectedWorkStep));
+        SetField(ref _currentWorkStepName, workStep.WorkStep, nameof(CurrentWorkStepName));
         CurrentWorkStepElapsedTimeText = string.IsNullOrWhiteSpace(workStep.WorkStepElapsedTime)
             ? "0.0 s"
             : workStep.WorkStepElapsedTime;

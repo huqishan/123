@@ -6,150 +6,58 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
-using System.Text.Json;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Module.Business.Features.SchemeConfiguration
-{   
-    /// <summary>
-    /// 方案配置，保存方案名称和工步引用快照。
-    /// </summary>
-    public sealed class SchemeProfile : ViewModelProperties
+{
+    public sealed class WorkStepProfile : ViewModelProperties
     {
-        #region 构造方法
+        #region 私有字段
 
-        public SchemeProfile()
-        {
-        }
-
-        #endregion
-
-        #region 绑定属性
-        #region 唯一标识
         private string _id = Guid.NewGuid().ToString("N");
-        /// <summary>
-        /// 唯一标识
-        /// </summary>
-        public string Id
-        {
-            get => _id;
-            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
-        }
-        #endregion
-        #region 方案名称
-        private string _schemeName = "方案 1";
-        /// <summary>
-        /// 方案名称
-        /// </summary>
-        public string SchemeName
-        {
-            get => _schemeName;
-            set => SetField(ref _schemeName, (value ?? string.Empty).Trim());
-        }
-        #endregion
-        #region 工步集合
-        private ObservableCollection<WorkStepProfile> _steps = new();
-        /// <summary>
-        /// 工步集合
-        /// </summary>
-        public ObservableCollection<WorkStepProfile> Steps
-        {
-            get => _steps;
-            set
-            {
-                if (ReferenceEquals(_steps, value))
-                {
-                    return;
-                }
-                _steps = value ?? new ObservableCollection<WorkStepProfile>();
-                OnPropertyChanged();
-            }
-        }
-        #endregion
+        private string _stepName = "工步 1";
+        private DateTime _lastModifiedAt = DateTime.Now;
+        private ObservableCollection<WorkStepOperation> _steps = new();
+
         #endregion
 
-        #region 复制方法
-
-        public SchemeProfile Clone()
-        {
-            return new SchemeProfile
-            {
-                Id = Id,
-                SchemeName = SchemeName,
-                Steps = new ObservableCollection<WorkStepProfile>(Steps.Select(step => step.Clone())),
-                LastModifiedAt = LastModifiedAt
-            };
-        }
-        #endregion
-    }
-    public sealed partial class WorkStepProfile : ViewModelProperties
-    {
         #region 构造方法
 
         public WorkStepProfile()
         {
-            InitializeSchemeState();
+            AttachSteps(_steps);
         }
 
         #endregion
 
         #region 基础属性
-        #region 唯一标识
-        private string _id = Guid.NewGuid().ToString("N");
-        /// <summary>
-        /// 唯一标识
-        /// </summary>
+
         public string Id
         {
             get => _id;
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
-        #endregion
-        #region 是否启用启动
-        private bool _isStartupEnabled = true;
-        /// <summary>
-        /// 是否启用启动
-        /// </summary>
-        public bool IsStartupEnabled
-        {
-            get => _isStartupEnabled;
-            set
-            {
-                if (SetField(ref _isStartupEnabled, value))
-                {
-                    LastModifiedAt = DateTime.Now;
-                }
-            }
-        }
-        #endregion
-        #region 显示顺序
-        private int _displayOrder = 1;
-        /// <summary>
-        /// 显示顺序
-        /// </summary>
-        public int DisplayOrder
-        {
-            get => _displayOrder;
-            set => SetField(ref _displayOrder, Math.Max(1, value));
-        }
-        #endregion
-        #region 工步名称
-        private string _stepName = "工步 1";
-        /// <summary>
-        /// 工步名称
-        /// </summary>
+
         public string StepName
         {
             get => _stepName;
-            set => SetField(ref _stepName, (value ?? string.Empty).Trim());
+            set => SetField(ref _stepName, value ?? string.Empty, true);
         }
-        #endregion
-        #region 步骤集合
-        private ObservableCollection<WorkStepOperation> _steps = new();
-        /// <summary>
-        /// 步骤集合
-        /// </summary>
+
+        public DateTime LastModifiedAt
+        {
+            get => _lastModifiedAt;
+            set
+            {
+                DateTime normalizedValue = value == default ? DateTime.Now : value;
+                if (SetField(ref _lastModifiedAt, normalizedValue))
+                {
+                    OnPropertyChanged(nameof(LastModifiedText));
+                }
+            }
+        }
+
         public ObservableCollection<WorkStepOperation> Steps
         {
             get => _steps;
@@ -159,12 +67,131 @@ namespace Module.Business.Features.SchemeConfiguration
                 {
                     return;
                 }
+
+                DetachSteps(_steps);
                 _steps = value ?? new ObservableCollection<WorkStepOperation>();
+                AttachSteps(_steps);
                 OnPropertyChanged();
+                RaiseStepSummaryChanged();
+            }
+        }
+
+        [JsonIgnore]
+        public int OperationCount => Steps.Count;
+
+        [JsonIgnore]
+        public string OperationSummary =>
+            Steps.Count == 0
+                ? "未配置步骤"
+                : string.Join(" / ", Steps.Select(step => step.DisplayText));
+
+        [JsonIgnore]
+        public string LastModifiedText => $"最后修改：{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+
+        #endregion
+
+        #region 集合通知
+
+        private void AttachSteps(ObservableCollection<WorkStepOperation> steps)
+        {
+            steps.CollectionChanged += Steps_CollectionChanged;
+            foreach (WorkStepOperation step in steps)
+            {
+                step.PropertyChanged += Step_PropertyChanged;
+            }
+
+            RefreshOperationDisplayOrders(steps);
+        }
+
+        private void DetachSteps(ObservableCollection<WorkStepOperation> steps)
+        {
+            steps.CollectionChanged -= Steps_CollectionChanged;
+            foreach (WorkStepOperation step in steps)
+            {
+                step.PropertyChanged -= Step_PropertyChanged;
+            }
+        }
+
+        private void Steps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                if (sender is ObservableCollection<WorkStepOperation> movedSteps)
+                {
+                    RefreshOperationDisplayOrders(movedSteps);
+                }
+
+                RaiseStepSummaryChanged();
+                return;
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (WorkStepOperation step in e.NewItems.OfType<WorkStepOperation>())
+                {
+                    step.PropertyChanged += Step_PropertyChanged;
+                }
+            }
+
+            if (e.OldItems is not null)
+            {
+                foreach (WorkStepOperation step in e.OldItems.OfType<WorkStepOperation>())
+                {
+                    step.PropertyChanged -= Step_PropertyChanged;
+                }
+            }
+
+            if (sender is ObservableCollection<WorkStepOperation> changedSteps)
+            {
+                RefreshOperationDisplayOrders(changedSteps);
+            }
+
+            RaiseStepSummaryChanged();
+        }
+
+        private void Step_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(WorkStepOperation.OperationObject)
+                or nameof(WorkStepOperation.DeviceId)
+                or nameof(WorkStepOperation.ProtocolName)
+                or nameof(WorkStepOperation.CommandName)
+                or nameof(WorkStepOperation.InvokeMethod)
+                or nameof(WorkStepOperation.OperationId)
+                or nameof(WorkStepOperation.ReturnValue)
+                or nameof(WorkStepOperation.ShowDataToView)
+                or nameof(WorkStepOperation.ViewDataName)
+                or nameof(WorkStepOperation.ViewJudgeType)
+                or nameof(WorkStepOperation.ViewJudgeCondition)
+                or nameof(WorkStepOperation.LuaScript)
+                or nameof(WorkStepOperation.DelayMilliseconds)
+                or nameof(WorkStepOperation.Remark)
+                or nameof(WorkStepOperation.ParameterCount)
+                or nameof(WorkStepOperation.DisplayText))
+            {
+                RaiseStepSummaryChanged();
+            }
+
+            if (e.PropertyName is nameof(WorkStepOperation.IsChecked)
+                or nameof(WorkStepOperation.DisplayOrder))
+            {
                 OnPropertyChanged(nameof(Steps));
             }
         }
-        #endregion
+
+        private static void RefreshOperationDisplayOrders(ObservableCollection<WorkStepOperation> steps)
+        {
+            for (int index = 0; index < steps.Count; index++)
+            {
+                steps[index].DisplayOrder = index + 1;
+            }
+        }
+
+        private void RaiseStepSummaryChanged()
+        {
+            OnPropertyChanged(nameof(OperationCount));
+            OnPropertyChanged(nameof(OperationSummary));
+        }
+
         #endregion
 
         #region 复制方法
@@ -174,16 +201,21 @@ namespace Module.Business.Features.SchemeConfiguration
             WorkStepProfile clone = new()
             {
                 Id = Id,
-                WorkStepId = WorkStepId,
                 StepName = StepName,
-                SchemeStepName = _schemeStepName,
-                IsStartupEnabled = IsStartupEnabled,
-                DisplayOrder = DisplayOrder,
                 LastModifiedAt = LastModifiedAt,
-                Steps = new ObservableCollection<WorkStepOperation>(Steps.Select(step => step.Clone())),
-                Parameters = new ObservableCollection<SchemeWorkStepParameter>(Parameters.Select(parameter => parameter.Clone()))
+                Steps = new ObservableCollection<WorkStepOperation>(Steps.Select(step => step.Clone()))
             };
+
             return clone;
+        }
+
+        #endregion
+
+        #region 修改时间方法
+
+        public void MarkModified()
+        {
+            LastModifiedAt = DateTime.Now;
         }
 
         #endregion
@@ -194,27 +226,48 @@ namespace Module.Business.Features.SchemeConfiguration
     /// </summary>
     public sealed class WorkStepOperation : ViewModelProperties
     {
+        #region 私有字段
+
+        private string _id = Guid.NewGuid().ToString("N");
+
+        #endregion
+
         #region 构造方法
 
         public WorkStepOperation()
         {
-            AttachParameters(_inputParameters);
-            AttachParameters(_returnParameters);
+            AttachParameters(_parameters);
         }
 
         #endregion
 
         #region 绑定属性
-        #region 唯一标识
-        private string _id = Guid.NewGuid().ToString("N");
-        /// <summary>
-        /// 唯一标识
-        /// </summary>
+
         public string Id
         {
             get => _id;
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
+
+        #region 操作类型
+
+        private string _operationType = "设备";
+
+        /// <summary>
+        /// 操作类型
+        /// </summary>
+        public string OperationType
+        {
+            get => _operationType;
+            set
+            {
+                if (SetField(ref _operationType, string.IsNullOrWhiteSpace(value) ? "设备" : value, true))
+                {
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
         #endregion
 
         #region 操作对象
@@ -229,7 +282,71 @@ namespace Module.Business.Features.SchemeConfiguration
             get => _operationObject;
             set
             {
-                if (SetField(ref _operationObject, (value ?? string.Empty).Trim()))
+                if (SetField(ref _operationObject, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(DeviceId));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 设备标识
+
+        private string _deviceId = string.Empty;
+
+        /// <summary>
+        /// 设备标识
+        /// </summary>
+        public string DeviceId
+        {
+            get => string.IsNullOrWhiteSpace(_deviceId) ? _operationObject : _deviceId;
+            set
+            {
+                if (SetField(ref _deviceId, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 协议名称
+
+        private string _protocolName = string.Empty;
+
+        /// <summary>
+        /// 协议名称
+        /// </summary>
+        public string ProtocolName
+        {
+            get => _protocolName;
+            set
+            {
+                if (SetField(ref _protocolName, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 指令名称
+
+        private string _commandName = string.Empty;
+
+        /// <summary>
+        /// 指令名称
+        /// </summary>
+        public string CommandName
+        {
+            get => _commandName;
+            set
+            {
+                if (SetField(ref _commandName, value ?? string.Empty, true))
                 {
                     OnPropertyChanged(nameof(DisplayText));
                 }
@@ -250,11 +367,114 @@ namespace Module.Business.Features.SchemeConfiguration
             get => _invokeMethod;
             set
             {
-                if (SetField(ref _invokeMethod, (value ?? string.Empty).Trim()))
+                if (SetField(ref _invokeMethod, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(OperationId));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 操作标识
+
+        private string _operationId = string.Empty;
+
+        /// <summary>
+        /// 操作标识
+        /// </summary>
+        public string OperationId
+        {
+            get => string.IsNullOrWhiteSpace(_operationId) ? _invokeMethod : _operationId;
+            set
+            {
+                if (SetField(ref _operationId, value ?? string.Empty, true))
                 {
                     OnPropertyChanged(nameof(DisplayText));
                 }
             }
+        }
+
+        #endregion
+
+        #region 返回值
+
+        private string _returnValue = string.Empty;
+
+        /// <summary>
+        /// 返回值
+        /// </summary>
+        public string ReturnValue
+        {
+            get => _returnValue;
+            set
+            {
+                if (SetField(ref _returnValue, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 显示到界面
+
+        private bool _showDataToView;
+
+        /// <summary>
+        /// 显示到界面
+        /// </summary>
+        public bool ShowDataToView
+        {
+            get => _showDataToView;
+            set => SetField(ref _showDataToView, value);
+        }
+
+        #endregion
+
+        #region 显示名称
+
+        private string _viewDataName = string.Empty;
+
+        /// <summary>
+        /// 显示名称
+        /// </summary>
+        public string ViewDataName
+        {
+            get => _viewDataName;
+            set => SetField(ref _viewDataName, value ?? string.Empty, true);
+        }
+
+        #endregion
+
+        #region 判断类型
+
+        private string _viewJudgeType = string.Empty;
+
+        /// <summary>
+        /// 判断类型
+        /// </summary>
+        public string ViewJudgeType
+        {
+            get => _viewJudgeType;
+            set => SetField(ref _viewJudgeType, value ?? string.Empty, true);
+        }
+
+        #endregion
+
+        #region 判断条件
+
+        private string _viewJudgeCondition = string.Empty;
+
+        /// <summary>
+        /// 判断条件
+        /// </summary>
+        public string ViewJudgeCondition
+        {
+            get => _viewJudgeCondition;
+            set => SetField(ref _viewJudgeCondition, value ?? string.Empty, true);
         }
 
         #endregion
@@ -314,7 +534,7 @@ namespace Module.Business.Features.SchemeConfiguration
             get => _remark;
             set
             {
-                if (SetField(ref _remark, (value ?? string.Empty).Trim()))
+                if (SetField(ref _remark, value ?? string.Empty, true))
                 {
                     OnPropertyChanged(nameof(DisplayText));
                 }
@@ -331,7 +551,6 @@ namespace Module.Business.Features.SchemeConfiguration
         /// 是否选中
         /// </summary>
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public bool IsChecked
         {
             get => _isChecked;
@@ -348,7 +567,6 @@ namespace Module.Business.Features.SchemeConfiguration
         /// 参数是否修改
         /// </summary>
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public bool AreParametersModified
         {
             get => _areParametersModified;
@@ -365,7 +583,6 @@ namespace Module.Business.Features.SchemeConfiguration
         /// 显示顺序
         /// </summary>
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public int DisplayOrder
         {
             get => _displayOrder;
@@ -374,26 +591,26 @@ namespace Module.Business.Features.SchemeConfiguration
 
         #endregion
 
-        #region 输入参数集合
+        #region 参数集合
 
-        private ObservableCollection<WorkStepOperationParameter> _inputParameters = new();
+        private ObservableCollection<WorkStepOperationParameter> _parameters = new();
 
         /// <summary>
-        /// 输入参数集合
+        /// 参数集合
         /// </summary>
-        public ObservableCollection<WorkStepOperationParameter> InputParameters
+        public ObservableCollection<WorkStepOperationParameter> Parameters
         {
-            get => _inputParameters;
+            get => _parameters;
             set
             {
-                if (ReferenceEquals(_inputParameters, value))
+                if (ReferenceEquals(_parameters, value))
                 {
                     return;
                 }
 
-                DetachParameters(_inputParameters);
-                _inputParameters = value ?? new ObservableCollection<WorkStepOperationParameter>();
-                AttachParameters(_inputParameters);
+                DetachParameters(_parameters);
+                _parameters = value ?? new ObservableCollection<WorkStepOperationParameter>();
+                AttachParameters(_parameters);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ParameterCount));
                 OnPropertyChanged(nameof(DisplayText));
@@ -402,325 +619,38 @@ namespace Module.Business.Features.SchemeConfiguration
 
         #endregion
 
-        #region 返回参数集合
-
-        private ObservableCollection<WorkStepOperationParameter> _returnParameters = new();
-
-        /// <summary>
-        /// 返回参数集合
-        /// </summary>
-        public ObservableCollection<WorkStepOperationParameter> ReturnParameters
-        {
-            get => _returnParameters;
-            set
-            {
-                if (ReferenceEquals(_returnParameters, value))
-                {
-                    return;
-                }
-
-                DetachParameters(_returnParameters);
-                _returnParameters = value ?? new ObservableCollection<WorkStepOperationParameter>();
-                AttachParameters(_returnParameters);
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(ReturnParameterCount));
-                OnPropertyChanged(nameof(DisplayText));
-            }
-        }
-
-        #endregion
-
-        #region 兼容属性
-
-        private string _operationTypeHint = string.Empty;
-        private string _deviceIdHint = string.Empty;
-        private string _protocolNameHint = string.Empty;
-        private string _commandNameHint = string.Empty;
-        private string _operationIdHint = string.Empty;
+        [JsonIgnore]
+        public int ParameterCount => Parameters.Count;
 
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string OperationType
-        {
-            get
-            {
-                if (!string.IsNullOrWhiteSpace(_operationTypeHint))
-                {
-                    return _operationTypeHint;
-                }
-
-                if (WorkStepOperationRuntimeMetadata.IsLuaOperation(this))
-                {
-                    return SchemeStepEditorState.LuaOperationObjectName;
-                }
-
-                if (WorkStepOperationRuntimeMetadata.IsJudgeOperation(this))
-                {
-                    return SchemeStepEditorState.JudgeOperationObjectName;
-                }
-
-                return WorkStepOperationRuntimeMetadata.IsSystemOperation(this) ? "系统" : "设备";
-            }
-            set
-            {
-                string normalizedValue = value?.Trim() ?? string.Empty;
-                if (!SetField(ref _operationTypeHint, normalizedValue))
-                {
-                    return;
-                }
-
-                if (string.Equals(normalizedValue, SchemeStepEditorState.LuaOperationObjectName, StringComparison.OrdinalIgnoreCase))
-                {
-                    OperationObject = SchemeStepEditorState.LuaOperationObjectName;
-                }
-                else if (string.Equals(normalizedValue, SchemeStepEditorState.JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase))
-                {
-                    OperationObject = SchemeStepEditorState.JudgeOperationObjectName;
-                }
-                else if (string.Equals(normalizedValue, SchemeStepEditorState.SystemOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(normalizedValue, "系统", StringComparison.OrdinalIgnoreCase))
-                {
-                    OperationObject = SchemeStepEditorState.SystemOperationObjectName;
-                }
-            }
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string DeviceId
-        {
-            get => string.IsNullOrWhiteSpace(_deviceIdHint) ? OperationObject : _deviceIdHint;
-            set => SetField(ref _deviceIdHint, (value ?? string.Empty).Trim());
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string ProtocolName
-        {
-            get
-            {
-                if (!string.IsNullOrWhiteSpace(_protocolNameHint))
-                {
-                    return _protocolNameHint;
-                }
-
-                return WorkStepOperationRuntimeMetadata.TryResolveProtocolCommand(this, out string protocolName, out _)
-                    ? protocolName
-                    : string.Empty;
-            }
-            set => SetField(ref _protocolNameHint, (value ?? string.Empty).Trim());
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string CommandName
-        {
-            get => string.IsNullOrWhiteSpace(_commandNameHint) ? InvokeMethod : _commandNameHint;
-            set => SetField(ref _commandNameHint, (value ?? string.Empty).Trim());
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string OperationId
-        {
-            get => string.IsNullOrWhiteSpace(_operationIdHint) ? InvokeMethod : _operationIdHint;
-            set => SetField(ref _operationIdHint, (value ?? string.Empty).Trim());
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string ReturnValue
-        {
-            get => WorkStepOperationRuntimeMetadata.GetReturnParameterKey(WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this));
-            set
-            {
-                string normalizedValue = value?.Trim() ?? string.Empty;
-                WorkStepOperationParameter? parameter = WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this);
-                if (parameter is null && string.IsNullOrWhiteSpace(normalizedValue))
-                {
-                    return;
-                }
-
-                parameter ??= EnsurePrimaryReturnParameter();
-                parameter.ParameterName = normalizedValue;
-                parameter.Value = normalizedValue;
-                CleanupReturnParameter(parameter);
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(DisplayText));
-            }
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public bool ShowDataToView
-        {
-            get => WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this)?.ShowDataToView ?? false;
-            set
-            {
-                WorkStepOperationParameter? parameter = WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this);
-                if (parameter is null && !value)
-                {
-                    return;
-                }
-
-                parameter ??= EnsurePrimaryReturnParameter();
-                parameter.ShowDataToView = value;
-                CleanupReturnParameter(parameter);
-                OnPropertyChanged();
-            }
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string ViewDataName
-        {
-            get => WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this)?.ViewDataName ?? string.Empty;
-            set
-            {
-                string normalizedValue = value?.Trim() ?? string.Empty;
-                WorkStepOperationParameter? parameter = WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this);
-                if (parameter is null && string.IsNullOrWhiteSpace(normalizedValue))
-                {
-                    return;
-                }
-
-                parameter ??= EnsurePrimaryReturnParameter();
-                parameter.ViewDataName = normalizedValue;
-                CleanupReturnParameter(parameter);
-                OnPropertyChanged();
-            }
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string ViewJudgeType
-        {
-            get => WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this)?.ViewJudgeType ?? string.Empty;
-            set
-            {
-                string normalizedValue = value?.Trim() ?? string.Empty;
-                WorkStepOperationParameter? parameter = WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this);
-                if (parameter is null && string.IsNullOrWhiteSpace(normalizedValue))
-                {
-                    return;
-                }
-
-                parameter ??= EnsurePrimaryReturnParameter();
-                parameter.ViewJudgeType = normalizedValue;
-                CleanupReturnParameter(parameter);
-                OnPropertyChanged();
-            }
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public string ViewJudgeCondition
-        {
-            get => WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this)?.ViewJudgeCondition ?? string.Empty;
-            set
-            {
-                string normalizedValue = value?.Trim() ?? string.Empty;
-                WorkStepOperationParameter? parameter = WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this);
-                if (parameter is null && string.IsNullOrWhiteSpace(normalizedValue))
-                {
-                    return;
-                }
-
-                parameter ??= EnsurePrimaryReturnParameter();
-                parameter.ViewJudgeCondition = normalizedValue;
-                CleanupReturnParameter(parameter);
-                OnPropertyChanged();
-            }
-        }
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public ObservableCollection<WorkStepOperationParameter> Parameters
-        {
-            get => InputParameters;
-            set => InputParameters = value ?? new ObservableCollection<WorkStepOperationParameter>();
-        }
-
-        #endregion
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public int ParameterCount => InputParameters.Count;
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
-        public int ReturnParameterCount => ReturnParameters.Count;
-
-        [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public string DisplayText
         {
             get
             {
-                List<string> returnKeys = ReturnParameters
-                    .OrderBy(parameter => parameter.Sequence)
-                    .Select(WorkStepOperationRuntimeMetadata.GetReturnParameterKey)
-                    .Where(key => !string.IsNullOrWhiteSpace(key))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                string returnText = returnKeys.Count switch
-                {
-                    0 => string.Empty,
-                    1 => $" -> {returnKeys[0]}",
-                    _ => $" -> {returnKeys[0]} +{returnKeys.Count - 1}"
-                };
+                string returnText = string.IsNullOrWhiteSpace(ReturnValue) ? string.Empty : $" -> {ReturnValue}";
                 string delayText = DelayMilliseconds <= 0 ? string.Empty : $" / {DelayMilliseconds}ms";
                 string remarkText = string.IsNullOrWhiteSpace(Remark) ? string.Empty : $" / {Remark}";
                 string parameterText = ParameterCount == 0 ? string.Empty : $" / 参数{ParameterCount}";
-                if (WorkStepOperationRuntimeMetadata.IsLuaOperation(this))
+                if (IsLuaOperationObject(OperationObject) || IsLuaOperationObject(OperationType))
                 {
                     return $"Lua{delayText}{remarkText}";
                 }
 
-                string methodText = string.IsNullOrWhiteSpace(InvokeMethod) ? "步骤" : InvokeMethod;
-                string operationObject = string.IsNullOrWhiteSpace(OperationObject) ? "System" : OperationObject;
-                string operationPath = WorkStepOperationRuntimeMetadata.IsSystemOperation(this)
-                    ? methodText
-                    : $"{operationObject}.{methodText}";
+                string methodText = string.IsNullOrWhiteSpace(CommandName) ? OperationId : CommandName;
+                string protocolText = string.IsNullOrWhiteSpace(ProtocolName) ? string.Empty : $"{ProtocolName}.";
+                string actionText = IsSystemOperationObject(OperationObject)
+                    ? OperationId
+                    : $"{protocolText}{methodText}";
+                string operationObject = DeviceId;
+                string operationPath = string.IsNullOrWhiteSpace(operationObject)
+                    ? actionText
+                    : $"{operationObject}.{actionText}";
 
                 return $"{operationPath}{returnText}{delayText}{remarkText}{parameterText}";
             }
         }
 
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public IDictionary<string, JsonElement>? LegacyData { get; set; }
-
         #endregion
-
-        private WorkStepOperationParameter EnsurePrimaryReturnParameter()
-        {
-            WorkStepOperationParameter? existingParameter = WorkStepOperationRuntimeMetadata.GetPrimaryReturnParameter(this);
-            if (existingParameter is not null)
-            {
-                return existingParameter;
-            }
-
-            WorkStepOperationParameter parameter = new()
-            {
-                Sequence = ReturnParameters.Count + 1,
-                Name = "返回值"
-            };
-            ReturnParameters.Add(parameter);
-            return parameter;
-        }
-
-        private void CleanupReturnParameter(WorkStepOperationParameter parameter)
-        {
-            if (ReturnParameters.Contains(parameter) &&
-                string.IsNullOrWhiteSpace(WorkStepOperationRuntimeMetadata.GetReturnParameterKey(parameter)) &&
-                !parameter.ShowDataToView &&
-                string.IsNullOrWhiteSpace(parameter.ViewDataName) &&
-                string.IsNullOrWhiteSpace(parameter.ViewJudgeType) &&
-                string.IsNullOrWhiteSpace(parameter.ViewJudgeCondition))
-            {
-                ReturnParameters.Remove(parameter);
-            }
-        }
 
         #region 集合通知
 
@@ -761,7 +691,6 @@ namespace Module.Business.Features.SchemeConfiguration
             }
 
             OnPropertyChanged(nameof(ParameterCount));
-            OnPropertyChanged(nameof(ReturnParameterCount));
             OnPropertyChanged(nameof(DisplayText));
         }
 
@@ -774,11 +703,7 @@ namespace Module.Business.Features.SchemeConfiguration
                 or nameof(WorkStepOperationParameter.Sequence)
                 or nameof(WorkStepOperationParameter.Value)
                 or nameof(WorkStepOperationParameter.Remark)
-                or nameof(WorkStepOperationParameter.Description)
-                or nameof(WorkStepOperationParameter.ShowDataToView)
-                or nameof(WorkStepOperationParameter.ViewDataName)
-                or nameof(WorkStepOperationParameter.ViewJudgeType)
-                or nameof(WorkStepOperationParameter.ViewJudgeCondition))
+                or nameof(WorkStepOperationParameter.Description))
             {
                 OnPropertyChanged(nameof(DisplayText));
             }
@@ -793,17 +718,40 @@ namespace Module.Business.Features.SchemeConfiguration
             return new WorkStepOperation
             {
                 Id = Id,
+                OperationType = OperationType,
                 OperationObject = OperationObject,
+                DeviceId = _deviceId,
+                ProtocolName = ProtocolName,
+                CommandName = CommandName,
                 InvokeMethod = InvokeMethod,
+                OperationId = _operationId,
+                ReturnValue = ReturnValue,
+                ShowDataToView = ShowDataToView,
+                ViewDataName = ViewDataName,
+                ViewJudgeType = ViewJudgeType,
+                ViewJudgeCondition = ViewJudgeCondition,
                 LuaScript = LuaScript,
                 DelayMilliseconds = DelayMilliseconds,
                 Remark = Remark,
                 IsChecked = false,
                 AreParametersModified = AreParametersModified,
-                DisplayOrder = DisplayOrder,
-                InputParameters = new ObservableCollection<WorkStepOperationParameter>(InputParameters.Select(parameter => parameter.Clone())),
-                ReturnParameters = new ObservableCollection<WorkStepOperationParameter>(ReturnParameters.Select(parameter => parameter.Clone()))
+                Parameters = new ObservableCollection<WorkStepOperationParameter>(Parameters.Select(parameter => parameter.Clone()))
             };
+        }
+
+        #endregion
+
+        #region 静态工具
+
+        private static bool IsSystemOperationObject(string? operationObject)
+        {
+            return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(operationObject?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsLuaOperationObject(string? operationObject)
+        {
+            return string.Equals(operationObject?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
         }
 
         #endregion
@@ -814,95 +762,70 @@ namespace Module.Business.Features.SchemeConfiguration
     /// </summary>
     public sealed class WorkStepOperationParameter : ViewModelProperties
     {
-        #region 绑定属性
-        #region 唯一标识
+        #region 私有字段
+
         private string _id = Guid.NewGuid().ToString("N");
-        /// <summary>
-        /// 唯一标识
-        /// </summary>
+        private int _sequence = 1;
+        private string _name = "设置值";
+        private string _parameterName = string.Empty;
+        private string _valueType = string.Empty;
+        private string _value = string.Empty;
+        private string _remark = string.Empty;
+
+        #endregion
+
+        #region 绑定属性
+
         public string Id
         {
             get => _id;
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
-        #endregion
-        #region 序号
-        private int _sequence = 1;
-        /// <summary>
-        /// 序号
-        /// </summary>
+
         public int Sequence
         {
             get => _sequence;
             set => SetField(ref _sequence, Math.Max(1, value));
         }
-        #endregion
-        #region 名称
-        private string _name = "设置值";
-        /// <summary>
-        /// 名称
-        /// </summary>
+
         public string Name
         {
             get => _name;
             set => SetParameterType(value, nameof(Name));
         }
-        #endregion
 
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public string Type
         {
             get => _name;
             set => SetParameterType(value, nameof(Type));
         }
-        #region 值
-        private string _value = string.Empty;
-        /// <summary>
-        /// 值
-        /// </summary>
+
         public string Value
         {
             get => _value;
-            set => SetField(ref _value, (value ?? string.Empty).Trim());
+            set => SetField(ref _value, value ?? string.Empty, true);
         }
-        #endregion
-        #region 参数名称
-        private string _parameterName = string.Empty;
-        /// <summary>
-        /// 参数名称
-        /// </summary>
+
         public string ParameterName
         {
             get => _parameterName;
-            set => SetField(ref _parameterName, (value ?? string.Empty).Trim());
+            set => SetField(ref _parameterName, value ?? string.Empty, true);
         }
-        #endregion
-        #region 值类型
-        private string _valueType = string.Empty;
-        /// <summary>
-        /// 值类型
-        /// </summary>
+
         public string ValueType
         {
             get => _valueType;
-            set => SetField(ref _valueType, (value ?? string.Empty).Trim());
+            set => SetField(ref _valueType, value ?? string.Empty, true);
         }
-        #endregion
-        #region 备注
-        private string _remark = string.Empty;
-        /// <summary>
-        /// 备注
-        /// </summary>
+
         public string Remark
         {
             get => _remark;
             set => SetParameterDescription(value, nameof(Remark));
         }
-        #endregion
 
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public string Description
         {
             get => _remark;
@@ -910,63 +833,15 @@ namespace Module.Business.Features.SchemeConfiguration
         }
 
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public ObservableCollection<string> ValueOptions { get; } = new();
 
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public bool UsesTextValueEditor =>
             string.Equals(Type, "设置值", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(Type, "工步值", StringComparison.OrdinalIgnoreCase);
 
         [JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public bool UsesComboValueEditor => !UsesTextValueEditor;
-
-        #region 显示到界面
-        private bool _showDataToView;
-        /// <summary>
-        /// 显示到界面
-        /// </summary>
-        public bool ShowDataToView
-        {
-            get => _showDataToView;
-            set => SetField(ref _showDataToView, value);
-        }
-        #endregion
-        #region 显示名称
-        private string _viewDataName = string.Empty;
-        /// <summary>
-        /// 显示名称
-        /// </summary>
-        public string ViewDataName
-        {
-            get => _viewDataName;
-            set => SetField(ref _viewDataName, (value ?? string.Empty).Trim());
-        }
-        #endregion
-        #region 判断类型
-        private string _viewJudgeType = string.Empty;
-        /// <summary>
-        /// 判断类型
-        /// </summary>
-        public string ViewJudgeType
-        {
-            get => _viewJudgeType;
-            set => SetField(ref _viewJudgeType, (value ?? string.Empty).Trim());
-        }
-        #endregion
-        #region 判断条件
-        private string _viewJudgeCondition = string.Empty;
-        /// <summary>
-        /// 判断条件
-        /// </summary>
-        public string ViewJudgeCondition
-        {
-            get => _viewJudgeCondition;
-            set => SetField(ref _viewJudgeCondition, (value ?? string.Empty).Trim());
-        }
-        #endregion
 
         #endregion
 
@@ -975,7 +850,7 @@ namespace Module.Business.Features.SchemeConfiguration
         private void SetParameterType(string? value, string propertyName)
         {
             string normalizedValue = string.IsNullOrWhiteSpace(value) ? "设置值" : value.Trim();
-            if (!SetField(ref _name, normalizedValue, true, propertyName))
+            if (!SetField(ref _name, normalizedValue, propertyName))
             {
                 return;
             }
@@ -988,7 +863,7 @@ namespace Module.Business.Features.SchemeConfiguration
         private void SetParameterDescription(string? value, string propertyName)
         {
             string normalizedValue = value?.Trim() ?? string.Empty;
-            if (!SetField(ref _remark, normalizedValue, true, propertyName))
+            if (!SetField(ref _remark, normalizedValue, propertyName))
             {
                 return;
             }
@@ -1010,16 +885,13 @@ namespace Module.Business.Features.SchemeConfiguration
                 ParameterName = ParameterName,
                 ValueType = ValueType,
                 Value = Value,
-                Remark = Remark,
-                ShowDataToView = ShowDataToView,
-                ViewDataName = ViewDataName,
-                ViewJudgeType = ViewJudgeType,
-                ViewJudgeCondition = ViewJudgeCondition
+                Remark = Remark
             };
         }
 
         #endregion
     }
+
     /// <summary>
     /// 方案工步参数。
     /// </summary>
@@ -1029,63 +901,52 @@ namespace Module.Business.Features.SchemeConfiguration
         {
         "等于"
     };
-        #region 绑定属性
-        #region 唯一标识
+
+        #region 私有字段
+
         private string _id = Guid.NewGuid().ToString("N");
-        /// <summary>
-        /// 唯一标识
-        /// </summary>
+        private string _sourceOperationId = string.Empty;
+        private string _sourceParameterId = string.Empty;
+        private string _parameterName = "参数";
+        private string _parameterType = "设置值";
+        private string _judgeType = string.Empty;
+        private string _judgeCondition = string.Empty;
+
+        #endregion
+
+        #region 绑定属性
+
         public string Id
         {
             get => _id;
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
-        #endregion
-        #region 来源操作标识
-        private string _sourceOperationId = string.Empty;
-        /// <summary>
-        /// 来源操作标识
-        /// </summary>
+
         public string SourceOperationId
         {
             get => _sourceOperationId;
-            set => SetField(ref _sourceOperationId, (value ?? string.Empty).Trim());
+            set => SetField(ref _sourceOperationId, value ?? string.Empty, true);
         }
-        #endregion
-        #region 来源参数标识
-        private string _sourceParameterId = string.Empty;
-        /// <summary>
-        /// 来源参数标识
-        /// </summary>
+
         public string SourceParameterId
         {
             get => _sourceParameterId;
-            set => SetField(ref _sourceParameterId, (value ?? string.Empty).Trim());
+            set => SetField(ref _sourceParameterId, value ?? string.Empty, true);
         }
-        #endregion
-        #region 参数名称
-        private string _parameterName = "参数";
-        /// <summary>
-        /// 参数名称
-        /// </summary>
+
         public string ParameterName
         {
             get => _parameterName;
-            set => SetField(ref _parameterName, string.IsNullOrWhiteSpace(value) ? "参数" : value.Trim());
+            set => SetField(ref _parameterName, string.IsNullOrWhiteSpace(value) ? "参数" : value, true);
         }
-        #endregion
-        #region 参数类型
-        private string _parameterType = "设置值";
-        /// <summary>
-        /// 参数类型
-        /// </summary>
+
         public string ParameterType
         {
             get => _parameterType;
             set
             {
                 string normalizedValue = string.IsNullOrWhiteSpace(value) ? "设置值" : value.Trim();
-                if (!SetField(ref _parameterType, normalizedValue, true, nameof(ParameterType)))
+                if (!SetField(ref _parameterType, normalizedValue, nameof(ParameterType)))
                 {
                     return;
                 }
@@ -1104,29 +965,18 @@ namespace Module.Business.Features.SchemeConfiguration
                 OnPropertyChanged(nameof(UsesJudgeType));
             }
         }
-        #endregion
-        #region 判断类型
-        private string _judgeType = string.Empty;
-        /// <summary>
-        /// 判断类型
-        /// </summary>
+
         public string JudgeType
         {
             get => _judgeType;
-            set => SetField(ref _judgeType, (value ?? string.Empty).Trim());
+            set => SetField(ref _judgeType, value ?? string.Empty, true);
         }
-        #endregion
-        #region 判断条件
-        private string _judgeCondition = string.Empty;
-        /// <summary>
-        /// 判断条件
-        /// </summary>
+
         public string JudgeCondition
         {
             get => _judgeCondition;
-            set => SetField(ref _judgeCondition, (value ?? string.Empty).Trim());
+            set => SetField(ref _judgeCondition, value ?? string.Empty, true);
         }
-        #endregion
 
         [JsonIgnore]
         public bool UsesJudgeType => string.Equals(ParameterType, "判断值", StringComparison.OrdinalIgnoreCase);
@@ -1175,6 +1025,756 @@ namespace Module.Business.Features.SchemeConfiguration
                 JudgeType = JudgeType,
                 JudgeCondition = JudgeCondition
             };
+        }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// 方案配置，保存方案名称和工步引用快照。
+    /// </summary>
+    public sealed class SchemeProfile : ViewModelProperties
+    {
+        #region 私有字段
+
+        private string _id = Guid.NewGuid().ToString("N");
+        private string _schemeName = "方案 1";
+        private DateTime _lastModifiedAt = DateTime.Now;
+        private ObservableCollection<SchemeWorkStepItem> _steps = new();
+
+        #endregion
+
+        #region 构造方法
+
+        public SchemeProfile()
+        {
+            AttachSteps(_steps);
+        }
+
+        #endregion
+
+        #region 绑定属性
+
+        public string Id
+        {
+            get => _id;
+            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
+        }
+
+        public string SchemeName
+        {
+            get => _schemeName;
+            set
+            {
+                if (SetField(ref _schemeName, value ?? string.Empty, true))
+                {
+                    MarkModified();
+                }
+            }
+        }
+
+        public DateTime LastModifiedAt
+        {
+            get => _lastModifiedAt;
+            set
+            {
+                DateTime normalizedValue = value == default ? DateTime.Now : value;
+                if (SetField(ref _lastModifiedAt, normalizedValue))
+                {
+                    OnPropertyChanged(nameof(LastModifiedText));
+                }
+            }
+        }
+
+        public ObservableCollection<SchemeWorkStepItem> Steps
+        {
+            get => _steps;
+            set
+            {
+                if (ReferenceEquals(_steps, value))
+                {
+                    return;
+                }
+
+                DetachSteps(_steps);
+                _steps = value ?? new ObservableCollection<SchemeWorkStepItem>();
+                AttachSteps(_steps);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(StepCount));
+                MarkModified();
+            }
+        }
+
+        [JsonIgnore]
+        public int StepCount => Steps.Count;
+
+        [JsonIgnore]
+        public string LastModifiedText => $"最后修改：{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+
+        #endregion
+
+        #region 集合通知
+
+        private void AttachSteps(ObservableCollection<SchemeWorkStepItem> steps)
+        {
+            steps.CollectionChanged += Steps_CollectionChanged;
+            foreach (SchemeWorkStepItem step in steps)
+            {
+                step.PropertyChanged += Step_PropertyChanged;
+            }
+
+            RefreshStepDisplayOrders(steps);
+        }
+
+        private void DetachSteps(ObservableCollection<SchemeWorkStepItem> steps)
+        {
+            steps.CollectionChanged -= Steps_CollectionChanged;
+            foreach (SchemeWorkStepItem step in steps)
+            {
+                step.PropertyChanged -= Step_PropertyChanged;
+            }
+        }
+
+        private void Steps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                if (sender is ObservableCollection<SchemeWorkStepItem> movedSteps)
+                {
+                    RefreshStepDisplayOrders(movedSteps);
+                }
+
+                OnPropertyChanged(nameof(Steps));
+                MarkModified();
+                return;
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (SchemeWorkStepItem step in e.NewItems.OfType<SchemeWorkStepItem>())
+                {
+                    step.PropertyChanged += Step_PropertyChanged;
+                }
+            }
+
+            if (e.OldItems is not null)
+            {
+                foreach (SchemeWorkStepItem step in e.OldItems.OfType<SchemeWorkStepItem>())
+                {
+                    step.PropertyChanged -= Step_PropertyChanged;
+                }
+            }
+
+            if (sender is ObservableCollection<SchemeWorkStepItem> changedSteps)
+            {
+                RefreshStepDisplayOrders(changedSteps);
+            }
+
+            OnPropertyChanged(nameof(Steps));
+            OnPropertyChanged(nameof(StepCount));
+            MarkModified();
+        }
+
+        private void Step_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(SchemeWorkStepItem.IsStartupEnabled)
+                or nameof(SchemeWorkStepItem.WorkStepId)
+                or nameof(SchemeWorkStepItem.SchemeStepName)
+                or nameof(SchemeWorkStepItem.Operations)
+                or nameof(SchemeWorkStepItem.Parameters)
+                or nameof(SchemeWorkStepItem.LastModifiedAt)
+                or nameof(SchemeWorkStepItem.LastModifiedText))
+            {
+                OnPropertyChanged(nameof(Steps));
+                MarkModified();
+            }
+        }
+
+        private static void RefreshStepDisplayOrders(ObservableCollection<SchemeWorkStepItem> steps)
+        {
+            for (int index = 0; index < steps.Count; index++)
+            {
+                steps[index].DisplayOrder = index + 1;
+            }
+        }
+
+        #endregion
+
+        #region 复制方法
+
+        public SchemeProfile Clone()
+        {
+            return new SchemeProfile
+            {
+                Id = Id,
+                SchemeName = SchemeName,
+                LastModifiedAt = LastModifiedAt,
+                Steps = new ObservableCollection<SchemeWorkStepItem>(Steps.Select(step => step.Clone()))
+            };
+        }
+
+        public void MarkModified()
+        {
+            LastModifiedAt = DateTime.Now;
+        }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// 方案中的工步引用快照。
+    /// </summary>
+    public sealed class SchemeWorkStepItem : ViewModelProperties
+    {
+        private const string DisplayedViewDataSourceId = "__display_to_view__";
+
+        #region 私有字段
+
+        private string _id = Guid.NewGuid().ToString("N");
+        private bool _isStartupEnabled = true;
+        private string _workStepId = string.Empty;
+        private string _stepName = string.Empty;
+        private string _schemeStepName = string.Empty;
+        private DateTime _lastModifiedAt = DateTime.Now;
+        private int _displayOrder = 1;
+        private ObservableCollection<WorkStepOperation> _operations = new();
+        private ObservableCollection<SchemeWorkStepParameter> _parameters = new();
+
+        #endregion
+
+        #region 构造方法
+
+        public SchemeWorkStepItem()
+        {
+            AttachOperations(_operations);
+            AttachParameters(_parameters);
+        }
+
+        #endregion
+
+        #region 绑定属性
+
+        public string Id
+        {
+            get => _id;
+            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
+        }
+
+        public bool IsStartupEnabled
+        {
+            get => _isStartupEnabled;
+            set
+            {
+                if (SetField(ref _isStartupEnabled, value))
+                {
+                    LastModifiedAt = DateTime.Now;
+                }
+            }
+        }
+
+        public string WorkStepId
+        {
+            get => _workStepId;
+            set
+            {
+                if (SetField(ref _workStepId, value ?? string.Empty, true))
+                {
+                    LastModifiedAt = DateTime.Now;
+                }
+            }
+        }
+
+        public string StepName
+        {
+            get => _stepName;
+            set
+            {
+                if (SetField(ref _stepName, value ?? string.Empty, true))
+                {
+                    OnPropertyChanged(nameof(SchemeStepName));
+                    LastModifiedAt = DateTime.Now;
+                }
+            }
+        }
+
+        public string SchemeStepName
+        {
+            get => string.IsNullOrWhiteSpace(_schemeStepName) ? StepName : _schemeStepName;
+            set
+            {
+                string normalizedValue = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+                string storedValue = string.Equals(normalizedValue, StepName, StringComparison.OrdinalIgnoreCase)
+                    ? string.Empty
+                    : normalizedValue;
+
+                if (SetField(ref _schemeStepName, storedValue, true))
+                {
+                    LastModifiedAt = DateTime.Now;
+                }
+            }
+        }
+
+        public DateTime LastModifiedAt
+        {
+            get => _lastModifiedAt;
+            set
+            {
+                DateTime normalizedValue = value == default ? DateTime.Now : value;
+                if (SetField(ref _lastModifiedAt, normalizedValue))
+                {
+                    OnPropertyChanged(nameof(LastModifiedText));
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public int DisplayOrder
+        {
+            get => _displayOrder;
+            set => SetField(ref _displayOrder, Math.Max(1, value));
+        }
+
+        public ObservableCollection<WorkStepOperation> Operations
+        {
+            get => _operations;
+            set
+            {
+                if (ReferenceEquals(_operations, value))
+                {
+                    return;
+                }
+
+                DetachOperations(_operations);
+                _operations = value ?? new ObservableCollection<WorkStepOperation>();
+                AttachOperations(_operations);
+                OnPropertyChanged();
+                RefreshOperationSnapshot();
+                LastModifiedAt = DateTime.Now;
+            }
+        }
+
+        public ObservableCollection<SchemeWorkStepParameter> Parameters
+        {
+            get => _parameters;
+            set
+            {
+                if (ReferenceEquals(_parameters, value))
+                {
+                    return;
+                }
+
+                DetachParameters(_parameters);
+                _parameters = value ?? new ObservableCollection<SchemeWorkStepParameter>();
+                AttachParameters(_parameters);
+                OnPropertyChanged();
+                LastModifiedAt = DateTime.Now;
+            }
+        }
+
+        [JsonIgnore]
+        public string LastModifiedText => $"最后修改：{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+
+        #endregion
+
+        #region 集合通知
+
+        private void AttachOperations(ObservableCollection<WorkStepOperation> operations)
+        {
+            operations.CollectionChanged += Operations_CollectionChanged;
+            foreach (WorkStepOperation operation in operations)
+            {
+                operation.PropertyChanged += Operation_PropertyChanged;
+            }
+
+            RefreshOperationDisplayOrders(operations);
+            RefreshOperationSnapshot(updateLastModified: false);
+        }
+
+        private void DetachOperations(ObservableCollection<WorkStepOperation> operations)
+        {
+            operations.CollectionChanged -= Operations_CollectionChanged;
+            foreach (WorkStepOperation operation in operations)
+            {
+                operation.PropertyChanged -= Operation_PropertyChanged;
+            }
+        }
+
+        private void Operations_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                if (sender is ObservableCollection<WorkStepOperation> movedOperations)
+                {
+                    RefreshOperationDisplayOrders(movedOperations);
+                }
+
+                RefreshOperationSnapshot();
+                return;
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (WorkStepOperation operation in e.NewItems.OfType<WorkStepOperation>())
+                {
+                    operation.PropertyChanged += Operation_PropertyChanged;
+                }
+            }
+
+            if (e.OldItems is not null)
+            {
+                foreach (WorkStepOperation operation in e.OldItems.OfType<WorkStepOperation>())
+                {
+                    operation.PropertyChanged -= Operation_PropertyChanged;
+                }
+            }
+
+            if (sender is ObservableCollection<WorkStepOperation> changedOperations)
+            {
+                RefreshOperationDisplayOrders(changedOperations);
+            }
+
+            RefreshOperationSnapshot();
+        }
+
+        private void Operation_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(WorkStepOperation.OperationObject)
+                or nameof(WorkStepOperation.ProtocolName)
+                or nameof(WorkStepOperation.CommandName)
+                or nameof(WorkStepOperation.InvokeMethod)
+                or nameof(WorkStepOperation.ReturnValue)
+                or nameof(WorkStepOperation.ShowDataToView)
+                or nameof(WorkStepOperation.ViewDataName)
+                or nameof(WorkStepOperation.ViewJudgeType)
+                or nameof(WorkStepOperation.ViewJudgeCondition)
+                or nameof(WorkStepOperation.LuaScript)
+                or nameof(WorkStepOperation.DelayMilliseconds)
+                or nameof(WorkStepOperation.Remark)
+                or nameof(WorkStepOperation.ParameterCount)
+                or nameof(WorkStepOperation.DisplayText)
+                or nameof(WorkStepOperation.Parameters))
+            {
+                RefreshOperationSnapshot();
+            }
+        }
+
+        private void AttachParameters(ObservableCollection<SchemeWorkStepParameter> parameters)
+        {
+            parameters.CollectionChanged += Parameters_CollectionChanged;
+            foreach (SchemeWorkStepParameter parameter in parameters)
+            {
+                parameter.PropertyChanged += Parameter_PropertyChanged;
+            }
+        }
+
+        private void DetachParameters(ObservableCollection<SchemeWorkStepParameter> parameters)
+        {
+            parameters.CollectionChanged -= Parameters_CollectionChanged;
+            foreach (SchemeWorkStepParameter parameter in parameters)
+            {
+                parameter.PropertyChanged -= Parameter_PropertyChanged;
+            }
+        }
+
+        private void Parameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems is not null)
+            {
+                foreach (SchemeWorkStepParameter parameter in e.NewItems.OfType<SchemeWorkStepParameter>())
+                {
+                    parameter.PropertyChanged += Parameter_PropertyChanged;
+                }
+            }
+
+            if (e.OldItems is not null)
+            {
+                foreach (SchemeWorkStepParameter parameter in e.OldItems.OfType<SchemeWorkStepParameter>())
+                {
+                    parameter.PropertyChanged -= Parameter_PropertyChanged;
+                }
+            }
+
+            LastModifiedAt = DateTime.Now;
+        }
+
+        private void Parameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(SchemeWorkStepParameter.ParameterName)
+                or nameof(SchemeWorkStepParameter.ParameterType)
+                or nameof(SchemeWorkStepParameter.JudgeType)
+                or nameof(SchemeWorkStepParameter.JudgeCondition))
+            {
+                LastModifiedAt = DateTime.Now;
+            }
+        }
+
+        private static void RefreshOperationDisplayOrders(ObservableCollection<WorkStepOperation> operations)
+        {
+            for (int index = 0; index < operations.Count; index++)
+            {
+                operations[index].DisplayOrder = index + 1;
+            }
+        }
+
+        private void RefreshOperationSnapshot(bool updateLastModified = true)
+        {
+            ObservableCollection<SchemeWorkStepParameter> updatedParameters =
+                CreateParametersFromOperations(Operations, Parameters);
+            if (!HasSameSchemeStepParameters(_parameters, updatedParameters))
+            {
+                DetachParameters(_parameters);
+                _parameters = updatedParameters;
+                AttachParameters(_parameters);
+                OnPropertyChanged(nameof(Parameters));
+            }
+
+            if (updateLastModified)
+            {
+                LastModifiedAt = DateTime.Now;
+            }
+        }
+
+        #endregion
+
+        #region 工厂与复制方法
+
+        public static SchemeWorkStepItem FromWorkStep(WorkStepProfile workStep)
+        {
+            return new SchemeWorkStepItem
+            {
+                IsStartupEnabled = true,
+                WorkStepId = workStep.Id,
+                StepName = workStep.StepName,
+                LastModifiedAt = workStep.LastModifiedAt,
+                Operations = new ObservableCollection<WorkStepOperation>(workStep.Steps.Select(operation => operation.Clone())),
+                Parameters = CreateParametersFromWorkStep(workStep)
+            };
+        }
+
+        public SchemeWorkStepItem Clone()
+        {
+            return new SchemeWorkStepItem
+            {
+                Id = Id,
+                IsStartupEnabled = IsStartupEnabled,
+                WorkStepId = WorkStepId,
+                StepName = StepName,
+                SchemeStepName = _schemeStepName,
+                LastModifiedAt = LastModifiedAt,
+                Operations = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone())),
+                Parameters = new ObservableCollection<SchemeWorkStepParameter>(Parameters.Select(parameter => parameter.Clone()))
+            };
+        }
+
+        public WorkStepProfile ToWorkStepProfile()
+        {
+            return new WorkStepProfile
+            {
+                Id = string.IsNullOrWhiteSpace(WorkStepId) ? Guid.NewGuid().ToString("N") : WorkStepId,
+                StepName = SchemeStepName,
+                LastModifiedAt = LastModifiedAt,
+                Steps = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone()))
+            };
+        }
+
+        public static ObservableCollection<SchemeWorkStepParameter> CreateParametersFromWorkStep(
+            WorkStepProfile workStep,
+            IEnumerable<SchemeWorkStepParameter>? existingParameters = null)
+        {
+            return CreateParametersFromOperations(workStep.Steps, existingParameters);
+        }
+
+        public static ObservableCollection<SchemeWorkStepParameter> CreateParametersFromOperations(
+            IEnumerable<WorkStepOperation> operations,
+            IEnumerable<SchemeWorkStepParameter>? existingParameters = null)
+        {
+            List<WorkStepOperation> operationList = operations
+                .Where(operation => operation is not null)
+                .ToList();
+
+            List<string> displayJudgeTypeOptions = operationList
+                .Where(operation => operation.ShowDataToView && !string.IsNullOrWhiteSpace(operation.ViewJudgeType))
+                .Select(operation => operation.ViewJudgeType.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            Dictionary<string, SchemeWorkStepParameter> existingBySource = (existingParameters ?? Enumerable.Empty<SchemeWorkStepParameter>())
+                .Where(parameter => parameter is not null)
+                .GroupBy(parameter => BuildParameterSourceKey(parameter.SourceOperationId, parameter.SourceParameterId), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+            Dictionary<string, SchemeWorkStepParameter> existingByName = (existingParameters ?? Enumerable.Empty<SchemeWorkStepParameter>())
+                .Where(parameter => parameter is not null && !string.IsNullOrWhiteSpace(parameter.ParameterName))
+                .GroupBy(parameter => parameter.ParameterName.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            ObservableCollection<SchemeWorkStepParameter> parameters = new();
+            int parameterIndex = 1;
+            HashSet<string> addedDisplayedTypeKeys = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (WorkStepOperation operation in operationList)
+            {
+                foreach (WorkStepOperationParameter parameter in operation.Parameters.OrderBy(item => item.Sequence))
+                {
+                    if (!IsSchemeVisibleParameter(parameter))
+                    {
+                        continue;
+                    }
+
+                    string parameterName = ResolveParameterName(parameter, parameterIndex);
+                    string sourceKey = BuildParameterSourceKey(operation.Id, parameter.Id);
+
+                    if (!existingBySource.TryGetValue(sourceKey, out SchemeWorkStepParameter? existingParameter) &&
+                        !string.IsNullOrWhiteSpace(parameterName))
+                    {
+                        existingByName.TryGetValue(parameterName, out existingParameter);
+                    }
+
+                    SchemeWorkStepParameter schemeParameter = existingParameter?.Clone() ?? new SchemeWorkStepParameter();
+                    schemeParameter.SourceOperationId = operation.Id;
+                    schemeParameter.SourceParameterId = parameter.Id;
+                    schemeParameter.ParameterName = parameterName;
+                    schemeParameter.ReplaceJudgeTypeOptions(Array.Empty<string>());
+                    parameters.Add(schemeParameter);
+                    parameterIndex++;
+                }
+
+                if (!IsSchemeVisibleOperation(operation))
+                {
+                    continue;
+                }
+
+                string displayedParameterName = ResolveDisplayedViewDataName(operation, parameterIndex);
+                string displayedTypeKey = ResolveDisplayedViewDataKey(operation, displayedParameterName, parameterIndex);
+                if (!addedDisplayedTypeKeys.Add(displayedTypeKey))
+                {
+                    continue;
+                }
+
+                string displayedSourceKey = BuildParameterSourceKey(DisplayedViewDataSourceId, displayedTypeKey);
+
+                if (!existingBySource.TryGetValue(displayedSourceKey, out SchemeWorkStepParameter? displayedExistingParameter) &&
+                    !string.IsNullOrWhiteSpace(displayedParameterName))
+                {
+                    existingByName.TryGetValue(displayedParameterName, out displayedExistingParameter);
+                }
+
+                bool isNewDisplayedParameter = displayedExistingParameter is null;
+                SchemeWorkStepParameter displayedSchemeParameter = displayedExistingParameter?.Clone() ?? new SchemeWorkStepParameter();
+                displayedSchemeParameter.SourceOperationId = DisplayedViewDataSourceId;
+                displayedSchemeParameter.SourceParameterId = displayedTypeKey;
+                displayedSchemeParameter.ParameterName = displayedParameterName;
+                displayedSchemeParameter.ParameterType = isNewDisplayedParameter ? "判断值" : displayedSchemeParameter.ParameterType;
+                displayedSchemeParameter.JudgeType = operation.ViewJudgeType;
+                displayedSchemeParameter.JudgeCondition = operation.ViewJudgeCondition;
+                displayedSchemeParameter.ReplaceJudgeTypeOptions(displayJudgeTypeOptions);
+                parameters.Add(displayedSchemeParameter);
+                parameterIndex++;
+            }
+
+            return parameters;
+        }
+
+        private static bool IsSchemeVisibleOperation(WorkStepOperation operation)
+        {
+            return operation.ShowDataToView;
+        }
+
+        private static bool IsSchemeVisibleParameter(WorkStepOperationParameter parameter)
+        {
+            return string.Equals(parameter.Type, "工步值", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ResolveParameterName(WorkStepOperationParameter parameter, int index)
+        {
+            if (!string.IsNullOrWhiteSpace(parameter.Value))
+            {
+                return parameter.Value.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(parameter.ParameterName))
+            {
+                return parameter.ParameterName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(parameter.Description))
+            {
+                return parameter.Description.Trim();
+            }
+
+            return $"参数 {index}";
+        }
+
+        private static string ResolveDisplayedViewDataName(WorkStepOperation operation, int index)
+        {
+            if (!string.IsNullOrWhiteSpace(operation.ViewJudgeType))
+            {
+                return operation.ViewJudgeType.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(operation.ViewDataName))
+            {
+                return operation.ViewDataName.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
+            {
+                return operation.ReturnValue.Trim();
+            }
+
+            return $"显示数据 {index}";
+        }
+
+        private static string ResolveDisplayedViewDataKey(WorkStepOperation operation, string displayedParameterName, int index)
+        {
+            if (!string.IsNullOrWhiteSpace(operation.ViewJudgeType))
+            {
+                return operation.ViewJudgeType.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(displayedParameterName))
+            {
+                return displayedParameterName.Trim();
+            }
+
+            return $"显示数据_{index}";
+        }
+
+        private static string BuildParameterSourceKey(string? operationId, string? parameterId)
+        {
+            return $"{operationId?.Trim() ?? string.Empty}::{parameterId?.Trim() ?? string.Empty}";
+        }
+
+        private static bool HasSameSchemeStepParameters(
+            ObservableCollection<SchemeWorkStepParameter> left,
+            ObservableCollection<SchemeWorkStepParameter> right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < left.Count; index++)
+            {
+                SchemeWorkStepParameter leftParameter = left[index];
+                SchemeWorkStepParameter rightParameter = right[index];
+                if (!string.Equals(leftParameter.SourceOperationId, rightParameter.SourceOperationId, StringComparison.Ordinal) ||
+                    !string.Equals(leftParameter.SourceParameterId, rightParameter.SourceParameterId, StringComparison.Ordinal) ||
+                    !string.Equals(leftParameter.ParameterName, rightParameter.ParameterName, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(leftParameter.ParameterType, rightParameter.ParameterType, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(leftParameter.JudgeType, rightParameter.JudgeType, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(leftParameter.JudgeCondition, rightParameter.JudgeCondition, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         #endregion
