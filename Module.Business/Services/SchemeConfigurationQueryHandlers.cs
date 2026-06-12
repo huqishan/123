@@ -30,7 +30,7 @@ public sealed class GetBusinessSchemesRequestHandler
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var schemes = BusinessConfigurationStore.LoadCatalog()
+        var schemes = SchemeConfigurationStore.LoadCatalog()
             .Schemes
             .OrderBy(scheme => scheme.SchemeName, StringComparer.OrdinalIgnoreCase)
             .Select(scheme => new BusinessSchemeInfo(
@@ -90,7 +90,7 @@ public sealed class GetBusinessStationsRequestHandler
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var stations = BusinessConfigurationStore.LoadStationCatalog()
+        var stations = SchemeConfigurationStore.LoadStationCatalog()
             .Stations
             .OrderBy(station => station.StationCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(station => station.StationName, StringComparer.OrdinalIgnoreCase)

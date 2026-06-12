@@ -1,15 +1,19 @@
 using ControlLibrary;
+using ControlLibrary.ControlViews.Flowchart;
 using ControlLibrary.Controls.FlowchartEditor.Control;
 using ControlLibrary.Controls.FlowchartEditor.Models;
 using Microsoft.Win32;
+using Module.Business.Features.SchemeConfiguration;
 using Module.Business.Models;
 using Module.Business.Services;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -72,7 +76,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// <summary>
     /// 当前工位配置目录。
     /// </summary>
-    private readonly StationConfigurationCatalog _catalog = BusinessConfigurationStore.LoadStationCatalog();
+    private readonly StationConfigurationCatalog _catalog = SchemeConfigurationStore.LoadStationCatalog();
 
     /// <summary>
     /// 当前选中的工位。
@@ -113,6 +117,16 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// 当前流程图预览是否已暂停。
     /// </summary>
     private bool _isPaused;
+
+    /// <summary>
+    /// 当前流程图节点操作编辑器。
+    /// </summary>
+    private SchemeConfigurationViewModel? _nodeOperationEditor;
+
+    /// <summary>
+    /// 当前正在编辑的流程图节点编号。
+    /// </summary>
+    private Guid? _editingNodeId;
 
     /// <summary>
     /// 上一次新建或复制命令触发时间，用于防止连点。
@@ -290,6 +304,26 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// <summary>
     /// 当前是否允许编辑工位配置。
     /// </summary>
+    /// <summary>
+    /// 当前流程图节点操作编辑器。
+    /// </summary>
+    public SchemeConfigurationViewModel? NodeOperationEditor
+    {
+        get => _nodeOperationEditor;
+        private set
+        {
+            if (SetField(ref _nodeOperationEditor, value))
+            {
+                OnPropertyChanged(nameof(IsNodeOperationEditorOpen));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否正在编辑流程图节点操作。
+    /// </summary>
+    public bool IsNodeOperationEditorOpen => NodeOperationEditor is not null;
+
     public bool CanEdit => !IsExecuting;
 
     /// <summary>
@@ -446,7 +480,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
             return;
         }
 
-        BusinessConfigurationStore.SaveStationCatalog(_catalog);
+        SchemeConfigurationStore.SaveStationCatalog(_catalog);
         StationsView.Refresh();
         SetPageStatus($"已保存 {Stations.Count} 个工位。", SuccessBrush);
     }
@@ -535,6 +569,257 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// </summary>
     /// <param name="parameter">流程图编辑器控件。</param>
     /// <returns>异步预览执行任务。</returns>
+    #region 流程图节点操作编辑
+
+    /// <summary>
+    /// 打开流程图节点操作编辑器。
+    /// </summary>
+    public bool OpenNodeOperationEditor(FlowchartNodeInteractionEventArgs e, FlowchartDocument document)
+    {
+        if (!CanEditNode(e.NodeKind) || CanEdit != true || SelectedStation is null)
+        {
+            return false;
+        }
+
+        WorkStepOperation operation = DeserializeNodeOperation(e);
+        _editingNodeId = e.NodeId;
+
+        SchemeConfigurationViewModel operationEditor = new();
+        operationEditor.SetExternalReturnValueOptions(GetFlowchartReturnValueOptions(document, operationEditor));
+        operationEditor.SetOperationObjectOptionsForDecisionMode(e.NodeKind == FlowchartNodeKind.Decision);
+
+        WorkStepProfile temporaryWorkStep = new()
+        {
+            StepName = GetNodeEditorTitle(e.NodeKind),
+            Steps = new ObservableCollection<WorkStepOperation>()
+        };
+
+        WorkStepOperation editingOperation = operation.Clone();
+        if (e.NodeKind == FlowchartNodeKind.Decision &&
+            string.IsNullOrWhiteSpace(editingOperation.OperationObject))
+        {
+            editingOperation.OperationObject = SchemeConfigurationViewModel.JudgeOperationObjectName;
+        }
+
+        temporaryWorkStep.Steps.Add(editingOperation);
+        operationEditor.WorkSteps.Clear();
+        operationEditor.WorkSteps.Add(temporaryWorkStep);
+        operationEditor.SelectedWorkStep = temporaryWorkStep;
+        operationEditor.SelectedOperation = editingOperation;
+        operationEditor.OpenOperationDrawerForEdit(editingOperation);
+
+        NodeOperationEditor = operationEditor;
+        return true;
+    }
+
+    /// <summary>
+    /// 保存流程图节点操作编辑结果。
+    /// </summary>
+    public bool TrySaveNodeOperationEdit(FlowchartNodePanelView editor)
+    {
+        if (NodeOperationEditor is null || _editingNodeId is null || SelectedStation is null)
+        {
+            return false;
+        }
+
+        if (!NodeOperationEditor.TrySaveStepEditor())
+        {
+            return false;
+        }
+
+        WorkStepOperation? operation = NodeOperationEditor.CreateSelectedOperationSnapshot();
+        if (operation is null)
+        {
+            return false;
+        }
+
+        FlowchartDocument document = editor.CreateDocumentSnapshot();
+        FlowchartNodeDocument? node = document.Nodes.FirstOrDefault(item => item.Id == _editingNodeId.Value);
+        if (node is null)
+        {
+            CloseNodeOperationEditor();
+            return false;
+        }
+
+        node.MetadataJson = JsonSerializer.Serialize(operation);
+        node.Text = BuildNodeText(node.Kind, operation);
+
+        SelectedStation.FlowchartDocument = document;
+        editor.LoadDocumentSnapshot(document);
+
+        CloseNodeOperationEditor();
+        return true;
+    }
+
+    /// <summary>
+    /// 取消流程图节点操作编辑。
+    /// </summary>
+    public void CancelNodeOperationEdit()
+    {
+        NodeOperationEditor?.CloseStepEditor();
+        CloseNodeOperationEditor();
+    }
+
+    private void CloseNodeOperationEditor()
+    {
+        _editingNodeId = null;
+        NodeOperationEditor = null;
+    }
+
+    private static WorkStepOperation DeserializeNodeOperation(FlowchartNodeInteractionEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(e.MetadataJson))
+        {
+            if (TryDeserializeNodeOperationMetadata(e.MetadataJson, out WorkStepOperation? operation) &&
+                operation is not null)
+            {
+                return operation;
+            }
+        }
+
+        string[] lines = (e.Text ?? string.Empty)
+            .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+        string firstLine = lines
+            .Select(line => line?.Trim() ?? string.Empty)
+            .FirstOrDefault(line => !string.IsNullOrWhiteSpace(line))
+            ?? string.Empty;
+        string summary = NormalizeInlineText(lines.Skip(1));
+
+        string operationObject = ResolveOperationObject(e.NodeKind, firstLine);
+        WorkStepOperation operationTemplate = SchemeConfigurationViewModel.CreateDefaultOperation();
+        operationTemplate.OperationObject = operationObject;
+        operationTemplate.DeviceId = operationObject;
+        operationTemplate.Remark = summary;
+        return operationTemplate;
+    }
+
+    private static bool CanEditNode(FlowchartNodeKind nodeKind)
+    {
+        return nodeKind == FlowchartNodeKind.Process || nodeKind == FlowchartNodeKind.Decision;
+    }
+
+    private static string GetNodeEditorTitle(FlowchartNodeKind nodeKind)
+    {
+        return nodeKind == FlowchartNodeKind.Decision
+            ? "流程图判断块"
+            : "流程图处理块";
+    }
+
+    private static string BuildNodeText(FlowchartNodeKind nodeKind, WorkStepOperation operation)
+    {
+        string operationObject = string.IsNullOrWhiteSpace(operation.OperationObject)
+            ? GetDefaultNodeText(nodeKind)
+            : operation.OperationObject.Trim();
+        string summary = NormalizeInlineText(operation.Remark);
+
+        return string.IsNullOrWhiteSpace(summary)
+            ? operationObject
+            : $"{operationObject} {summary}";
+    }
+
+    private static string ResolveOperationObject(FlowchartNodeKind nodeKind, string firstLine)
+    {
+        if (string.IsNullOrWhiteSpace(firstLine))
+        {
+            return nodeKind == FlowchartNodeKind.Process
+                ? SchemeConfigurationViewModel.SystemOperationObjectName
+                : GetDefaultNodeText(nodeKind);
+        }
+
+        if (nodeKind == FlowchartNodeKind.Process &&
+            string.Equals(firstLine, "处理", StringComparison.Ordinal))
+        {
+            return SchemeConfigurationViewModel.SystemOperationObjectName;
+        }
+
+        return firstLine.Trim();
+    }
+
+    private static string GetDefaultNodeText(FlowchartNodeKind nodeKind)
+    {
+        return nodeKind switch
+        {
+            FlowchartNodeKind.Decision => "判断",
+            FlowchartNodeKind.Start => "开始",
+            FlowchartNodeKind.End => "结束",
+            _ => "处理"
+        };
+    }
+
+    private static IEnumerable<string> GetFlowchartReturnValueOptions(
+        FlowchartDocument document,
+        SchemeConfigurationViewModel operationEditorViewModel)
+    {
+        return document.Nodes
+            .SelectMany(node => GetNodeReturnValueOptions(node, operationEditorViewModel))
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<string> GetNodeReturnValueOptions(
+        FlowchartNodeDocument node,
+        SchemeConfigurationViewModel operationEditorViewModel)
+    {
+        if (!TryDeserializeNodeOperationMetadata(node.MetadataJson, out WorkStepOperation? operation) ||
+            operation is null)
+        {
+            yield break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
+        {
+            yield return operation.ReturnValue.Trim();
+        }
+
+        foreach (WorkStepOperationParameter parameter in operationEditorViewModel.CreateReturnParametersFromOperation(operation))
+        {
+            string value = string.IsNullOrWhiteSpace(parameter.ParameterName)
+                ? parameter.Value
+                : parameter.ParameterName;
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                yield return value.Trim();
+            }
+        }
+    }
+
+    private static bool TryDeserializeNodeOperationMetadata(string? metadataJson, out WorkStepOperation? operation)
+    {
+        operation = null;
+        if (string.IsNullOrWhiteSpace(metadataJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            operation = JsonSerializer.Deserialize<WorkStepOperation>(metadataJson);
+            return operation is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string NormalizeInlineText(string? text)
+    {
+        return NormalizeInlineText((text ?? string.Empty)
+            .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None));
+    }
+
+    private static string NormalizeInlineText(IEnumerable<string> values)
+    {
+        return string.Join(
+            " ",
+            values.Select(value => value?.Trim() ?? string.Empty)
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    #endregion
+
     private async Task ExecuteFlowchartAsync(object? parameter)
     {
         if (parameter is not FlowchartEditorControl editor || SelectedStation is null)

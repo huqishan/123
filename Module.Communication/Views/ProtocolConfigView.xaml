@@ -303,7 +303,7 @@ CornerRadius="999">
                                                          Text="{Binding SelectedProfile.ReplyAggregationMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
                                                 <TextBlock Margin="0,6,0,0"
                                                            Foreground="{DynamicResource AppMutedTextBrush}"
-                                                           Text="{Binding ReplyWaitHelpText}"
+                                                           Text="发送后可强制等待一段时间，把这段时间内收到的数据拼接为同一帧。填 0 表示不额外等待。"
                                                            TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Grid>
@@ -327,7 +327,7 @@ CornerRadius="999">
                                             <TextBlock Grid.Row="1"
                                                        Margin="0,8,0,0"
                                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                                       Text="{Binding PlaceholderHelpText}"
+                                                       Text="模板中使用 {{Placeholder}} 形式占位；占位符值会从模板自动提取，可在表格中填写对应值。"
                                                        TextWrapping="Wrap" />
 
                                             <Grid Grid.Row="2">
@@ -417,7 +417,7 @@ CornerRadius="999">
                                                        Grid.ColumnSpan="3"
                                                        Margin="0,8,0,0"
                                                        Foreground="{DynamicResource AppMutedTextBrush}"
-                                                       Text="{Binding ParseRuleHelpText}"
+                                                       Text="解析脚本使用 Lua 执行，只注入 data 一个变量表示当前返回数据。脚本只需 return 任意值，例如 return data; 或 return string.sub(data, 1, 2); 双击脚本编辑区可像流程图处理块一样弹出编辑界面。"
                                                        TextWrapping="Wrap" />
 
                                             <Grid Grid.Row="2">

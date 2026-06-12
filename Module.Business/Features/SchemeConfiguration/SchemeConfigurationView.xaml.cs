@@ -13,13 +13,12 @@ using System.Windows.Media.Animation;
 namespace Module.Business.Features.SchemeConfiguration
 {
     /// <summary>
-    /// 方案配置视图，负责工步拖拽、操作编辑抽屉和行内参数编辑。
+    /// 方案配置视图，负责方案工步拖拽、操作编辑抽屉和行内参数编辑。
     /// </summary>
     public partial class SchemeConfigurationView : UserControl
     {
         #region 拖拽数据格式
         private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
-        private const string OperationDragDataFormat = "Module.Business.WorkStepOperation";
         private const double OperationDrawerClosedOffset = 56d;
         private const double InlineParameterDrawerClosedOffset = 56d;
 
@@ -30,11 +29,7 @@ namespace Module.Business.Features.SchemeConfiguration
             new CubicEase { EasingMode = EasingMode.EaseOut };
 
         private Point _schemeStepDragStartPoint;
-        private Point _operationDragStartPoint;
-        private Point _operationMethodDragStartPoint;
         private SchemeWorkStepItem? _pendingDraggedSchemeStep;
-        private WorkStepOperation? _pendingDraggedOperation;
-        private StationOperationMethodItem? _pendingDraggedOperationMethod;
         private bool _isInlineParameterDrawerOpen;
 
         #endregion
@@ -57,7 +52,6 @@ namespace Module.Business.Features.SchemeConfiguration
         {
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-            HookOperationMethodDragEvents();
             Loaded += SchemeConfigurationView_Loaded;
             Unloaded += SchemeConfigurationView_Unloaded;
             UpdateOperationDrawerVisual(animate: false);
@@ -320,70 +314,6 @@ namespace Module.Business.Features.SchemeConfiguration
 
         #endregion
 
-        #region 方法指令拖拽
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private void HookOperationMethodDragEvents()
-        {
-            OperationMethodDataGrid.PreviewMouseLeftButtonDown += OperationMethodDataGrid_PreviewMouseLeftButtonDown;
-            OperationMethodDataGrid.PreviewMouseMove += OperationMethodDataGrid_PreviewMouseMove;
-            OperationMethodDataGrid.SelectionChanged += OperationMethodDataGrid_SelectionChanged;
-        }
-
-        /// <summary>
-        /// 处理状态或数据变更后的联动刷新。
-        /// </summary>
-        private void OperationMethodDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ViewModel is not null)
-            {
-                ViewModel.SelectedStationOperationMethod = OperationMethodDataGrid.SelectedItem as StationOperationMethodItem;
-            }
-        }
-
-        /// <summary>
-        /// 处理鼠标交互事件。
-        /// </summary>
-        private void OperationMethodDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            _operationMethodDragStartPoint = e.GetPosition(OperationMethodDataGrid);
-            _pendingDraggedOperationMethod = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as StationOperationMethodItem;
-        }
-
-        /// <summary>
-        /// 处理鼠标交互事件。
-        /// </summary>
-        private void OperationMethodDataGrid_PreviewMouseMove(object sender, MouseEventArgs e)
-        {
-            if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedOperationMethod is null)
-            {
-                return;
-            }
-
-            Point currentPoint = e.GetPosition(OperationMethodDataGrid);
-            if (Math.Abs(currentPoint.X - _operationMethodDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
-                Math.Abs(currentPoint.Y - _operationMethodDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
-            {
-                return;
-            }
-
-            WorkStepOperation? operation = ViewModel?.CreateStepFromInvokeMethodItem(_pendingDraggedOperationMethod);
-            _pendingDraggedOperationMethod = null;
-            if (operation is null)
-            {
-                return;
-            }
-
-            DataObject dataObject = new();
-            dataObject.SetData(OperationDragDataFormat, operation);
-            dataObject.SetData(DataFormats.StringFormat, operation.DisplayText);
-            DragDrop.DoDragDrop(OperationMethodDataGrid, dataObject, DragDropEffects.Copy);
-        }
-
-        #endregion
-
         #region 操作编辑抽屉
         /// <summary>
         /// 处理界面按钮点击事件。
@@ -404,175 +334,6 @@ namespace Module.Business.Features.SchemeConfiguration
             OperationsDataGrid.SelectedItem = operation;
             ViewModel?.OpenStepEditorForEdit(operation);
             e.Handled = true;
-        }
-
-        /// <summary>
-        /// 处理鼠标交互事件。
-        /// </summary>
-        private void OperationsDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (IsOperationSelectionCheckBox(e.OriginalSource as DependencyObject) ||
-                IsInlineEditableOperationCell(e.OriginalSource as DependencyObject))
-            {
-                _pendingDraggedOperation = null;
-                return;
-            }
-
-            _operationDragStartPoint = e.GetPosition(OperationsDataGrid);
-            _pendingDraggedOperation = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as WorkStepOperation;
-        }
-
-        /// <summary>
-        /// 处理鼠标交互事件。
-        /// </summary>
-        private void OperationsDataGrid_PreviewMouseMove(object sender, MouseEventArgs e)
-        {
-            if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedOperation is null)
-            {
-                return;
-            }
-
-            Point currentPoint = e.GetPosition(OperationsDataGrid);
-            if (Math.Abs(currentPoint.X - _operationDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
-                Math.Abs(currentPoint.Y - _operationDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
-            {
-                return;
-            }
-
-            WorkStepOperation draggedOperation = _pendingDraggedOperation;
-            _pendingDraggedOperation = null;
-
-            DataObject dataObject = new();
-            dataObject.SetData(OperationDragDataFormat, draggedOperation);
-            DragDrop.DoDragDrop(OperationsDataGrid, dataObject, DragDropEffects.Move);
-        }
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private void OperationsDataGrid_DragOver(object sender, DragEventArgs e)
-        {
-            if (!TryGetOperationDropInfo(e, out WorkStepOperation? draggedOperation, out _, out bool insertAfter, out bool isExistingOperation) ||
-                draggedOperation is null)
-            {
-                HideOperationDropIndicator();
-                e.Effects = DragDropEffects.None;
-                e.Handled = true;
-                return;
-            }
-
-            ShowOperationDropIndicator(FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject), insertAfter);
-            e.Effects = isExistingOperation ? DragDropEffects.Move : DragDropEffects.Copy;
-            e.Handled = true;
-        }
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private void OperationsDataGrid_DragLeave(object sender, DragEventArgs e)
-        {
-            HideOperationDropIndicator();
-        }
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private void OperationsDataGrid_Drop(object sender, DragEventArgs e)
-        {
-            if (TryGetOperationDropInfo(
-                    e,
-                    out WorkStepOperation? draggedOperation,
-                    out WorkStepOperation? targetOperation,
-                    out bool insertAfter,
-                    out bool isExistingOperation) &&
-                draggedOperation is not null)
-            {
-                if (isExistingOperation && targetOperation is not null)
-                {
-                    ViewModel?.MoveStep(draggedOperation, targetOperation, insertAfter);
-                }
-                else if (!isExistingOperation)
-                {
-                    ViewModel?.InsertStep(draggedOperation, targetOperation, insertAfter);
-                }
-            }
-
-            _pendingDraggedOperation = null;
-            HideOperationDropIndicator();
-            e.Handled = true;
-        }
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private bool TryGetOperationDropInfo(
-            DragEventArgs e,
-            out WorkStepOperation? draggedOperation,
-            out WorkStepOperation? targetOperation,
-            out bool insertAfter,
-            out bool isExistingOperation)
-        {
-            draggedOperation = e.Data.GetDataPresent(OperationDragDataFormat)
-                ? e.Data.GetData(OperationDragDataFormat) as WorkStepOperation
-                : null;
-            targetOperation = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item as WorkStepOperation;
-            insertAfter = false;
-            isExistingOperation = draggedOperation is not null &&
-                                  ViewModel?.ContainsCurrentStep(draggedOperation) == true;
-
-            if (draggedOperation is null)
-            {
-                return false;
-            }
-
-            DataGridRow? targetRow = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
-            if (targetRow is not null)
-            {
-                insertAfter = e.GetPosition(targetRow).Y > targetRow.ActualHeight / 2d;
-            }
-
-            if (isExistingOperation)
-            {
-                return targetOperation is not null && !ReferenceEquals(draggedOperation, targetOperation);
-            }
-
-            return ViewModel?.HasCurrentSchemeStep() == true;
-        }
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private void ShowOperationDropIndicator(DataGridRow? targetRow, bool insertAfter)
-        {
-            if (targetRow is null || OperationDropIndicatorCanvas is null || OperationDropIndicator is null)
-            {
-                HideOperationDropIndicator();
-                return;
-            }
-
-            double horizontalPadding = 8d;
-            double indicatorHeight = 3d;
-            double width = Math.Max(0d, OperationDropIndicatorCanvas.ActualWidth - horizontalPadding * 2);
-            Point rowTopLeft = targetRow.TranslatePoint(new Point(0, 0), OperationDropIndicatorCanvas);
-            double top = rowTopLeft.Y + (insertAfter ? targetRow.ActualHeight : 0d) - indicatorHeight / 2d;
-            top = Math.Clamp(top, 0d, Math.Max(0d, OperationDropIndicatorCanvas.ActualHeight - indicatorHeight));
-
-            OperationDropIndicator.Width = width;
-            OperationDropIndicator.Height = indicatorHeight;
-            Canvas.SetLeft(OperationDropIndicator, horizontalPadding);
-            Canvas.SetTop(OperationDropIndicator, top);
-            OperationDropIndicator.Visibility = Visibility.Visible;
-        }
-
-        /// <summary>
-        /// 处理拖拽交互逻辑。
-        /// </summary>
-        private void HideOperationDropIndicator()
-        {
-            if (OperationDropIndicator is not null)
-            {
-                OperationDropIndicator.Visibility = Visibility.Collapsed;
-            }
         }
 
         #endregion

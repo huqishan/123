@@ -76,7 +76,7 @@ public static class FlowchartExecutionService
             return FlowchartExecutionServiceResult.CreateFailure("Station name is required.", startTime: startTime, endTime: DateTime.Now);
         }
 
-        StationConfigurationCatalog catalog = BusinessConfigurationStore.LoadStationCatalog();
+        StationConfigurationCatalog catalog = SchemeConfigurationStore.LoadStationCatalog();
         StationProfile? station = catalog.Stations.FirstOrDefault(item =>
             string.Equals(item.StationName?.Trim(), normalizedStationName, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(item.StationCode?.Trim(), normalizedStationName, StringComparison.OrdinalIgnoreCase));
@@ -706,7 +706,7 @@ public static class FlowchartExecutionService
     /// </summary>
     private static string? ResolveStationName(string stationNameOrCode)
     {
-        StationConfigurationCatalog catalog = BusinessConfigurationStore.LoadStationCatalog();
+        StationConfigurationCatalog catalog = SchemeConfigurationStore.LoadStationCatalog();
         StationProfile? station = catalog.Stations.FirstOrDefault(item =>
             string.Equals(item.StationName?.Trim(), stationNameOrCode, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(item.StationCode?.Trim(), stationNameOrCode, StringComparison.OrdinalIgnoreCase));

@@ -1,3 +1,4 @@
+using ControlLibrary;
 using Module.Communication.ViewModels.PropertyVMs;
 using Shared.Abstractions.Enum;
 using Shared.Models.Communication;
@@ -359,7 +360,7 @@ namespace Module.Communication.Models
     /// <summary>
     /// 设备通信配置界面模型。
     /// </summary>
-    public sealed class DeviceCommunicationProfile : INotifyPropertyChanged
+    public sealed class DeviceCommunicationProfile : ViewModelProperties
     {
         #region 字段
 
@@ -401,11 +402,6 @@ namespace Module.Communication.Models
             ResetParametersToDefaults(raiseChanged: false);
             SupportedProtocols.CollectionChanged += SupportedProtocols_CollectionChanged;
         }
-
-        /// <summary>
-        /// 属性变更通知事件。
-        /// </summary>
-        public event PropertyChangedEventHandler? PropertyChanged;
 
         #endregion
 
@@ -738,34 +734,6 @@ namespace Module.Communication.Models
             }
         }
 
-        /// <summary>
-        /// 设置字段并触发属性变更通知。
-        /// </summary>
-        /// <typeparam name="T">字段类型。</typeparam>
-        /// <param name="field">待设置字段。</param>
-        /// <param name="value">新值。</param>
-        /// <param name="propertyName">属性名称。</param>
-        /// <returns>字段发生变化返回 true，否则返回 false。</returns>
-        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
-        {
-            if (Equals(field, value))
-            {
-                return false;
-            }
-
-            field = value;
-            OnPropertyChanged(propertyName);
-            return true;
-        }
-
-        /// <summary>
-        /// 触发属性变更通知。
-        /// </summary>
-        /// <param name="propertyName">属性名称。</param>
-        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
 
         /// <summary>
         /// 规范化通信配置类型标识。
@@ -782,4 +750,55 @@ namespace Module.Communication.Models
     }
 
     #endregion
+    public sealed class DeviceSupportedProtocol : ViewModelProperties
+    {
+        private string _protocolName = string.Empty;
+        private string _protocolFilePath = string.Empty;
+
+        public string ProtocolName
+        {
+            get => _protocolName;
+            set
+            {
+                if (SetField(ref _protocolName, value?.Trim() ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(DisplayProtocolName));
+                }
+            }
+        }
+
+        public string ProtocolFilePath
+        {
+            get => _protocolFilePath;
+            set
+            {
+                if (SetField(ref _protocolFilePath, value?.Trim() ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(DisplayProtocolFilePath));
+                }
+            }
+        }
+
+        public string DisplayProtocolName =>
+            string.IsNullOrWhiteSpace(ProtocolName) ? "未选择协议" : ProtocolName;
+
+        public string DisplayProtocolFilePath =>
+            string.IsNullOrWhiteSpace(ProtocolFilePath) ? "点击加载协议文件" : ProtocolFilePath;
+
+        public bool IsEmpty =>
+            string.IsNullOrWhiteSpace(ProtocolName) &&
+            string.IsNullOrWhiteSpace(ProtocolFilePath);
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
 }

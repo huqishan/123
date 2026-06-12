@@ -11,6 +11,10 @@
              VerticalAlignment="Stretch"
              d:DesignHeight="760"
              d:DesignWidth="1600">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="b2v" />
+    </UserControl.Resources>
+
     <Grid HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch">
         <Grid.ColumnDefinitions>
@@ -193,7 +197,7 @@
         <Grid x:Name="NodeOperationEditorHost"
               Grid.ColumnSpan="3"
               Panel.ZIndex="60"
-              Visibility="Collapsed">
+              Visibility="{Binding IsNodeOperationEditorOpen, Converter={StaticResource b2v}}">
             <Border Background="#59000000"
                     MouseLeftButtonDown="NodeOperationEditorBackdrop_MouseLeftButtonDown" />
 
@@ -204,7 +208,7 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Style="{StaticResource CardBorderStyle}">
-                <Grid DataContext="{Binding ElementName=NodeOperationEditorHost, Path=Tag}">
+                <Grid DataContext="{Binding NodeOperationEditor}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -225,7 +229,7 @@
                                    Text="{Binding PageStatusText}" />
                     </DockPanel>
 
-                    <businessViews:StationOperationEditorView Grid.Row="1" />
+                    <businessViews:OperationEditorView Grid.Row="1" />
 
                     <StackPanel Grid.Row="2"
                                 Margin="0,18,0,0"

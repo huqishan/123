@@ -19,7 +19,7 @@ namespace Module.Communication.ViewModels;
 
 public sealed class ProtocolConfigViewModel : ViewModelProperties
 {
-#region 构造方法
+    #region 构造方法
     public ProtocolConfigViewModel()
     {
         _previewUpdateDebounceTimer = new System.Windows.Threading.DispatcherTimer
@@ -53,8 +53,7 @@ public sealed class ProtocolConfigViewModel : ViewModelProperties
 
     #endregion
 
-
-#region 状态颜色与路径字段
+    #region 状态颜色与路径字段
     private static readonly string ProtocolConfigDirectory =
         Path.Combine(AppContext.BaseDirectory, "Config", "Protocol");
 
@@ -72,37 +71,55 @@ public sealed class ProtocolConfigViewModel : ViewModelProperties
 
     #region 私有状态字段
     private readonly Dictionary<ProtocolConfigProfile, string> _profileStorageFileNames = new();
-    private ProtocolConfigProfile? _selectedProfile;
-    private string _pageStatusText = "等待初始化";
-    private Brush _pageStatusBrush = NeutralBrush;
-    private string _requestPreviewStatusText = "等待输入";
-    private Brush _requestPreviewStatusBrush = NeutralBrush;
-    private string _responsePreviewStatusText = "等待输入";
-    private Brush _responsePreviewStatusBrush = NeutralBrush;
-    private string _requestPreviewText = "请先选择或创建一个协议配置。";
-    private string _responsePreviewText = "请填写示例返回数据后查看解析预览。";
-    private string _generatedCommandText = string.Empty;
-    private string _parsedResultText = string.Empty;
-    private string _searchText = string.Empty;
-    private bool _isCommandDrawerOpen;
     private readonly DispatcherTimer _previewUpdateDebounceTimer;
 
     #endregion
 
     #region 集合属性
+    #region 协议配置集合
+    /// <summary>
+    /// 协议配置集合。
+    /// </summary>
     public ObservableCollection<ProtocolConfigProfile> Profiles { get; } = new();
+    #endregion
 
+    #region 协议配置视图
+    /// <summary>
+    /// 协议配置列表视图。
+    /// </summary>
     public ICollectionView ProfilesView { get; private set; } = null!;
+    #endregion
 
+    #region 载荷格式选项
+    /// <summary>
+    /// 载荷格式下拉选项。
+    /// </summary>
     public ObservableCollection<ProtocolOption<ProtocolPayloadFormat>> PayloadFormats { get; } = new();
+    #endregion
 
+    #region 执行模式选项
+    /// <summary>
+    /// 执行模式下拉选项。
+    /// </summary>
     public ObservableCollection<ProtocolOption<ProtocolExecutionMode>> ExecutionModes { get; } = new();
+    #endregion
 
+    #region CRC 校验选项
+    /// <summary>
+    /// CRC 校验下拉选项。
+    /// </summary>
     public ObservableCollection<ProtocolOption<ProtocolCrcMode>> CrcModes { get; } = new();
+    #endregion
 
     #endregion
 
     #region 当前编辑属性
+    #region 当前协议配置
+    private ProtocolConfigProfile? _selectedProfile;
+
+    /// <summary>
+    /// 当前协议配置。
+    /// </summary>
     public ProtocolConfigProfile? SelectedProfile
     {
         get => _selectedProfile;
@@ -133,7 +150,14 @@ public sealed class ProtocolConfigViewModel : ViewModelProperties
             RaiseCommandStatesChanged();
         }
     }
+    #endregion
 
+    #region 搜索文本
+    private string _searchText = string.Empty;
+
+    /// <summary>
+    /// 搜索文本。
+    /// </summary>
     public string SearchText
     {
         get => _searchText;
@@ -147,7 +171,14 @@ public sealed class ProtocolConfigViewModel : ViewModelProperties
             ProfilesView?.Refresh();
         }
     }
+    #endregion
 
+    #region 指令抽屉打开状态
+    private bool _isCommandDrawerOpen;
+
+    /// <summary>
+    /// 指令抽屉打开状态。
+    /// </summary>
     public bool IsCommandDrawerOpen
     {
         get => _isCommandDrawerOpen;
@@ -159,87 +190,140 @@ public sealed class ProtocolConfigViewModel : ViewModelProperties
             }
         }
     }
+    #endregion
 
     #endregion
 
     #region 页面状态属性
+    #region 页面状态文本
+    private string _pageStatusText = "等待初始化";
+
+    /// <summary>
+    /// 页面状态文本。
+    /// </summary>
     public string PageStatusText
     {
         get => _pageStatusText;
         private set => SetField(ref _pageStatusText, value);
     }
+    #endregion
 
+    #region 页面状态颜色
+    private Brush _pageStatusBrush = NeutralBrush;
+
+    /// <summary>
+    /// 页面状态颜色。
+    /// </summary>
     public Brush PageStatusBrush
     {
         get => _pageStatusBrush;
         private set => SetField(ref _pageStatusBrush, value);
     }
+    #endregion
 
+    #region 发送预览状态文本
+    private string _requestPreviewStatusText = "等待输入";
+
+    /// <summary>
+    /// 发送预览状态文本。
+    /// </summary>
     public string RequestPreviewStatusText
     {
         get => _requestPreviewStatusText;
         private set => SetField(ref _requestPreviewStatusText, value);
     }
+    #endregion
 
+    #region 发送预览状态颜色
+    private Brush _requestPreviewStatusBrush = NeutralBrush;
+
+    /// <summary>
+    /// 发送预览状态颜色。
+    /// </summary>
     public Brush RequestPreviewStatusBrush
     {
         get => _requestPreviewStatusBrush;
         private set => SetField(ref _requestPreviewStatusBrush, value);
     }
+    #endregion
 
+    #region 返回预览状态文本
+    private string _responsePreviewStatusText = "等待输入";
+
+    /// <summary>
+    /// 返回预览状态文本。
+    /// </summary>
     public string ResponsePreviewStatusText
     {
         get => _responsePreviewStatusText;
         private set => SetField(ref _responsePreviewStatusText, value);
     }
+    #endregion
 
+    #region 返回预览状态颜色
+    private Brush _responsePreviewStatusBrush = NeutralBrush;
+
+    /// <summary>
+    /// 返回预览状态颜色。
+    /// </summary>
     public Brush ResponsePreviewStatusBrush
     {
         get => _responsePreviewStatusBrush;
         private set => SetField(ref _responsePreviewStatusBrush, value);
     }
+    #endregion
 
+    #region 发送预览文本
+    private string _requestPreviewText = "请先选择或创建一个协议配置。";
+
+    /// <summary>
+    /// 发送预览文本。
+    /// </summary>
     public string RequestPreviewText
     {
         get => _requestPreviewText;
         private set => SetField(ref _requestPreviewText, value);
     }
+    #endregion
 
+    #region 返回预览文本
+    private string _responsePreviewText = "请填写示例返回数据后查看解析预览。";
+
+    /// <summary>
+    /// 返回预览文本。
+    /// </summary>
     public string ResponsePreviewText
     {
         get => _responsePreviewText;
         private set => SetField(ref _responsePreviewText, value);
     }
+    #endregion
 
+    #region 生成指令文本
+    private string _generatedCommandText = string.Empty;
+
+    /// <summary>
+    /// 生成指令文本。
+    /// </summary>
     public string GeneratedCommandText
     {
         get => _generatedCommandText;
         private set => SetField(ref _generatedCommandText, value);
     }
+    #endregion
 
+    #region 解析结果文本
+    private string _parsedResultText = string.Empty;
+
+    /// <summary>
+    /// 解析结果文本。
+    /// </summary>
     public string ParsedResultText
     {
         get => _parsedResultText;
         private set => SetField(ref _parsedResultText, value);
     }
-
-    public string ReplyWaitHelpText =>
-        "发送后可强制等待一段时间，把这段时间内收到的数据拼接为同一帧。填 0 表示不额外等待。";
-
-    public string CrcHelpText =>
-        "发送帧预览会按当前 CRC 方式自动在末尾追加校验字节，便于直接检查最终报文。";
-
-    public string PlaceholderHelpText =>
-        "模板中使用 {{Placeholder}} 形式占位；占位符值会从模板自动提取，可在表格中填写对应值。";
-
-    public string ParseRuleHelpText =>
-        "解析脚本使用 Lua 执行，只注入 data 一个变量表示当前返回数据。脚本只需 return 任意值，例如 return data; 或 return string.sub(data, 1, 2); 双击脚本编辑区可像流程图处理块一样弹出编辑界面。";
-
-    public string WaitForResponseHelpText =>
-        "发送指令后等待设备返回数据，并允许对返回数据执行解析。";
-
-    public string ParseOnlyHelpText =>
-        "选中后执行时不发送指令，直接接收一帧数据并按返回格式和 Lua 脚本解析。";
+    #endregion
 
     #endregion
 
@@ -317,8 +401,7 @@ public sealed class ProtocolConfigViewModel : ViewModelProperties
 
     #endregion
 
-
-#region 初始化与生命周期方法
+    #region 初始化与生命周期方法
     /// <summary>
     /// 初始化协议页面的下拉选项。
     /// </summary>

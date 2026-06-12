@@ -160,7 +160,7 @@ public static class SchemeExecutionService
 
         try
         {
-            SchemeConfigurationCatalog catalog = BusinessConfigurationStore.LoadCatalog();
+            SchemeConfigurationCatalog catalog = SchemeConfigurationStore.LoadCatalog();
             SchemeProfile? scheme = catalog.Schemes.FirstOrDefault(item =>
                 string.Equals(item.SchemeName?.Trim(), normalizedSchemeName, StringComparison.OrdinalIgnoreCase));
             if (scheme is null)

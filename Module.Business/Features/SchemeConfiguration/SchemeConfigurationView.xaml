@@ -7,6 +7,7 @@
              xmlns:vm="clr-namespace:Module.Business.Features.SchemeConfiguration"
              xmlns:luaEditor="clr-namespace:ControlLibrary.ControlViews.LuaScrip;assembly=ControlLibrary"
              xmlns:converts="clr-namespace:ControlLibrary.Converts;assembly=ControlLibrary"
+             xmlns:operationEditingViews="clr-namespace:Module.Business.Features.OperationEditing"
              mc:Ignorable="d"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
@@ -61,17 +62,6 @@
                 <StackPanel>
                     <DockPanel LastChildFill="False">
                         <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{DynamicResource 方案配置}" />
-                        <Border DockPanel.Dock="Right"
-                                Margin="16,0,0,0"
-                                Padding="10,5"
-                                Background="{DynamicResource TabCardBackgroundBrush}"
-                                BorderBrush="{DynamicResource TabItemBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="999">
-                            <TextBlock FontWeight="SemiBold"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="{Binding SchemeCountText}" />
-                        </Border>
                     </DockPanel>
                     <TextBlock Margin="0,8,0,0"
                                Foreground="{DynamicResource AppMutedTextBrush}"
@@ -156,7 +146,7 @@ CornerRadius="999">
                     </Border>
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="0.78*" />
+                            <ColumnDefinition Width="420" />
                             <ColumnDefinition Width="16" />
                             <ColumnDefinition Width="1.35*" />
                         </Grid.ColumnDefinitions>
@@ -187,10 +177,6 @@ CornerRadius="12">
                                             <Button Margin="12,0,0,0"
                 Content="{DynamicResource 删除}"
                 Command="{Binding RemoveWorkStepFromSchemeCommand}"
-                Style="{StaticResource ActionButtonStyle}" />
-                                            <Button Margin="12,0,0,0"
-                Content="{DynamicResource 撤销}"
-                Command="{Binding UndoRemoveSchemeStepCommand}"
                 Style="{StaticResource ActionButtonStyle}" />
                                         </StackPanel>
                                     </DockPanel>
@@ -289,84 +275,7 @@ CornerRadius="12">
                                     </Grid>
                                 </Grid>
                                 
-                                <Grid x:Name="OperationDrawerHost" Margin="-16" Grid.ColumnSpan="3" Panel.ZIndex="30" Opacity="0" IsHitTestVisible="False">
-                                    <Border Background="#3A000000" MouseLeftButtonDown="OperationDrawerBackdrop_MouseLeftButtonDown" />
-
-                                    <Border Style="{StaticResource DrawerBorderStyle}">
-                                        <Border.RenderTransform>
-                                            <TranslateTransform x:Name="OperationDrawerTranslateTransform" X="-56" />
-                                        </Border.RenderTransform>
-
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="*" />
-                                            </Grid.RowDefinitions>
-
-                                            <DockPanel LastChildFill="False">
-                                                <StackPanel DockPanel.Dock="Left">
-                                                    <TextBlock Style="{StaticResource SectionTitleStyle}"
-                   Text="{Binding StepEditorTitle}" />
-                                                    <TextBlock Margin="0,8,0,0"
-                   Foreground="{DynamicResource AppMutedTextBrush}"
-                   Text="{Binding StepEditorHostStepName}" />
-                                                </StackPanel>
-                                                <StackPanel DockPanel.Dock="Right"
-                HorizontalAlignment="Right"
-                Orientation="Horizontal">
-                                                    <Button Content="{DynamicResource 取消}"
-                Command="{Binding CloseStepEditorCommand}"
-                Style="{StaticResource ActionButtonStyle}" />
-                                                    <Button Content="{DynamicResource 保存}"
-                Command="{Binding SaveStepEditorCommand}"
-                Style="{StaticResource PrimaryActionButtonStyle}" />
-                                                </StackPanel>
-                                            </DockPanel>
-                                            <StackPanel Margin="0,14,0,0" Grid.Row="1">
-                                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 操作对象}" />
-                                                <ComboBox x:Name="operationObj"
-Style="{StaticResource EditableInputComboBoxStyle}"
-ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-ItemsSource="{Binding OperationObjectCollection}"
-Text="{Binding EditingOperationObject, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                            <Grid Grid.Row="2">
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="*"/>
-                                                </Grid.RowDefinitions>
-                                                <StackPanel Margin="0,14,0,0" Visibility="{Binding ElementName=luaEditorGrid, Path=Visibility,Converter={StaticResource inv2V}}">
-                                                    <DockPanel Margin="0,0,0,8" LastChildFill="False">
-                                                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 支持的方法/指令}" />
-                                                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 拖拽到步骤编辑}" />
-                                                    </DockPanel>
-                                                    
-                                                </StackPanel>
-                                                <Grid x:Name="luaEditorGrid"
-                                                      Grid.Row="1"
-                                                      Margin="0,14,0,0"
-                                                      Visibility="{Binding ElementName=operationObj, Path=SelectedValue,Converter={StaticResource comp2V}, ConverterParameter='Lua'}">
-                                                    <luaEditor:LuaScriptCompilerView ScriptText="{Binding EditingLuaScript, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                </Grid>
-                                                <DataGrid x:Name="OperationMethodDataGrid" Grid.Row="1" Visibility="{Binding ElementName=luaEditorGrid, Path=Visibility,Converter={StaticResource inv2V}}"
-HorizontalScrollBarVisibility="Disabled"
-AutoGenerateColumns="False"
-IsReadOnly="True"
-ItemsSource="{Binding StationOperationMethodCollection}"
-SelectedItem="{Binding SelectedStationOperationMethod, Mode=TwoWay}"
-Style="{StaticResource ColumnsDataGridStyle}">
-                                                    <DataGrid.Columns>
-                                                        <DataGridTextColumn Width="1.2*"
-                  Header="{DynamicResource 方法/指令}"
-                  ElementStyle="{StaticResource CellTextBlockStyle}"
-                  Binding="{Binding InvokeMethod}" />
-                                                    </DataGrid.Columns>
-                                                </DataGrid>
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
+                                
                             </Grid>
                         </Border>
                         <Border Grid.Column="2"
@@ -410,7 +319,7 @@ CornerRadius="12">
                Text="{Binding CurrentSchemeStepName, TargetNullValue=未选择方案工步}" />
                                     <TextBlock Margin="0,6,0,0"
                Foreground="{DynamicResource AppMutedTextBrush}"
-               Text="{DynamicResource 双击步骤可打开完整编辑；直接修改操作对象和调用方法会同步参数，点击“...”可调整参数，拖拽可调整步骤顺序。}"
+               Text="{DynamicResource 双击步骤可打开完整编辑；直接修改操作对象和调用方法会同步参数，点击“...”可调整参数。}"
                TextWrapping="Wrap" />
                                 </StackPanel>
 
@@ -418,12 +327,6 @@ CornerRadius="12">
                                     <DataGrid x:Name="OperationsDataGrid" HorizontalScrollBarVisibility="Disabled"
               ItemsSource="{Binding StepCollection}"
               SelectedItem="{Binding SelectedStep, Mode=TwoWay}"
-              AllowDrop="True"
-              PreviewMouseLeftButtonDown="OperationsDataGrid_PreviewMouseLeftButtonDown"
-              PreviewMouseMove="OperationsDataGrid_PreviewMouseMove"
-              DragOver="OperationsDataGrid_DragOver"
-              DragLeave="OperationsDataGrid_DragLeave"
-              Drop="OperationsDataGrid_Drop"
               MouseDoubleClick="OperationsDataGrid_MouseDoubleClick"
               Style="{StaticResource ColumnsDataGridStyle}">
                                         <DataGrid.Columns>
@@ -506,17 +409,6 @@ CornerRadius="12">
                                 Binding="{Binding DelayMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </DataGrid.Columns>
                                     </DataGrid>
-
-                                    <Canvas x:Name="OperationDropIndicatorCanvas"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
-            IsHitTestVisible="False">
-                                        <Border x:Name="OperationDropIndicator"
-                Height="3"
-                CornerRadius="2"
-                Visibility="Collapsed"
-                Background="{DynamicResource PrimaryButtonBrush}" />
-                                    </Canvas>
 
                                     <Grid x:Name="InlineParameterDrawerHost"
                                           Panel.ZIndex="20"
@@ -801,6 +693,46 @@ CornerRadius="12">
             </Border>
 
             
+        </Grid>
+
+
+        <Grid x:Name="OperationDrawerHost" Width="840" Grid.ColumnSpan="3" HorizontalAlignment="Left" Panel.ZIndex="30" Opacity="0" IsHitTestVisible="False">
+            <Border Background="#3A000000" MouseLeftButtonDown="OperationDrawerBackdrop_MouseLeftButtonDown" />
+
+            <Border Style="{StaticResource DrawerBorderStyle}">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="OperationDrawerTranslateTransform" X="0" />
+                </Border.RenderTransform>
+
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel LastChildFill="False">
+                        <StackPanel DockPanel.Dock="Left">
+                            <TextBlock Style="{StaticResource SectionTitleStyle}"
+                   Text="{Binding StepEditorTitle}" />
+                            <TextBlock Margin="0,8,0,0"
+                   Foreground="{DynamicResource AppMutedTextBrush}"
+                   Text="{Binding StepEditorHostStepName}" />
+                        </StackPanel>
+                        <StackPanel DockPanel.Dock="Right"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal">
+                            <Button Content="{DynamicResource 取消}"
+                Command="{Binding CloseStepEditorCommand}"
+                Style="{StaticResource ActionButtonStyle}" />
+                            <Button Content="{DynamicResource 保存}"
+                Command="{Binding SaveStepEditorCommand}"
+                Style="{StaticResource PrimaryActionButtonStyle}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <operationEditingViews:OperationEditorView Grid.Row="2"/>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

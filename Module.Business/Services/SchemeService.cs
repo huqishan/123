@@ -5,9 +5,9 @@ using Shared.Infrastructure.Mediator;
 
 namespace Module.Business.Services;
 
-public class BusinessService : ModuleService
+public class SchemeService : ModuleService
 {
-    public BusinessService(
+    public SchemeService(
         IEventAggregator eventAggregator,
         IMediator mediator)
     {

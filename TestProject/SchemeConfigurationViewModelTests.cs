@@ -94,7 +94,7 @@ public class SchemeConfigurationViewModelTests
             Schemes = new ObservableCollection<SchemeProfile> { scheme }
         };
 
-        MethodInfo normalizeMethod = typeof(BusinessConfigurationStore).GetMethod(
+        MethodInfo normalizeMethod = typeof(SchemeConfigurationStore).GetMethod(
             "NormalizeCatalog",
             BindingFlags.NonPublic | BindingFlags.Static)!;
 
@@ -110,9 +110,7 @@ public class SchemeConfigurationViewModelTests
     {
         _ = Application.Current ?? new App();
 
-        Type editorStateType = typeof(SchemeConfigurationViewModel).Assembly
-            .GetType("Module.Business.Features.SchemeConfiguration.SchemeStepEditorState", throwOnError: true)!;
-        object editorState = Activator.CreateInstance(editorStateType)!;
+        SchemeConfigurationViewModel viewModel = new();
 
         WorkStepProfile workStep = new()
         {
@@ -146,13 +144,11 @@ public class SchemeConfigurationViewModelTests
         workStep.Steps.Add(previousOperation);
         workStep.Steps.Add(currentOperation);
 
-        editorStateType.GetProperty("SelectedWorkStep")!.SetValue(editorState, workStep);
-        editorStateType.GetMethod("OpenOperationDrawerForEdit")!.Invoke(editorState, new object[] { currentOperation });
+        viewModel.SelectedWorkStep = workStep;
+        viewModel.OpenOperationDrawerForEdit(currentOperation);
 
         ObservableCollection<WorkStepOperationParameter> editingParameters =
-            (ObservableCollection<WorkStepOperationParameter>)editorStateType
-                .GetProperty("EditingInvokeParameters")!
-                .GetValue(editorState)!;
+            viewModel.EditingInvokeParameters;
 
         WorkStepOperationParameter parameter = editingParameters[0];
         parameter.Type = "返回值";

@@ -43,12 +43,12 @@ internal static class WpfAppComposition
         BusinessOperationCatalog.Refresh();
 
         // Resolve long-lived module services that subscribe to application events.
-        _ = scope.Resolve<BusinessService>();
+        _ = scope.Resolve<SchemeService>();
     }
 
     private static void RegisterApplicationServices(ContainerBuilder builder)
     {
-        builder.RegisterType<BusinessService>().SingleInstance();
+        builder.RegisterType<SchemeService>().SingleInstance();
         builder.RegisterType<CommunicationService>()
             .AsSelf()
             .SingleInstance();

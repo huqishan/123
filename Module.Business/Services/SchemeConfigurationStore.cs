@@ -17,7 +17,7 @@ namespace Module.Business.Services;
 /// <summary>
 /// 业务配置持久化工具，负责方案、工位和流程图配置的加载、保存与规范化。
 /// </summary>
-public static class BusinessConfigurationStore
+public static class SchemeConfigurationStore
 {
     #region 配置目录与默认值
     /// <summary>
