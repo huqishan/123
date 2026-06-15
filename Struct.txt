@@ -1,0 +1,257 @@
+Module.Communication
+├─ Features
+│  ├─ ProtocolConfig
+│  │  ├─ Views（只放 XAML 和极少量 UI 事件桥接）
+│  │  │  ├─ ProtocolConfigView.xaml
+│  │  │  └─ ProtocolConfigView.xaml.cs
+│  │  ├─ ViewModels（页面状态、命令、事件响应、调用服务）
+│  │  │  ├─ ProtocolConfigViewModel.cs
+│  │  │  └─ PresentationModels（只服务界面显示的绑定项，）
+│  │  │     └─ ProtocolConfigVM.cs
+│  │  ├─ Models（可保存、可复用、表达配置本身的对象）
+│  │  │  └─ ProtocolConfigModels.cs
+│  │  └─ Services（文件读写、解析）
+│  │     ├─ ProtocolConfigService.cs
+│  │     ├─ ProtocolStore.cs
+│  │     ├─ ProtocolParser.cs
+│  │     ├─ ProtocolPreviewEngine.cs
+│  │     └─ CrcCalculator.cs
+│  │
+│  └─ DeviceCommunicationConfig
+│     ├─ Views（只放 XAML 和极少量 UI 事件桥接）
+│     │  ├─ DeviceCommunicationConfigView.xaml
+│     │  └─ DeviceCommunicationConfigView.xaml.cs
+│     ├─ ViewModels（页面状态、命令、事件响应、调用服务）
+│     │  └─ DeviceCommunicationConfigViewModel.cs
+│     │  └─ PresentationModels（只服务界面显示的绑定项，）
+│     │     └─ DeviceCommunicationConfigVM.cs
+│     ├─ Models（可保存、可复用、表达配置本身的对象）
+│     │  └─ DeviceCommunicationModels.cs
+│     └─ Services（文件读写、解析）
+│        ├─ DeviceCommunicationConfigService.cs
+│        ├─ DeviceCommunicationStore.cs
+│        └─ DeviceCommunicationTestSession.cs
+│ 
+├─ Configuration
+│  └─ DeviceCommunicationConfigRegistry.cs
+│
+├─ Services
+│  ├─ CommunicationService.cs
+│  └─ SendDeviceDataRequestHandler.cs
+│
+│
+└─ Module.Communication.csproj
+
+
+
+
+
+
+
+
+
+
+Module.Business
+├─ Features
+│  ├─ Scheme
+│  │  ├─ Views（只放 XAML 和极少量 UI 事件桥接）
+│  │  │  ├─ SchemeConfigurationView.xaml
+│  │  │  └─ SchemeConfigurationView.xaml.cs
+│  │  ├─ ViewModels（页面状态、命令、事件响应、调用服务）
+│  │  │  ├─ SchemeConfigurationViewModel.cs
+│  │  │  ├─ InlineParameterEditorViewModel.cs
+│  │  │  └─ PresentationModels（只服务界面显示的绑定项，）
+│  │  │     └─ SchemeConfigurationPresentationModels.cs
+│  │  ├─ Models（可保存、可复用、表达配置本身的对象）
+│  │  │  ├─ SchemeConfigurationModels.cs
+│  │  │  └─ StationOperationMethodItem.cs
+│  │  └─ Services（文件读写、解析、模块内调用通信）
+│  │     ├─ SchemeExecutionService.cs
+│  │     ├─ SchemeConfigurationStore.cs
+│  │     └─ ProtocolCommandMetadataStore.cs
+│  │
+│  ├─ Station
+│  │  ├─ Views
+│  │  │  ├─ StationConfigurationView.xaml
+│  │  │  └─ StationConfigurationView.xaml.cs
+│  │  ├─ ViewModels
+│  │  │  └─ PresentationModels
+│  │  │     └─ StationConfigurationPresentationModels.cs
+│  │  │  └─ StationConfigurationViewModel.cs
+│  │  ├─ Models
+│  │  │  ├─ StationConfigurationModels.cs
+│  │  │  └─ FlowchartConfigurationModels.cs
+│  │  └─ Services
+│  │     ├─ StationConfigurationStore.cs
+│  │     └─ FlowchartExecutionService.cs
+│  │
+│  ├─ LuaScript
+│  │  ├─ Views
+│  │  │  ├─ LuaScriptView.xaml
+│  │  │  └─ LuaScriptView.xaml.cs
+│  │  ├─ ViewModels
+│  │  │  ├─ LuaScriptViewModel.cs
+│  │  │  └─ PresentationModels
+│  │  │     └─ LuaScriptPresentationModels.cs
+│  │  ├─ Models
+│  │  │  └─ LuaScriptProfileDocument.cs
+│  │  └─ Services
+│  │     └─ LuaScriptConfigurationStore.cs
+│  │
+│  ├─ OperationEditing
+│  │  ├─ Views
+│  │  │  ├─ OperationEditorView.xaml
+│  │  │  └─ OperationEditorView.xaml.cs
+│  │  └─ ViewModels
+│  │  ├─ Models
+│  │  └─ Services
+│  │
+├─ BusinessOperations
+│  ├─ Models
+│  │  └─ BusinessOperationModels.cs
+│  └─ Services
+│  │  ├─ BusinessOperationCatalog.cs
+│  │  ├─ BusinessOperationInvoker.cs
+│  │  └─ BusinessOperationBindingResolver.cs
+│  │
+├─ Services（与其他模块间通信，并可以调用内部Services）
+│  └─ SchemeService.cs
+└─ Module.Business.csproj
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Module.MES
+├─ Features
+│  ├─ ApiConfig
+│  │  ├─ Views
+│  │  │  ├─ ApiConfigView.xaml
+│  │  │  └─ ApiConfigView.xaml.cs
+│  │  ├─ ViewModels
+│  │  │  ├─ ApiConfigViewModel.cs
+│  │  │  └─ PresentationModels
+│  │  │     └─ ApiConfigPresentationModel.cs
+│  │  ├─ Models
+│  │  └─ Services（文件读写、解析、模块内调用通信）
+│  │     ├─ ApiConfigService.cs
+│  │     ├─ ApiConfigStore.cs
+│  │     ├─ ApiConfigValidator.cs
+│  │     ├─ ApiRequestPreviewEngine.cs
+│  │     └─ ApiTestSession.cs
+│  │
+│  ├─ DataStructureConfig
+│  │  ├─ Views
+│  │  │  ├─ DataStructureConfigView.xaml
+│  │  │  └─ DataStructureConfigView.xaml.cs
+│  │  ├─ ViewModels
+│  │  │  ├─ DataStructureConfigViewModel.cs
+│  │  │  └─ PresentationModels
+│  │  │     └─ DataStructureConfigPresentationModel.cs
+│  │  ├─ Models
+│  │  └─ Services（文件读写、解析、模块内调用通信）
+│  │     ├─ DataStructureConfigService.cs
+│  │     ├─ DataStructureStore.cs
+│  │     ├─ DataStructureParser.cs
+│  │     └─ DataStructurePreviewEngine.cs
+│  │
+│  └─ SystemConfig
+│     ├─ Views
+│     │  ├─ MesSystemConfigView.xaml
+│     │  └─ MesSystemConfigView.xaml.cs
+│     ├─ ViewModels
+│     │  ├─ MesSystemConfigViewModel.cs
+│     │  └─ PresentationModels
+│     │     └─ MesSystemConfigPresentationModel.cs
+│     ├─ Models
+│     └─ Services（文件读写、解析、模块内调用通信）
+│        ├─ MesSystemConfigService.cs
+│        └─ MesSystemConfigStore.cs
+│
+├─ Configuration
+│  └─ MesConfigRegistry.cs
+│
+├─ Services（与其他模块间通信，并可以调用内部Services）
+│  ├─ MESService.cs
+│  └─ ExecuteMesRequestHandler.cs
+│
+└─ Module.MES.csproj
+
+
+
+
+
+
+
+
+
+Module.User
+├─ Features
+│  ├─ Authentication
+│  │  ├─ ViewModels
+│  │  │  └─ PresentationModels
+│  │  │     └─ AuthenticationPresentationModel.cs
+│  │  ├─ Models
+│  │  │  └─ AuthenticatedUser.cs
+│  │  └─ Services
+│  │     ├─ AuthenticationService.cs
+│  │     ├─ CurrentUserSession.cs
+│  │     ├─ PasswordProtector.cs
+│  │     └─ IAuthenticationService.cs
+│  │
+│  ├─ AccountManagement
+│  │  ├─ Views
+│  │  │  ├─ AccountManagementView.xaml
+│  │  │  └─ AccountManagementView.xaml.cs
+│  │  ├─ ViewModels
+│  │  │  ├─ AccountManagementViewModel.cs
+│  │  │  └─ PresentationModels
+│  │  │     └─ AccountManagementPresentationModel.cs
+│  │  ├─ Models
+│  │  │  ├─ AccountRecord.cs
+│  │  │  ├─ AccountCatalog.cs
+│  │  │  └─ AccountPermission.cs
+│  │  └─ Services
+│  │     ├─ AccountManagementService.cs
+│  │     ├─ AccountConfigurationStore.cs
+│  │     ├─ AccountValidator.cs
+│  │     └─ AccountPermissionResolver.cs
+│  │
+│  └─ PermissionConfiguration
+│     ├─ Views
+│     │  ├─ PermissionConfigurationView.xaml
+│     │  └─ PermissionConfigurationView.xaml.cs
+│     ├─ ViewModels
+│     │  ├─ PermissionConfigurationViewModel.cs
+│     │  └─ PresentationModels
+│     │     └─ PermissionConfigurationPresentationModel.cs
+│     ├─ Models
+│     │  ├─ UiPermissionModels.cs
+│     │  └─ UiPermissionTreeNode.cs
+│     └─ Services
+│        ├─ UiPermissionConfigurationService.cs
+│        ├─ UiPermissionConfigurationStore.cs
+│        ├─ UiPermissionDiscoveryService.cs
+│        └─ UiPermissionResolver.cs
+│
+├─ Configuration
+│  └─ UserConfigRegistry.cs
+│
+├─ Services
+│  ├─ UserService.cs
+│  ├─ UiPermissionRuntime.cs
+│  └─ SignInRequestHandler.cs
+│
+├─ Mediator
+│  └─ SignInRequest.cs
+│
+└─ Module.User.csproj

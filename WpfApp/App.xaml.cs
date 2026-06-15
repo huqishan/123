@@ -1,6 +1,6 @@
 using Autofac;
 using ControlLibrary;
-using Module.User.Services;
+using Module.User.Features.Authentication.Services;
 using Shared.Infrastructure.DependencyInjection;
 using System;
 using System.Reflection;

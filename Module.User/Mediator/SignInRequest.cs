@@ -1,5 +1,5 @@
 using Shared.Infrastructure.Mediator;
-using Module.User.Services;
+using Module.User.Features.Authentication.Services;
 
 namespace Module.User.Mediator;
 

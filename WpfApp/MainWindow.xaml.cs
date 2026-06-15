@@ -1,5 +1,6 @@
-﻿using ControlLibrary;
+using ControlLibrary;
 using ControlLibrary.Controls.Navigation.Models;
+using Module.User.Features.Authentication.Services;
 using Module.User.Services;
 using Shared.Infrastructure.Events;
 using System;

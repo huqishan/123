@@ -1,0 +1,257 @@
+using ControlLibrary.ControlViews.LuaScrip;
+using Module.Communication.Features.ProtocolConfig.Models;
+using Module.Communication.Features.ProtocolConfig.Services;
+using Module.Communication.Features.ProtocolConfig.ViewModels;
+using System;
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+
+namespace Module.Communication.Features.ProtocolConfig.Views
+{
+    /// <summary>
+    /// 协议配置界面的界面交互代码，仅保留必要的抽屉动画与生命周期桥接。
+    /// </summary>
+    public partial class ProtocolConfigView : UserControl
+    {
+        #region 抽屉动画字段
+        private const double CommandDrawerClosedOffset = 56d;
+        private static readonly Duration CommandDrawerAnimationDuration = new(TimeSpan.FromMilliseconds(220));
+        private static readonly IEasingFunction CommandDrawerEasing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        private ProtocolConfigViewModel? _attachedViewModel;
+        private ProtocolCommandConfig? _editingParseRuleCommand;
+        private string _originalParseRuleScript = string.Empty;
+
+        #endregion
+
+        #region 构造与生命周期
+        public ProtocolConfigView()
+        {
+            InitializeComponent();
+        }
+
+        public ProtocolConfigView(ProtocolConfigViewModel viewModel)
+        {
+            InitializeComponent();
+            DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+
+            AttachViewModelEvents();
+            DataContextChanged += ProtocolConfigView_DataContextChanged;
+            Loaded += ProtocolConfigView_Loaded;
+            Unloaded += ProtocolConfigView_Unloaded;
+        }
+
+        private ProtocolConfigViewModel? ViewModel => DataContext as ProtocolConfigViewModel;
+
+        private void ProtocolConfigView_Loaded(object sender, RoutedEventArgs e)
+        {
+            AttachViewModelEvents();
+            ViewModel?.OnViewLoaded();
+            UpdateCommandDrawerVisual(animate: false);
+        }
+
+        private void ProtocolConfigView_Unloaded(object sender, RoutedEventArgs e)
+        {
+            ViewModel?.OnViewUnloaded();
+            DetachViewModelEvents();
+        }
+
+        private void ProtocolConfigView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            AttachViewModelEvents();
+            UpdateCommandDrawerVisual(animate: false);
+        }
+
+        #endregion
+
+        #region 纯界面交互
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ProtocolConfigViewModel.IsCommandDrawerOpen))
+            {
+                UpdateCommandDrawerVisual(animate: true);
+            }
+        }
+
+        private void CommandListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not ListBox listBox)
+            {
+                return;
+            }
+
+            ListBoxItem? clickedItem = ItemsControl.ContainerFromElement(
+                listBox,
+                e.OriginalSource as DependencyObject) as ListBoxItem;
+
+            if (clickedItem?.DataContext is not ProtocolCommandConfig)
+            {
+                return;
+            }
+
+            ViewModel?.OpenCommandDrawer();
+        }
+
+        private void CommandDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            ViewModel?.CloseCommandDrawer();
+        }
+
+        private void ParseRulesLuaEditor_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            ProtocolCommandConfig? command = ViewModel?.SelectedProfile?.SelectedCommand;
+            if (command is null)
+            {
+                return;
+            }
+
+            _editingParseRuleCommand = command;
+            _originalParseRuleScript = command.ParseRulesText;
+            ParseRuleCompilerView.ScriptText = command.ParseRulesText;
+            ParseRuleCompilerView.ExecutionPrefixScript = string.Empty;
+            if (ProtocolPreviewEngine.TryBuildLuaParseExecutionPrefix(command, out string prefixScript, out _))
+            {
+                ParseRuleCompilerView.ExecutionPrefixScript = prefixScript;
+            }
+
+            ParseRuleEditorHost.Visibility = Visibility.Visible;
+            e.Handled = true;
+        }
+
+        private void ParseRuleEditorSaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_editingParseRuleCommand is not null)
+            {
+                _editingParseRuleCommand.ParseRulesText = ParseRuleCompilerView.ScriptText;
+            }
+
+            CloseParseRuleEditor();
+        }
+
+        private void ParseRuleEditorCancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_editingParseRuleCommand is not null)
+            {
+                _editingParseRuleCommand.ParseRulesText = _originalParseRuleScript;
+            }
+
+            CloseParseRuleEditor();
+        }
+
+        private void ParseRuleEditorBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            ParseRuleEditorCancelButton_Click(sender, e);
+        }
+
+        private void CloseParseRuleEditor()
+        {
+            ParseRuleEditorHost.Visibility = Visibility.Collapsed;
+            ParseRuleCompilerView.ScriptText = string.Empty;
+            ParseRuleCompilerView.ExecutionPrefixScript = string.Empty;
+            _editingParseRuleCommand = null;
+            _originalParseRuleScript = string.Empty;
+        }
+
+        #endregion
+
+        #region ViewModel事件订阅
+        /// <summary>
+        /// 视图切换回来时恢复 ViewModel 事件订阅，保证抽屉开关状态能够立刻刷新到界面。
+        /// </summary>
+        private void AttachViewModelEvents()
+        {
+            ProtocolConfigViewModel? viewModel = ViewModel;
+            if (ReferenceEquals(_attachedViewModel, viewModel))
+            {
+                return;
+            }
+
+            DetachViewModelEvents();
+
+            if (viewModel is null)
+            {
+                return;
+            }
+
+            viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            _attachedViewModel = viewModel;
+        }
+
+        /// <summary>
+        /// 视图卸载或 DataContext 切换时退订事件，避免重复订阅和旧 ViewModel 残留。
+        /// </summary>
+        private void DetachViewModelEvents()
+        {
+            if (_attachedViewModel is null)
+            {
+                return;
+            }
+
+            _attachedViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            _attachedViewModel = null;
+        }
+
+        #endregion
+
+        #region 抽屉动画方法
+        private void UpdateCommandDrawerVisual(bool animate)
+        {
+            if (CommandDrawerHost is null || CommandDrawerTranslateTransform is null)
+            {
+                return;
+            }
+
+            bool isOpen = ViewModel?.IsCommandDrawerOpen == true;
+            double targetOpacity = isOpen ? 1d : 0d;
+            double targetOffset = isOpen ? 0d : CommandDrawerClosedOffset;
+
+            if (isOpen)
+            {
+                CommandDrawerHost.IsHitTestVisible = true;
+            }
+
+            if (!animate)
+            {
+                CommandDrawerHost.BeginAnimation(UIElement.OpacityProperty, null);
+                CommandDrawerTranslateTransform.BeginAnimation(TranslateTransform.YProperty, null);
+                CommandDrawerHost.Opacity = targetOpacity;
+                CommandDrawerTranslateTransform.Y = targetOffset;
+                CommandDrawerHost.IsHitTestVisible = isOpen;
+                return;
+            }
+
+            DoubleAnimation opacityAnimation = new()
+            {
+                To = targetOpacity,
+                Duration = CommandDrawerAnimationDuration,
+                EasingFunction = CommandDrawerEasing
+            };
+
+            if (!isOpen)
+            {
+                opacityAnimation.Completed += (_, _) =>
+                {
+                    if (ViewModel?.IsCommandDrawerOpen != true)
+                    {
+                        CommandDrawerHost.IsHitTestVisible = false;
+                    }
+                };
+            }
+
+            DoubleAnimation translateAnimation = new()
+            {
+                To = targetOffset,
+                Duration = CommandDrawerAnimationDuration,
+                EasingFunction = CommandDrawerEasing
+            };
+
+            CommandDrawerHost.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
+            CommandDrawerTranslateTransform.BeginAnimation(TranslateTransform.YProperty, translateAnimation);
+        }
+
+        #endregion
+    }
+}

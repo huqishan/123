@@ -90,7 +90,7 @@ public sealed class GetBusinessStationsRequestHandler
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var stations = SchemeConfigurationStore.LoadStationCatalog()
+        var stations = StationConfigurationStore.LoadCatalog()
             .Stations
             .OrderBy(station => station.StationCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(station => station.StationName, StringComparer.OrdinalIgnoreCase)

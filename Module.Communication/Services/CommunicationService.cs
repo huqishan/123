@@ -1,6 +1,9 @@
 using ControlLibrary;
 using ControlLibrary.Models.MediatorModels.Communication;
-using Module.Communication.Models;
+using Module.Communication.Configuration;
+using Module.Communication.Features.DeviceCommunicationConfig.Models;
+using Module.Communication.Features.ProtocolConfig.Models;
+using Module.Communication.Features.ProtocolConfig.Services;
 using Shared.Abstractions.Enum;
 using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Extensions;
@@ -16,7 +19,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Module.Communication.ViewModels.PropertyVMs;
 using Shared.Abstractions.ICommunication;
 
 namespace Module.Communication.Services

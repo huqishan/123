@@ -1,5 +1,9 @@
 using ControlLibrary.Controls.Navigation.Models;
-using Module.User.Models;
+using Module.User.Features.AccountManagement.Models;
+using Module.User.Features.Authentication.Models;
+using Module.User.Features.Authentication.Services;
+using Module.User.Features.PermissionConfiguration.Models;
+using Module.User.Features.PermissionConfiguration.Services;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -16,7 +20,7 @@ public static class UiPermissionRuntime
     #region 权限运行时字段
 
     private const string PermissionConfigurationViewTypeName =
-        "Module.User.Views.PermissionConfigurationView";
+        "Module.User.Features.PermissionConfiguration.Views.PermissionConfigurationView";
 
     private static readonly object OriginalVisibilityNotCaptured = new();
     private static readonly object OriginalIsEnabledNotCaptured = new();

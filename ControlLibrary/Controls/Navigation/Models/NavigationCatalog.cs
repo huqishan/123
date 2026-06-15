@@ -15,24 +15,24 @@ public static class NavigationCatalog
             new("MES", IconFactory.Boxes, null,
                 new ObservableCollection<ControlInfoDataItem>
                 {
-                    new("接口配置", IconFactory.PlugZap, "Module.MES.Views.ApiConfigView, Module.MES", null),
-                    new("结构配置", IconFactory.Network, "Module.MES.Views.DataStructureConfigView, Module.MES", null),
-                    new("通讯配置", IconFactory.MessageSquareCode, "Module.MES.Views.CommunicationConfigView, Module.MES", null)
+                    new("接口配置", IconFactory.PlugZap, "Module.MES.Features.ApiConfig.Views.ApiConfigView, Module.MES", null),
+                    new("结构配置", IconFactory.Network, "Module.MES.Features.DataStructureConfig.Views.DataStructureConfigView, Module.MES", null),
+                    new("通讯配置", IconFactory.MessageSquareCode, "Module.MES.Features.SystemConfig.Views.MesSystemConfigView, Module.MES", null)
                 },
                 description: "制造执行"),
             new("设备管理", IconFactory.Cpu, null,
                 new ObservableCollection<ControlInfoDataItem>
                 {
-                    new("设备通信配置", IconFactory.Router, "Module.Communication.Views.DeviceCommunicationConfigView, Module.Communication", null),
-                    new("协议配置", IconFactory.FileCog, "Module.Communication.Views.ProtocolConfigView, Module.Communication", null)
+                    new("设备通信配置", IconFactory.Router, "Module.Communication.Features.DeviceCommunicationConfig.Views.DeviceCommunicationConfigView, Module.Communication", null),
+                    new("协议配置", IconFactory.FileCog, "Module.Communication.Features.ProtocolConfig.Views.ProtocolConfigView, Module.Communication", null)
                 },
                 description: "设备"),
             new("业务管理", IconFactory.Cpu, null,
                 new ObservableCollection<ControlInfoDataItem>
                 {
-                    new("方案配置", IconFactory.FileCog, "Module.Business.Features.SchemeConfiguration.SchemeConfigurationView, Module.Business", null),
-                    new("工位配置", IconFactory.Cpu, "Module.Business.Features.StationConfiguration.StationConfigurationView, Module.Business", null),
-                    new("脚本管理", IconFactory.Workflow, "Module.Business.Features.LuaScript.LuaScriptView, Module.Business", null),
+                    new("方案配置", IconFactory.FileCog, "Module.Business.Features.Scheme.Views.SchemeConfigurationView, Module.Business", null),
+                    new("工位配置", IconFactory.Cpu, "Module.Business.Features.Station.Views.StationConfigurationView, Module.Business", null),
+                    new("脚本管理", IconFactory.Workflow, "Module.Business.Features.LuaScript.Views.LuaScriptView, Module.Business", null),
                 },
                 description: "业务"),
             new("数据管理", IconFactory.Cpu, null,
@@ -46,8 +46,8 @@ public static class NavigationCatalog
             new("用户管理", IconFactory.Cpu, null,
                 new ObservableCollection<ControlInfoDataItem>
                 {
-                    new("账号", IconFactory.Router, "Module.User.Views.AccountManagementView, Module.User", null),
-                    new("权限配置", IconFactory.Workflow, "Module.User.Views.PermissionConfigurationView, Module.User", null)
+                    new("账号", IconFactory.Router, "Module.User.Features.AccountManagement.Views.AccountManagementView, Module.User", null),
+                    new("权限配置", IconFactory.Workflow, "Module.User.Features.PermissionConfiguration.Views.PermissionConfigurationView, Module.User", null)
                 },
                 description: "用户"),
         };

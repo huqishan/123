@@ -1,0 +1,121 @@
+﻿<UserControl x:Class="Module.Business.Features.LuaScript.Views.LuaScriptView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:ControlLibrary.ControlViews.LuaScrip;assembly=ControlLibrary"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+
+    </UserControl.Resources>
+
+    <Grid Background="{x:Null}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="400" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        
+        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{DynamicResource Lua 脚本编辑页}" />
+                    <TextBlock Margin="0,8,0,0" x:Name="title"
+                       Foreground="{DynamicResource AppMutedTextBrush}"
+                       Text="{DynamicResource 用于创建、复制、删除和保存多个 Lua 脚本，可在右侧编辑脚本内容并执行查看返回或错误。}"
+                       TextWrapping="Wrap" />
+                </StackPanel>
+
+                <UniformGrid Grid.Row="1" Columns="4" Margin="0,18,0,16">
+                    <Button Content="{DynamicResource 新建}"
+                    Command="{Binding NewProfileCommand}"
+                    Style="{StaticResource PrimaryActionButtonStyle}"/>
+                    <Button Content="{DynamicResource 复制}"
+                    Command="{Binding DuplicateProfileCommand}"
+                    Style="{StaticResource ActionButtonStyle}"/>
+                    <Button Content="{DynamicResource 删除}"
+                    Command="{Binding DeleteProfileCommand}"
+                    Style="{StaticResource ActionButtonStyle}"/>
+                    <Button Content="{DynamicResource 保存}"
+                    Command="{Binding SaveProfilesCommand}"
+                    Style="{StaticResource ActionButtonStyle}"/>
+                </UniformGrid>
+
+                <ListBox Grid.Row="2"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 ItemContainerStyle="{StaticResource ListBoxItemStyle}"
+                 ItemsSource="{Binding Profiles}"
+                 SelectedItem="{Binding SelectedProfile, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AppContentTextBrush}"
+                                           Text="{Binding Name}" />
+                                <TextBlock Margin="0,5,0,0"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="{Binding Summary}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+        <Grid Grid.Column="2"
+      HorizontalAlignment="Stretch"
+      VerticalAlignment="Stretch">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="16" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    MinHeight="130"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{DynamicResource 当前脚本}" />
+                            <Border HorizontalAlignment="Right"
+Margin="16,0,0,0"
+Padding="12,6"
+VerticalAlignment="Top"
+Background="{DynamicResource TabCardBackgroundBrush}"
+BorderBrush="{DynamicResource TabItemBorderBrush}"
+BorderThickness="1"
+CornerRadius="999">
+                                <TextBlock FontWeight="SemiBold"
+       Foreground="{Binding PageStatusBrush}"
+       Text="{Binding PageStatusText}" />
+                            </Border>
+                        </DockPanel>
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="{DynamicResource 脚本名称}" />
+                        <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                 Text="{Binding SelectedProfile.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="{Binding SelectedProfile.Summary}"
+                                   TextWrapping="Wrap" />
+
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <controls:LuaScriptCompilerView Grid.Row="2"
+                                      ScriptText="{Binding SelectedProfile.ScriptText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </Grid>
+        
+    </Grid>
+</UserControl>

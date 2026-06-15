@@ -18,10 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Features\StationConfiguration\StationConfigurationView.xaml.cs">
+    <Compile Update="Features\Station\Views\StationConfigurationView.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Features\LuaScript\LuaScriptView.xaml.cs">
+    <Compile Update="Features\LuaScript\Views\LuaScriptView.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

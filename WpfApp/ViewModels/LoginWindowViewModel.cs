@@ -1,6 +1,7 @@
 using ControlLibrary;
 using Module.User.Mediator;
-using Module.User.Services;
+using Module.User.Features.AccountManagement.Services;
+using Module.User.Features.Authentication.Services;
 using Shared.Infrastructure.Mediator;
 using System;
 using System.Windows.Media;
