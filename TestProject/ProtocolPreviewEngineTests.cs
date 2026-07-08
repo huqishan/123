@@ -1,5 +1,5 @@
-using Module.Communication.Models;
-using Module.Communication.ViewModels.PropertyVMs;
+using Module.Communication.Features.ProtocolConfig.Models;
+using Module.Communication.Features.ProtocolConfig.Services;
 using System.Text.Json;
 
 namespace TestProject;

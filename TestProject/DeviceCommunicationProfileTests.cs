@@ -1,6 +1,7 @@
-using Module.Communication.Models;
-using Module.Communication.Views;
-using Module.Communication.ViewModels;
+using Module.Communication.Configuration;
+using Module.Communication.Features.DeviceCommunicationConfig.Models;
+using Module.Communication.Features.DeviceCommunicationConfig.ViewModels;
+using Module.Communication.Features.DeviceCommunicationConfig.Views;
 using Shared.Abstractions.Enum;
 using Shared.Infrastructure.Communication;
 using Shared.Models.Communication;

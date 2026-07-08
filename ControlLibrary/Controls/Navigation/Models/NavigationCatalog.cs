@@ -11,7 +11,7 @@ public static class NavigationCatalog
         return new List<ControlInfoDataItem>
         {
             new("首页", IconFactory.House, null, null, description: "概览"),
-            new("测试界面", IconFactory.FlaskConical, "Module.Test.Views.TestView, Module.Test", null, description: "测试"),
+            new("测试界面", IconFactory.FlaskConical, "Module.Business.Test.Views.TestView, Module.Test", null, description: "测试"),
             new("MES", IconFactory.Boxes, null,
                 new ObservableCollection<ControlInfoDataItem>
                 {

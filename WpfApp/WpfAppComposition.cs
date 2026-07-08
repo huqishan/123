@@ -4,7 +4,7 @@ using Module.Business.Services;
 using Module.Business.Services.BusinessOperations;
 using Module.Communication.Services;
 using Module.MES.Services;
-using Module.Test.Services;
+using Module.Business.Test.Services;
 using Module.User.Features.Authentication.Services;
 using Module.User.Services;
 using Shared.Infrastructure.DependencyInjection;
@@ -71,7 +71,7 @@ internal static class WpfAppComposition
             typeof(Module.Business.Features.Scheme.Views.SchemeConfigurationView).Assembly,
             typeof(Module.Communication.Features.DeviceCommunicationConfig.Views.DeviceCommunicationConfigView).Assembly,
             typeof(Module.MES.Features.ApiConfig.Views.ApiConfigView).Assembly,
-            typeof(Module.Test.Views.TestView).Assembly,
+            typeof(Module.Business.Test.Views.TestView).Assembly,
             typeof(Module.User.Features.AccountManagement.Views.AccountManagementView).Assembly,
             typeof(ControlLibrary.Controls.Navigation.Control.ModernNavigationBar).Assembly
         ];

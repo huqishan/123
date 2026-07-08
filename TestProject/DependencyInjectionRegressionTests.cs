@@ -2,7 +2,7 @@ using Autofac;
 using ControlLibrary.Controls.TestDataTable.Models;
 using ControlLibrary.Models.EventsModels.Test;
 using Module.MES.Features.ApiConfig.ViewModels;
-using Module.Test.ViewModels;
+using Module.Business.Test.ViewModels;
 using Module.User.Features.AccountManagement.Services;
 using Module.User.Features.Authentication.Services;
 using Shared.Infrastructure.DependencyInjection;

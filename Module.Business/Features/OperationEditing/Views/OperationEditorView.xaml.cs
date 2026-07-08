@@ -138,7 +138,6 @@ public partial class OperationEditorView : UserControl
         }
 
         ViewModel.SelectedEditingInvokeParameter = ViewModel.EditingInvokeParameters.FirstOrDefault();
-        ClearDisplayOptions();
         RefreshReturnParameters(operation);
     }
 
@@ -188,20 +187,6 @@ public partial class OperationEditorView : UserControl
         }
 
         ViewModel.EditingModifyInvokeParameters = true;
-        ClearDisplayOptions();
-    }
-
-    private void ClearDisplayOptions()
-    {
-        if (ViewModel is null)
-        {
-            return;
-        }
-
-        ViewModel.EditingShowDataToView = false;
-        ViewModel.EditingViewDataName = string.Empty;
-        ViewModel.EditingViewJudgeType = string.Empty;
-        ViewModel.EditingViewJudgeCondition = string.Empty;
     }
 
     private void RefreshReturnParametersFromEditorState()
@@ -217,7 +202,7 @@ public partial class OperationEditorView : UserControl
             try
             {
                 ViewModel.EditingReturnValue = string.Empty;
-                ViewModel.ClearEditingReturnParameters();
+                ViewModel.ClearStepEditorReturnParameterRows();
             }
             finally
             {
@@ -240,10 +225,7 @@ public partial class OperationEditorView : UserControl
         _isRefreshingReturnParameters = true;
         try
         {
-            ObservableCollection<WorkStepOperationParameter> parameters =
-                ViewModel.CreateReturnParametersFromOperation(operation);
-            ViewModel.ReplaceEditingReturnParameters(parameters);
-            ViewModel.SelectedEditingReturnParameter = null;
+            ViewModel.ReplaceStepEditorReturnParameterRows(operation);
         }
         finally
         {
@@ -261,7 +243,11 @@ public partial class OperationEditorView : UserControl
             CommandName = ViewModel?.EditingCommandName ?? string.Empty,
             InvokeMethod = ViewModel?.EditingInvokeMethod ?? string.Empty,
             OperationId = ViewModel?.EditingInvokeMethod ?? string.Empty,
-            ReturnValue = ViewModel?.EditingReturnValue ?? string.Empty
+            ReturnValue = ViewModel?.EditingReturnValue ?? string.Empty,
+            ShowDataToView = ViewModel?.EditingShowDataToView ?? false,
+            ViewDataName = ViewModel?.EditingViewDataName ?? string.Empty,
+            ViewJudgeType = ViewModel?.EditingViewJudgeType ?? string.Empty,
+            ViewJudgeCondition = ViewModel?.EditingViewJudgeCondition ?? string.Empty
         };
     }
 

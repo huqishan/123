@@ -24,6 +24,12 @@
     <Compile Update="Features\LuaScript\Views\LuaScriptView.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Features\Test\Views\TestMaxView.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Features\Test\Views\TestView.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
 
 </Project>

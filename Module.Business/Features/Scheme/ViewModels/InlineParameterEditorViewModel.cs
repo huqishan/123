@@ -111,7 +111,7 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         SanitizeReturnParameterTable();
         ObservableCollection<WorkStepOperationParameter> parameters = BuildInputParameters();
         TargetOperation.Parameters = parameters;
-        ApplyReturnParameters(TargetOperation);
+        ApplyReturnParameters(TargetOperation, ReturnParameterRows, ParsedReturnKeys);
         TargetOperation.AreParametersModified = _hasModifiedParameters(TargetOperation, parameters);
         return true;
     }
@@ -121,9 +121,17 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
     /// </summary>
     public void SanitizeReturnParameterTable()
     {
+        SanitizeReturnParameterTable(ReturnParameterRows, ParsedReturnKeys);
+    }
+
+    public static void SanitizeReturnParameterTable(
+        ObservableCollection<InlineReturnParameterRow> returnParameterRows,
+        IReadOnlyList<string>? parsedReturnKeys = null)
+    {
         HashSet<string> seenKeys = new(StringComparer.OrdinalIgnoreCase);
         List<InlineReturnParameterRow> rowsToRemove = new();
-        foreach (InlineReturnParameterRow row in ReturnParameterRows)
+        IReadOnlyList<string> allowedReturnKeys = parsedReturnKeys ?? Array.Empty<string>();
+        foreach (InlineReturnParameterRow row in returnParameterRows)
         {
             if (IsEmptyReturnParameterRow(row))
             {
@@ -132,8 +140,8 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             }
 
             string returnValue = row.Key;
-            if (ParsedReturnKeys.Count > 0 &&
-                !ParsedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase)))
+            if (allowedReturnKeys.Count > 0 &&
+                !allowedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase)))
             {
                 rowsToRemove.Add(row);
                 continue;
@@ -147,7 +155,7 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
 
         foreach (InlineReturnParameterRow row in rowsToRemove)
         {
-            ReturnParameterRows.Remove(row);
+            returnParameterRows.Remove(row);
         }
     }
 
@@ -183,11 +191,15 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
     /// <summary>
     /// 应用当前编辑结果到目标对象。
     /// </summary>
-    private void ApplyReturnParameters(WorkStepOperation targetOperation)
+    public static void ApplyReturnParameters(
+        WorkStepOperation targetOperation,
+        IEnumerable<InlineReturnParameterRow> returnParameterRows,
+        IReadOnlyList<string>? parsedReturnKeys = null)
     {
-        List<InlineReturnParameterRow> rows = ReturnParameterRows
+        IReadOnlyList<string> allowedReturnKeys = parsedReturnKeys ?? Array.Empty<string>();
+        List<InlineReturnParameterRow> rows = returnParameterRows
             .Where(item => !IsEmptyReturnParameterRow(item))
-            .Where(IsAllowedReturnParameterRow)
+            .Where(item => IsAllowedReturnParameterRow(item, allowedReturnKeys))
             .ToList();
 
         InlineReturnParameterRow? row = rows.FirstOrDefault(item =>
@@ -238,7 +250,7 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
     /// <summary>
     /// 根据操作返回值配置创建返回参数行集合。
     /// </summary>
-    private IEnumerable<InlineReturnParameterRow> CreateReturnParameterRows(
+    public IEnumerable<InlineReturnParameterRow> CreateReturnParameterRows(
         WorkStepOperation operation,
         out IReadOnlyList<string> parsedReturnKeys)
     {
@@ -309,13 +321,20 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
     /// </summary>
     private bool IsAllowedReturnParameterRow(InlineReturnParameterRow row)
     {
-        if (ParsedReturnKeys.Count == 0)
+        return IsAllowedReturnParameterRow(row, ParsedReturnKeys);
+    }
+
+    private static bool IsAllowedReturnParameterRow(
+        InlineReturnParameterRow row,
+        IReadOnlyList<string> parsedReturnKeys)
+    {
+        if (parsedReturnKeys.Count == 0)
         {
             return true;
         }
 
         string returnValue = row.Key;
-        return ParsedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase));
+        return parsedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

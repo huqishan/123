@@ -50,6 +50,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     private bool _isSortingInvokeParameters;
     private bool _isInitializingOperationDrawer;
     private bool _isSyncingSystemInvokeMethodSelection;
+    private IReadOnlyList<string> _stepEditorParsedReturnKeys = Array.Empty<string>();
     private readonly HashSet<WorkStepOperationParameter> _trackedEditingInvokeParameters = new();
     private readonly List<WorkStepOperation> _copiedOperations = new();
 
@@ -125,6 +126,8 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     public ObservableCollection<WorkStepOperationParameter> EditingInvokeParameters { get; } = new();
 
     public ObservableCollection<WorkStepOperationParameter> EditingReturnParameters { get; } = new();
+
+    public ObservableCollection<InlineParameterEditorViewModel.InlineReturnParameterRow> StepEditorReturnParameterRows { get; } = new();
 
     public InlineParameterEditorViewModel InlineParameterEditor { get; }
 
@@ -935,10 +938,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
     public bool TrySaveStepEditor()
     {
-        bool wasOpen = IsOperationDrawerOpen;
-        SaveOperationDrawer();
-
-        return wasOpen && !IsOperationDrawerOpen;
+        return IsOperationDrawerOpen && SaveOperationDrawer();
     }
 
     public WorkStepOperation? CreateSelectedOperationSnapshot()
@@ -989,6 +989,77 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     {
         EditingReturnParameters.Clear();
         SelectedEditingReturnParameter = null;
+    }
+
+    public void ReplaceStepEditorReturnParameterRows(WorkStepOperation? operation)
+    {
+        StepEditorReturnParameterRows.Clear();
+        _stepEditorParsedReturnKeys = Array.Empty<string>();
+        if (operation is null)
+        {
+            ClearEditingReturnParameters();
+            return;
+        }
+
+        IEnumerable<InlineParameterEditorViewModel.InlineReturnParameterRow> rows =
+            InlineParameterEditor.CreateReturnParameterRows(operation, out IReadOnlyList<string> parsedReturnKeys);
+        _stepEditorParsedReturnKeys = parsedReturnKeys;
+        foreach (InlineParameterEditorViewModel.InlineReturnParameterRow row in rows)
+        {
+            StepEditorReturnParameterRows.Add(row);
+        }
+
+        ReplaceEditingReturnParameters(
+            StepEditorReturnParameterRows.Select((row, index) => new WorkStepOperationParameter
+            {
+                Sequence = index + 1,
+                Name = "返回值",
+                ParameterName = row.Key,
+                Value = row.Key,
+                Remark = "返回参数"
+            }));
+    }
+
+    public void ClearStepEditorReturnParameterRows()
+    {
+        StepEditorReturnParameterRows.Clear();
+        _stepEditorParsedReturnKeys = Array.Empty<string>();
+        ClearEditingReturnParameters();
+    }
+
+    public void ApplyStepEditorReturnParameterRowsToEditingState()
+    {
+        WorkStepOperation operation = new()
+        {
+            ReturnValue = EditingReturnValue,
+            ShowDataToView = EditingShowDataToView,
+            ViewDataName = EditingViewDataName,
+            ViewJudgeType = EditingViewJudgeType,
+            ViewJudgeCondition = EditingViewJudgeCondition
+        };
+
+        InlineParameterEditorViewModel.SanitizeReturnParameterTable(
+            StepEditorReturnParameterRows,
+            _stepEditorParsedReturnKeys);
+        InlineParameterEditorViewModel.ApplyReturnParameters(
+            operation,
+            StepEditorReturnParameterRows,
+            _stepEditorParsedReturnKeys);
+
+        EditingShowDataToView = operation.ShowDataToView;
+        EditingViewDataName = operation.ViewDataName;
+        EditingViewJudgeType = operation.ViewJudgeType;
+        EditingViewJudgeCondition = operation.ViewJudgeCondition;
+        EditingReturnValue = operation.ReturnValue;
+        ReplaceEditingReturnParameters(
+            StepEditorReturnParameterRows.Select((row, index) => new WorkStepOperationParameter
+            {
+                Sequence = index + 1,
+                Name = "返回值",
+                ParameterName = row.Key,
+                Value = row.Key,
+                Remark = "返回参数"
+            }));
     }
 
     public void OpenInlineParameterEditor(WorkStepOperation operation)
@@ -1801,6 +1872,16 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             RefreshInlineEditingOptions();
             OnPropertyChanged(nameof(SelectedStep));
             RaiseCommandStatesChanged();
+
+            if (IsOperationDrawerOpen &&
+                !_isInitializingOperationDrawer &&
+                value is not null &&
+                SelectedWorkStep?.Steps.Contains(value) == true &&
+                !ReferenceEquals(_drawerOperation, value))
+            {
+                BeginOperationDrawer(value, isNewOperation: false);
+                SetPageStatus("正在编辑步骤。", NeutralBrush);
+            }
         }
     }
 
@@ -1949,6 +2030,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
+        SelectedOperation = null;
         WorkStepOperation operation = new()
         {
             OperationObject = SystemOperationObjectName,
@@ -1979,7 +2061,12 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         }
 
         SelectedOperation = operation;
-        BeginOperationDrawer(operation, isNewOperation: false);
+        if (!IsOperationDrawerOpen ||
+            !ReferenceEquals(_drawerOperation, operation) ||
+            _isNewOperationInDrawer)
+        {
+            BeginOperationDrawer(operation, isNewOperation: false);
+        }
         SetPageStatus("正在编辑步骤。", NeutralBrush);
     }
 
@@ -2041,12 +2128,12 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     /// <summary>
     /// 保存步骤编辑抽屉中的当前内容，并同步回目标步骤对象。
     /// </summary>
-    private void SaveOperationDrawer()
+    private bool SaveOperationDrawer()
     {
         if (SelectedWorkStep is null || _drawerOperation is null)
         {
-            CloseOperationDrawer();
-            return;
+            SetPageStatus("没有可保存的步骤。", WarningBrush);
+            return false;
         }
 
         bool isLuaOperation = IsLuaOperationSelected;
@@ -2054,10 +2141,19 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             ? null
             : CreateOperationFromMethodItem(SelectedOperationMethod);
 
+        if (isLuaOperation)
+        {
+            ClearStepEditorReturnParameterRows();
+        }
+        else
+        {
+            ApplyStepEditorReturnParameterRowsToEditingState();
+        }
+
         if (string.IsNullOrWhiteSpace(EditingOperationObject) && selectedMethodOperation is null)
         {
             SetPageStatus("操作对象不能为空。", WarningBrush);
-            return;
+            return false;
         }
 
         string invokeMethod = isLuaOperation
@@ -2071,21 +2167,13 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         if (string.IsNullOrWhiteSpace(invokeMethod))
         {
             SetPageStatus("调用方法不能为空。", WarningBrush);
-            return;
-        }
-
-        if (!isLuaOperation &&
-            EditingShowDataToView &&
-            string.IsNullOrWhiteSpace(EditingViewDataName))
-        {
-            SetPageStatus("勾选显示到界面时，数据名称不能为空。", WarningBrush);
-            return;
+            return false;
         }
 
         if (!int.TryParse(EditingDelayMillisecondsText, out int delayMilliseconds) || delayMilliseconds < 0)
         {
             SetPageStatus("延时(ms)必须是大于等于 0 的整数。", WarningBrush);
-            return;
+            return false;
         }
 
         _drawerOperation.OperationType = isLuaOperation
@@ -2150,8 +2238,15 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
 
         SelectedOperation = _drawerOperation;
         bool savedNewOperation = _isNewOperationInDrawer;
-        CloseOperationDrawer();
         SetPageStatus(savedNewOperation ? "已新增步骤。" : "已更新步骤。", SuccessBrush);
+        if (savedNewOperation)
+        {
+            _isNewOperationInDrawer = false;
+            OnPropertyChanged(nameof(OperationDrawerTitle));
+            OnPropertyChanged(nameof(StepEditorTitle));
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -2169,8 +2264,10 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         EditingViewDataName = string.Empty;
         EditingViewJudgeType = string.Empty;
         EditingViewJudgeCondition = string.Empty;
+        ClearStepEditorReturnParameterRows();
         SelectedEditingInvokeParameter = null;
         OnPropertyChanged(nameof(OperationDrawerTitle));
+        OnPropertyChanged(nameof(StepEditorTitle));
     }
 
     /// <summary>
@@ -2492,9 +2589,36 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             RefreshInvokeParametersFromSelectedCommand();
         }
 
+        ReplaceStepEditorReturnParameterRows(CreateStepEditorReturnParameterSnapshot());
         SelectedEditingInvokeParameter = EditingInvokeParameters.FirstOrDefault();
         OnPropertyChanged(nameof(OperationDrawerTitle));
+        OnPropertyChanged(nameof(StepEditorTitle));
         IsOperationDrawerOpen = true;
+    }
+
+    private WorkStepOperation CreateStepEditorReturnParameterSnapshot()
+    {
+        return new WorkStepOperation
+        {
+            OperationType = IsLuaOperationSelected
+                ? LuaOperationObjectName
+                : IsJudgeOperationSelected
+                    ? JudgeOperationObjectName
+                    : IsSystemOperationSelected
+                        ? "系统"
+                        : "设备",
+            OperationObject = EditingOperationObject,
+            DeviceId = EditingOperationObject,
+            ProtocolName = EditingProtocolName,
+            CommandName = EditingCommandName,
+            InvokeMethod = EditingInvokeMethod,
+            OperationId = EditingInvokeMethod,
+            ReturnValue = EditingReturnValue,
+            ShowDataToView = EditingShowDataToView,
+            ViewDataName = EditingViewDataName,
+            ViewJudgeType = EditingViewJudgeType,
+            ViewJudgeCondition = EditingViewJudgeCondition
+        };
     }
 
     /// <summary>
