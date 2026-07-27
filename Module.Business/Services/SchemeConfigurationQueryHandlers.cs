@@ -37,12 +37,12 @@ public sealed class GetBusinessSchemesRequestHandler
                 scheme.Id,
                 scheme.SchemeName,
                 scheme.Steps
-                    .OrderBy(step => step.Num)
+                    .OrderBy(step => step.DisplayOrder)
                     .Select(step => new BusinessSchemeWorkStepInfo(
                         step.Id,
-                        step.Num,
+                        step.DisplayOrder,
                         ResolveWorkStepName(step),
-                        step.StepName,
+                        step.SchemeStepName,
                         step.Operations.Count))
                     .ToList()))
             .ToList();
@@ -62,7 +62,7 @@ public sealed class GetBusinessSchemesRequestHandler
     private static string ResolveWorkStepName(SchemeWorkStepItem step)
     {
         return string.IsNullOrWhiteSpace(step.StepName)
-            ? step.StepName
+            ? step.SchemeStepName
             : step.StepName;
     }
 
