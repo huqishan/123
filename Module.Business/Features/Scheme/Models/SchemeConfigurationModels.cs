@@ -11,15 +11,10 @@ using System.Text.Json.Serialization;
 namespace Module.Business.Models;
 
 /// <summary>
-/// 业务配置根对象，统一保存工步模板和方案配置。
+/// 业务配置根对象，统一保存方案配置。
 /// </summary>
 public sealed class SchemeConfigurationCatalog
 {
-    /// <summary>
-    /// 工步模板集合。
-    /// </summary>
-    public ObservableCollection<WorkStepProfile> WorkSteps { get; set; } = new();
-
     /// <summary>
     /// 业务方案集合。
     /// </summary>
@@ -27,7 +22,7 @@ public sealed class SchemeConfigurationCatalog
 }
 
 /// <summary>
-/// 方案导入导出包，包含方案本体和完整工步内容。
+/// 方案导入导出包，包含方案本体。
 /// </summary>
 public sealed class SchemeConfigurationPackage
 {
@@ -40,9 +35,4 @@ public sealed class SchemeConfigurationPackage
     /// 方案本体。
     /// </summary>
     public SchemeProfile? Scheme { get; set; }
-
-    /// <summary>
-    /// 方案引用的工步模板集合。
-    /// </summary>
-    public ObservableCollection<WorkStepProfile> WorkSteps { get; set; } = new();
 }

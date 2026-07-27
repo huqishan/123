@@ -10,18 +10,13 @@ namespace Module.Business.Features.SchemeConfiguration;
 
 public sealed class InlineParameterEditorViewModel : ViewModelProperties
 {
-    private readonly Func<WorkStepOperation, ObservableCollection<WorkStepOperationParameter>> _createReturnParameters;
-    private readonly Func<WorkStepOperation, ObservableCollection<WorkStepOperationParameter>, bool> _hasModifiedParameters;
     private bool _isOpen;
     private WorkStepOperation? _targetOperation;
     private string _operationSummary = string.Empty;
+    private ObservableCollection<InputParameter> _originalParameters = new();
 
-    public InlineParameterEditorViewModel(
-        Func<WorkStepOperation, ObservableCollection<WorkStepOperationParameter>> createReturnParameters,
-        Func<WorkStepOperation, ObservableCollection<WorkStepOperationParameter>, bool> hasModifiedParameters)
+    public InlineParameterEditorViewModel()
     {
-        _createReturnParameters = createReturnParameters;
-        _hasModifiedParameters = hasModifiedParameters;
     }
 
     public bool IsOpen
@@ -46,38 +41,28 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
 
     public ObservableCollection<InlineReturnParameterRow> ReturnParameterRows { get; } = new();
 
-    public IReadOnlyList<string> ParsedReturnKeys { get; private set; } = Array.Empty<string>();
-
-    /// <summary>
-    /// 打开对应的编辑界面或抽屉。
-    /// </summary>
     public void Open(WorkStepOperation operation, IEnumerable<WorkStepOperation> currentOperations)
     {
         TargetOperation = operation ?? throw new ArgumentNullException(nameof(operation));
-        OperationSummary = $"{operation.OperationObject}.{operation.InvokeMethod}";
+        OperationSummary = $"{operation.OperationObjectName}.{operation.PCommandName}";
+        _originalParameters = new ObservableCollection<InputParameter>(
+            operation.Parameters.Select(p => p.Clone()));
         ReplaceInputRows(CreateInputParameterRows(operation.Parameters));
-        ReplaceReturnRows(CreateReturnParameterRows(operation, out IReadOnlyList<string> parsedReturnKeys));
-        ParsedReturnKeys = parsedReturnKeys;
+        ReplaceReturnRows(CreateReturnParameterRows(operation));
         RefreshInputValueOptions(currentOperations);
         IsOpen = true;
     }
 
-    /// <summary>
-    /// 关闭对应的编辑界面或抽屉。
-    /// </summary>
     public void Close()
     {
         IsOpen = false;
         TargetOperation = null;
         OperationSummary = string.Empty;
-        ParsedReturnKeys = Array.Empty<string>();
+        _originalParameters = new ObservableCollection<InputParameter>();
         InputParameterRows.Clear();
         ReturnParameterRows.Clear();
     }
 
-    /// <summary>
-    /// 刷新对应的界面或业务状态。
-    /// </summary>
     public void RefreshInputValueOptions(IEnumerable<WorkStepOperation> currentOperations)
     {
         if (TargetOperation is null)
@@ -98,9 +83,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         }
     }
 
-    /// <summary>
-    /// 应用当前编辑结果到目标对象。
-    /// </summary>
     public bool Apply()
     {
         if (TargetOperation is null)
@@ -109,28 +91,23 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         }
 
         SanitizeReturnParameterTable();
-        ObservableCollection<WorkStepOperationParameter> parameters = BuildInputParameters();
+        ObservableCollection<InputParameter> parameters = BuildInputParameters();
         TargetOperation.Parameters = parameters;
-        ApplyReturnParameters(TargetOperation, ReturnParameterRows, ParsedReturnKeys);
-        TargetOperation.AreParametersModified = _hasModifiedParameters(TargetOperation, parameters);
+        ApplyReturnParameters(TargetOperation, ReturnParameterRows);
+        TargetOperation.IsEditParameter = HasParameterChanges(parameters);
         return true;
     }
 
-    /// <summary>
-    /// 清理返回参数表格中的无效显示项。
-    /// </summary>
     public void SanitizeReturnParameterTable()
     {
-        SanitizeReturnParameterTable(ReturnParameterRows, ParsedReturnKeys);
+        SanitizeReturnParameterTable(ReturnParameterRows);
     }
 
     public static void SanitizeReturnParameterTable(
-        ObservableCollection<InlineReturnParameterRow> returnParameterRows,
-        IReadOnlyList<string>? parsedReturnKeys = null)
+        ObservableCollection<InlineReturnParameterRow> returnParameterRows)
     {
         HashSet<string> seenKeys = new(StringComparer.OrdinalIgnoreCase);
         List<InlineReturnParameterRow> rowsToRemove = new();
-        IReadOnlyList<string> allowedReturnKeys = parsedReturnKeys ?? Array.Empty<string>();
         foreach (InlineReturnParameterRow row in returnParameterRows)
         {
             if (IsEmptyReturnParameterRow(row))
@@ -139,15 +116,7 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
                 continue;
             }
 
-            string returnValue = row.Key;
-            if (allowedReturnKeys.Count > 0 &&
-                !allowedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase)))
-            {
-                rowsToRemove.Add(row);
-                continue;
-            }
-
-            if (!seenKeys.Add(returnValue))
+            if (!seenKeys.Add(row.Key))
             {
                 rowsToRemove.Add(row);
             }
@@ -159,146 +128,100 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         }
     }
 
-    /// <summary>
-    /// 构建并返回对应的业务数据。
-    /// </summary>
-    private ObservableCollection<WorkStepOperationParameter> BuildInputParameters()
+    private bool HasParameterChanges(ObservableCollection<InputParameter> parameters)
     {
-        List<WorkStepOperationParameter> parameters = new();
+        if (parameters.Count != _originalParameters.Count)
+        {
+            return true;
+        }
+
+        List<InputParameter> original = _originalParameters
+            .OrderBy(p => p.Num)
+            .ToList();
+        List<InputParameter> current = parameters
+            .OrderBy(p => p.Num)
+            .ToList();
+
+        for (int i = 0; i < original.Count; i++)
+        {
+            if (!string.Equals(original[i].ParameterType, current[i].ParameterType, StringComparison.Ordinal) ||
+                !string.Equals(original[i].ParameterName, current[i].ParameterName, StringComparison.Ordinal) ||
+                !string.Equals(original[i].Value, current[i].Value, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private ObservableCollection<InputParameter> BuildInputParameters()
+    {
+        List<InputParameter> parameters = new();
         foreach (InlineInputParameterRow row in InputParameterRows)
         {
-            parameters.Add(new WorkStepOperationParameter
+            parameters.Add(new InputParameter
             {
                 Id = row.Id,
-                Sequence = Math.Max(1, row.Sequence),
-                Name = row.Type,
+                Num = Math.Max(1, row.Sequence),
+                ParameterType = row.Type,
                 ParameterName = row.ParameterName,
-                Value = row.Value,
-                Remark = row.Description
+                Value = row.Value
             });
         }
 
-        return new ObservableCollection<WorkStepOperationParameter>(
+        return new ObservableCollection<InputParameter>(
             parameters
-                .OrderBy(parameter => parameter.Sequence)
+                .OrderBy(parameter => parameter.Num)
                 .Select((parameter, index) =>
                 {
-                    parameter.Sequence = index + 1;
+                    parameter.Num = index + 1;
                     return parameter;
                 }));
     }
 
-    /// <summary>
-    /// 应用当前编辑结果到目标对象。
-    /// </summary>
     public static void ApplyReturnParameters(
         WorkStepOperation targetOperation,
-        IEnumerable<InlineReturnParameterRow> returnParameterRows,
-        IReadOnlyList<string>? parsedReturnKeys = null)
+        IEnumerable<InlineReturnParameterRow> returnParameterRows)
     {
-        IReadOnlyList<string> allowedReturnKeys = parsedReturnKeys ?? Array.Empty<string>();
         List<InlineReturnParameterRow> rows = returnParameterRows
             .Where(item => !IsEmptyReturnParameterRow(item))
-            .Where(item => IsAllowedReturnParameterRow(item, allowedReturnKeys))
             .ToList();
 
-        InlineReturnParameterRow? row = rows.FirstOrDefault(item =>
-            !string.IsNullOrWhiteSpace(targetOperation.ReturnValue) &&
-            string.Equals(
-                item.Key,
-                targetOperation.ReturnValue.Trim(),
-                StringComparison.OrdinalIgnoreCase)) ??
-            rows.FirstOrDefault(item => item.ShowDataToView) ??
-            (rows.Count == 1 ? rows[0] : null);
-
-        if (row is null)
+        List<ReturnValue> returnValues = rows.Select(row => new ReturnValue
         {
-            targetOperation.ReturnValue = string.Empty;
-            targetOperation.ShowDataToView = false;
-            targetOperation.ViewDataName = string.Empty;
-            targetOperation.ViewJudgeType = string.Empty;
-            targetOperation.ViewJudgeCondition = string.Empty;
-            return;
-        }
+            ReturnParameterName = row.Key,
+            IsShowView = row.ShowDataToView,
+            JudgeType = row.ViewJudgeType,
+            JudgeSymbols = row.JudgeSymbols,
+            JudgeValue = row.FirstJudgeConditionValue,
+            OriginalUnit = string.Empty,
+            ShowUnit = string.Empty,
+            DecimalPlaces = 0
+        }).ToList();
 
-        targetOperation.ReturnValue = row.Key;
-        targetOperation.ShowDataToView = row.ShowDataToView;
-        targetOperation.ViewDataName = row.ViewDataName?.Trim() ?? string.Empty;
-        targetOperation.ViewJudgeType = row.ViewJudgeType?.Trim() ?? string.Empty;
-        targetOperation.ViewJudgeCondition = row.ViewJudgeCondition?.Trim() ?? string.Empty;
+        targetOperation.ReturnValues = new ObservableCollection<ReturnValue>(returnValues);
     }
 
-    /// <summary>
-    /// 根据操作参数创建输入参数行集合。
-    /// </summary>
     private static IEnumerable<InlineInputParameterRow> CreateInputParameterRows(
-        IEnumerable<WorkStepOperationParameter> parameters)
+        IEnumerable<InputParameter> parameters)
     {
         return parameters
-            .OrderBy(parameter => parameter.Sequence)
+            .OrderBy(parameter => parameter.Num)
             .Select(parameter => new InlineInputParameterRow
             {
                 Id = parameter.Id,
-                Sequence = parameter.Sequence,
-                Type = parameter.Type,
+                Sequence = parameter.Num,
+                Type = parameter.ParameterType,
                 ParameterName = parameter.ParameterName,
-                Value = parameter.Value,
-                Description = parameter.Description
+                Value = parameter.Value
             });
     }
 
-    /// <summary>
-    /// 根据操作返回值配置创建返回参数行集合。
-    /// </summary>
-    public IEnumerable<InlineReturnParameterRow> CreateReturnParameterRows(
-        WorkStepOperation operation,
-        out IReadOnlyList<string> parsedReturnKeys)
+    public IEnumerable<InlineReturnParameterRow> CreateReturnParameterRows(WorkStepOperation operation)
     {
-        ProtocolCommandReturnMetadata metadata = ProtocolCommandMetadataStore.GetReturnMetadata(
-            operation.ProtocolName,
-            operation.CommandName);
-        parsedReturnKeys = metadata.ReturnValueKeys;
-        if (metadata.IsSendOnly)
-        {
-            return Enumerable.Empty<InlineReturnParameterRow>();
-        }
-
-        if (metadata.ReturnValueKeys.Count > 0)
-        {
-            return metadata.ReturnValueKeys.Select(parsedKey =>
-            {
-                bool isCurrentReturnValue = string.Equals(parsedKey, operation.ReturnValue, StringComparison.OrdinalIgnoreCase);
-                return new InlineReturnParameterRow
-                {
-                    Key = parsedKey,
-                    ShowDataToView = isCurrentReturnValue && operation.ShowDataToView,
-                    ViewDataName = isCurrentReturnValue ? operation.ViewDataName : string.Empty,
-                    ViewJudgeType = isCurrentReturnValue ? operation.ViewJudgeType : string.Empty,
-                    ViewJudgeCondition = isCurrentReturnValue ? operation.ViewJudgeCondition : string.Empty
-                };
-            });
-        }
-
-        ObservableCollection<WorkStepOperationParameter> inferredReturnParameters = _createReturnParameters(operation);
-        if (inferredReturnParameters.Count > 0)
-        {
-            return inferredReturnParameters
-                .Where(parameter => !string.IsNullOrWhiteSpace(parameter.ParameterName))
-                .Select(parameter =>
-                {
-                    bool isCurrentReturnValue = string.Equals(parameter.ParameterName, operation.ReturnValue, StringComparison.OrdinalIgnoreCase);
-                    return new InlineReturnParameterRow
-                    {
-                        Key = parameter.ParameterName,
-                        ShowDataToView = isCurrentReturnValue && operation.ShowDataToView,
-                        ViewDataName = isCurrentReturnValue ? operation.ViewDataName : string.Empty,
-                        ViewJudgeType = isCurrentReturnValue ? operation.ViewJudgeType : string.Empty,
-                        ViewJudgeCondition = isCurrentReturnValue ? operation.ViewJudgeCondition : string.Empty
-                    };
-                });
-        }
-
-        if (!HasReturnParameter(operation))
+        ReturnValue? returnValue = operation.ReturnValues.FirstOrDefault();
+        if (returnValue is null)
         {
             return Enumerable.Empty<InlineReturnParameterRow>();
         }
@@ -307,39 +230,16 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         {
             new InlineReturnParameterRow
             {
-                Key = operation.ReturnValue,
-                ShowDataToView = operation.ShowDataToView,
-                ViewDataName = operation.ViewDataName,
-                ViewJudgeType = operation.ViewJudgeType,
-                ViewJudgeCondition = operation.ViewJudgeCondition
+                Key = returnValue.ReturnParameterName,
+                ShowDataToView = returnValue.IsShowView,
+                ViewJudgeType = returnValue.JudgeType,
+                JudgeSymbols = returnValue.JudgeSymbols,
+                FirstJudgeConditionValue = returnValue.JudgeValue,
+                SecondJudgeConditionValue = string.Empty
             }
         };
     }
 
-    /// <summary>
-    /// 判断是否满足指定业务条件。
-    /// </summary>
-    private bool IsAllowedReturnParameterRow(InlineReturnParameterRow row)
-    {
-        return IsAllowedReturnParameterRow(row, ParsedReturnKeys);
-    }
-
-    private static bool IsAllowedReturnParameterRow(
-        InlineReturnParameterRow row,
-        IReadOnlyList<string> parsedReturnKeys)
-    {
-        if (parsedReturnKeys.Count == 0)
-        {
-            return true;
-        }
-
-        string returnValue = row.Key;
-        return parsedReturnKeys.Any(key => string.Equals(key, returnValue, StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    /// 构建并返回对应的业务数据。
-    /// </summary>
     private IEnumerable<string> BuildInputReturnValueOptions(
         IEnumerable<WorkStepOperation> currentOperations,
         WorkStepOperation targetOperation)
@@ -359,13 +259,10 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
 
         return operations
             .Take(targetIndex)
-            .SelectMany(operation => _createReturnParameters(operation)
-                .Select(parameter => parameter.ParameterName));
+            .SelectMany(operation => operation.ReturnValues)
+            .Select(returnValue => returnValue.ReturnParameterName);
     }
 
-    /// <summary>
-    /// 用新输入参数行替换当前集合。
-    /// </summary>
     private void ReplaceInputRows(IEnumerable<InlineInputParameterRow> rows)
     {
         InputParameterRows.Clear();
@@ -375,9 +272,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         }
     }
 
-    /// <summary>
-    /// 用新返回参数行替换当前集合。
-    /// </summary>
     private void ReplaceReturnRows(IEnumerable<InlineReturnParameterRow> rows)
     {
         ReturnParameterRows.Clear();
@@ -387,9 +281,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         }
     }
 
-    /// <summary>
-    /// 用候选项集合替换字符串选项集合。
-    /// </summary>
     private static void ReplaceStringOptions(ObservableCollection<string> target, IEnumerable<string> source)
     {
         List<string> options = source
@@ -411,28 +302,12 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         }
     }
 
-    /// <summary>
-    /// 判断操作是否配置了返回参数。
-    /// </summary>
-    private static bool HasReturnParameter(WorkStepOperation operation)
-    {
-        return !string.IsNullOrWhiteSpace(operation.ReturnValue) ||
-               operation.ShowDataToView ||
-               !string.IsNullOrWhiteSpace(operation.ViewDataName) ||
-               !string.IsNullOrWhiteSpace(operation.ViewJudgeType) ||
-               !string.IsNullOrWhiteSpace(operation.ViewJudgeCondition);
-    }
-
-    /// <summary>
-    /// 判断是否满足指定业务条件。
-    /// </summary>
     private static bool IsEmptyReturnParameterRow(InlineReturnParameterRow row)
     {
         return string.IsNullOrWhiteSpace(row.Key) &&
                !row.ShowDataToView &&
-               string.IsNullOrWhiteSpace(row.ViewDataName) &&
                string.IsNullOrWhiteSpace(row.ViewJudgeType) &&
-               string.IsNullOrWhiteSpace(row.ViewJudgeCondition);
+               string.IsNullOrWhiteSpace(row.FirstJudgeConditionValue);
     }
 
     public sealed class InlineInputParameterRow : ViewModelProperties
@@ -458,21 +333,13 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             set => SetField(ref _value, value ?? string.Empty);
         }
 
-        public string Description { get; set; } = string.Empty;
-
         public ObservableCollection<string> ValueOptions { get; } = new();
     }
 
     public sealed class InlineReturnParameterRow : ViewModelProperties
     {
-        /// <summary>
-        /// 判断条件模板显示项。
-        /// </summary>
         public sealed record JudgeTemplateOption(string DisplayText, string Value)
         {
-            /// <summary>
-            /// 返回模板显示文本。
-            /// </summary>
             public override string ToString() => DisplayText;
         }
 
@@ -496,8 +363,8 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
 
         private string _key = string.Empty;
         private bool _showDataToView;
-        private string _viewDataName = string.Empty;
         private string _viewJudgeType = string.Empty;
+        private string _judgeSymbols = string.Empty;
         private string _firstJudgeConditionValue = string.Empty;
         private string _secondJudgeConditionValue = string.Empty;
 
@@ -511,12 +378,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         {
             get => _showDataToView;
             set => SetField(ref _showDataToView, value);
-        }
-
-        public string ViewDataName
-        {
-            get => _viewDataName;
-            set => SetField(ref _viewDataName, value ?? string.Empty);
         }
 
         public IReadOnlyList<JudgeTemplateOption> JudgeTemplateOptions => DefaultJudgeTemplateOptions;
@@ -533,20 +394,38 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
                     return;
                 }
 
-                if (!IsRangeJudgeTemplate && wasRangeTemplate)
+                if (IsRangeJudgeTemplate != wasRangeTemplate)
                 {
-                    _firstJudgeConditionValue = BuildRangeConditionValue();
-                    _secondJudgeConditionValue = string.Empty;
-                }
-                else if (IsRangeJudgeTemplate && !wasRangeTemplate)
-                {
-                    ParseRangeConditionValue(_firstJudgeConditionValue);
+                    if (IsRangeJudgeTemplate)
+                    {
+                        JudgeSymbols = BuildRangeConditionValue();
+                        ParseRangeConditionValue(_firstJudgeConditionValue);
+                    }
+                    else
+                    {
+                        _firstJudgeConditionValue = JudgeSymbols;
+                        _secondJudgeConditionValue = string.Empty;
+                        JudgeSymbols = string.Empty;
+                    }
                 }
 
                 OnPropertyChanged(nameof(ViewJudgeCondition));
                 OnPropertyChanged(nameof(IsRangeJudgeTemplate));
                 OnPropertyChanged(nameof(FirstJudgeConditionValue));
                 OnPropertyChanged(nameof(SecondJudgeConditionValue));
+                OnPropertyChanged(nameof(JudgeSymbols));
+            }
+        }
+
+        public string JudgeSymbols
+        {
+            get => _judgeSymbols;
+            set
+            {
+                if (SetField(ref _judgeSymbols, value ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(ViewJudgeCondition));
+                }
             }
         }
 
@@ -554,7 +433,7 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
         {
             get => IsRangeJudgeTemplate
                 ? BuildRangeConditionValue()
-                : _firstJudgeConditionValue.Trim();
+                : FirstJudgeConditionValue.Trim();
             set => ApplyJudgeCondition(value);
         }
 
@@ -586,9 +465,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             string.Equals(ViewJudgeType, "<{0}<", StringComparison.Ordinal) ||
             string.Equals(ViewJudgeType, "<={0}<=", StringComparison.Ordinal);
 
-        /// <summary>
-        /// 应用当前编辑结果到目标对象。
-        /// </summary>
         private void ApplyJudgeCondition(string? value)
         {
             string normalizedValue = value?.Trim() ?? string.Empty;
@@ -611,16 +487,15 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             {
                 _firstJudgeConditionValue = StripSimpleTemplate(normalizedValue, ViewJudgeType);
                 _secondJudgeConditionValue = string.Empty;
+                _judgeSymbols = ViewJudgeType;
             }
 
             OnPropertyChanged(nameof(FirstJudgeConditionValue));
             OnPropertyChanged(nameof(SecondJudgeConditionValue));
+            OnPropertyChanged(nameof(JudgeSymbols));
             OnPropertyChanged(nameof(ViewJudgeCondition));
         }
 
-        /// <summary>
-        /// 构建并返回对应的业务数据。
-        /// </summary>
         private string BuildRangeConditionValue()
         {
             string firstValue = _firstJudgeConditionValue.Trim();
@@ -633,9 +508,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             return $"{firstValue}|{secondValue}";
         }
 
-        /// <summary>
-        /// 解析范围判断条件中的边界值。
-        /// </summary>
         private void ParseRangeConditionValue(string value)
         {
             string normalizedValue = value?.Trim() ?? string.Empty;
@@ -664,9 +536,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             _secondJudgeConditionValue = delimiterParts.ElementAtOrDefault(1)?.Trim() ?? string.Empty;
         }
 
-        /// <summary>
-        /// 根据判断条件推断模板类型。
-        /// </summary>
         private static string InferJudgeTemplate(string condition)
         {
             string normalizedCondition = condition?.Trim() ?? string.Empty;
@@ -695,18 +564,12 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             return string.Empty;
         }
 
-        /// <summary>
-        /// 判断是否满足指定业务条件。
-        /// </summary>
         private static bool IsRangeTemplate(string template)
         {
             return string.Equals(template, "<{0}<", StringComparison.Ordinal) ||
                    string.Equals(template, "<={0}<=", StringComparison.Ordinal);
         }
 
-        /// <summary>
-        /// 从判断条件中移除简单模板前缀。
-        /// </summary>
         private static string StripSimpleTemplate(string condition, string template)
         {
             string normalizedCondition = condition?.Trim() ?? string.Empty;
@@ -730,9 +593,6 @@ public sealed class InlineParameterEditorViewModel : ViewModelProperties
             return normalizedCondition;
         }
 
-        /// <summary>
-        /// 清理范围边界值的空白和括号。
-        /// </summary>
         private static string TrimRangeBoundary(string value)
         {
             return (value ?? string.Empty).Trim().Trim('<', '>', '=', ' ');

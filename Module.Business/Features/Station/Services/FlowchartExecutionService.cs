@@ -471,11 +471,11 @@ public static class FlowchartExecutionService
         out string message)
     {
         List<string> values = operation.Parameters
-            .OrderBy(parameter => parameter.Sequence)
+            .OrderBy(parameter => parameter.Num)
             .Select(parameter => ResolveParameterValue(parameter, returnValues))
             .ToList();
 
-        string methodName = operation.InvokeMethod?.Trim() ?? string.Empty;
+        string methodName = operation.PCommandName?.Trim() ?? string.Empty;
         result = methodName switch
         {
             "等于判断" => TextEquals(GetValue(values, 0), GetValue(values, 1)),
@@ -564,10 +564,10 @@ public static class FlowchartExecutionService
     /// 解析并返回对应的业务值。
     /// </summary>
     private static string ResolveParameterValue(
-        WorkStepOperationParameter parameter,
+        InputParameter parameter,
         IReadOnlyDictionary<string, string> returnValues)
     {
-        string type = parameter.Type?.Trim() ?? string.Empty;
+        string type = parameter.ParameterType?.Trim() ?? string.Empty;
         string value = parameter.Value?.Trim() ?? string.Empty;
 
         return type switch
@@ -582,8 +582,7 @@ public static class FlowchartExecutionService
     /// </summary>
     private static bool IsJudgeOperation(WorkStepOperation operation)
     {
-        return string.Equals(operation.OperationObject?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operation.OperationType?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(operation.OperationObjectName?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

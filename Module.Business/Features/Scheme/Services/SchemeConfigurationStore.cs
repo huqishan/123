@@ -16,6 +16,7 @@ namespace Module.Business.Services;
 public static class SchemeConfigurationStore
 {
     #region 配置目录与默认值
+
     /// <summary>
     /// 业务配置根目录。
     /// </summary>
@@ -71,7 +72,6 @@ public static class SchemeConfigurationStore
     public static void SaveCatalog(SchemeConfigurationCatalog catalog)
     {
         SchemeConfigurationCatalog normalized = NormalizeCatalog(catalog);
-
         SaveSchemes(normalized.Schemes);
     }
 
@@ -120,6 +120,7 @@ public static class SchemeConfigurationStore
     #endregion
 
     #region 目录级规范化
+
     /// <summary>
     /// 克隆并规范化方案配置目录。
     /// </summary>
@@ -129,170 +130,25 @@ public static class SchemeConfigurationStore
     {
         SchemeConfigurationCatalog normalized = new()
         {
-            WorkSteps = new ObservableCollection<WorkStepProfile>(
-                (catalog?.WorkSteps ?? new ObservableCollection<WorkStepProfile>())
-                    .Where(step => step is not null)
-                    .Select(step => step.Clone())),
             Schemes = new ObservableCollection<SchemeProfile>(
                 (catalog?.Schemes ?? new ObservableCollection<SchemeProfile>())
                     .Where(scheme => scheme is not null)
                     .Select(scheme => scheme.Clone()))
         };
 
-        NormalizeWorkSteps(normalized.WorkSteps);
-        NormalizeSchemes(normalized.Schemes, normalized.WorkSteps);
+        NormalizeSchemes(normalized.Schemes);
         return normalized;
     }
 
     #endregion
 
-    #region 工步与操作规范化
-
-    /// <summary>
-    /// 规范化工步集合，补齐标识、名称和操作列表。
-    /// </summary>
-    /// <param name="workSteps">需要规范化的工步集合。</param>
-    private static void NormalizeWorkSteps(ObservableCollection<WorkStepProfile> workSteps)
-    {
-        HashSet<string> usedIds = new(StringComparer.Ordinal);
-        HashSet<string> usedStepNames = new(StringComparer.OrdinalIgnoreCase);
-        int index = 1;
-
-        foreach (WorkStepProfile workStep in workSteps)
-        {
-            workStep.Id = EnsureUniqueId(workStep.Id, usedIds);
-            string fallbackStepName = $"工步 {index}";
-            workStep.StepName = BuildUniqueName(
-                string.IsNullOrWhiteSpace(workStep.StepName) ? fallbackStepName : workStep.StepName.Trim(),
-                usedStepNames);
-            workStep.LastModifiedAt = workStep.LastModifiedAt == default ? DateTime.Now : workStep.LastModifiedAt;
-            workStep.Steps = new ObservableCollection<WorkStepOperation>(
-                workStep.Steps
-                    .Where(operation => operation is not null)
-                    .Select(NormalizeOperation));
-            index++;
-        }
-    }
-
-    /// <summary>
-    /// 规范化单个工步操作。
-    /// </summary>
-    /// <param name="operation">原始工步操作。</param>
-    /// <returns>规范化后的工步操作。</returns>
-    private static WorkStepOperation NormalizeOperation(WorkStepOperation operation)
-    {
-        string operationObject = ResolveOperationObject(operation);
-        bool isLuaOperation = IsLuaOperationObject(operationObject);
-        bool isJudgeOperation = !isLuaOperation && IsJudgeOperationObject(operationObject);
-        bool isSystemOperation = !isLuaOperation && !isJudgeOperation && IsNormalizedSystemOperationObject(operationObject);
-        string protocolName = isSystemOperation || isJudgeOperation || isLuaOperation
-            ? string.Empty
-            : operation.ProtocolName?.Trim() ?? string.Empty;
-        string commandName = isSystemOperation || isJudgeOperation || isLuaOperation
-            ? string.Empty
-            : (string.IsNullOrWhiteSpace(operation.CommandName)
-                ? operation.InvokeMethod?.Trim() ?? string.Empty
-                : operation.CommandName.Trim());
-        string invokeMethod = isLuaOperation
-            ? "Lua"
-            : isJudgeOperation
-                ? operation.InvokeMethod?.Trim() ?? string.Empty
-                : isSystemOperation
-                    ? (string.IsNullOrWhiteSpace(operation.InvokeMethod) ? "等待" : operation.InvokeMethod.Trim())
-                    : (string.IsNullOrWhiteSpace(commandName) ? "指令" : commandName);
-        ObservableCollection<WorkStepOperationParameter> parameters = isLuaOperation
-            ? new ObservableCollection<WorkStepOperationParameter>()
-            : new ObservableCollection<WorkStepOperationParameter>(
-                operation.Parameters
-                    .Where(parameter => parameter is not null)
-                    .Select((parameter, index) => NormalizeOperationParameter(parameter, index))
-                    .OrderBy(parameter => parameter.Sequence));
-
-        return new WorkStepOperation
-        {
-            Id = string.IsNullOrWhiteSpace(operation.Id) ? Guid.NewGuid().ToString("N") : operation.Id.Trim(),
-            OperationType = isLuaOperation ? "Lua" : isJudgeOperation ? "判断" : isSystemOperation ? "系统" : "设备",
-            OperationObject = operationObject,
-            DeviceId = string.IsNullOrWhiteSpace(operation.DeviceId) ? operationObject : operation.DeviceId.Trim(),
-            ProtocolName = protocolName,
-            CommandName = commandName,
-            InvokeMethod = invokeMethod,
-            OperationId = string.IsNullOrWhiteSpace(operation.OperationId) ? invokeMethod : operation.OperationId.Trim(),
-            ReturnValue = isLuaOperation ? string.Empty : operation.ReturnValue?.Trim() ?? string.Empty,
-            ShowDataToView = !isLuaOperation && operation.ShowDataToView,
-            ViewDataName = isLuaOperation ? string.Empty : operation.ViewDataName?.Trim() ?? string.Empty,
-            ViewJudgeType = isLuaOperation ? string.Empty : operation.ViewJudgeType?.Trim() ?? string.Empty,
-            ViewJudgeCondition = isLuaOperation ? string.Empty : operation.ViewJudgeCondition?.Trim() ?? string.Empty,
-            LuaScript = isLuaOperation ? operation.LuaScript ?? string.Empty : string.Empty,
-            DelayMilliseconds = Math.Max(0, operation.DelayMilliseconds),
-            Remark = operation.Remark?.Trim() ?? string.Empty,
-            Parameters = parameters
-        };
-    }
-
-    /// <summary>
-    /// 根据旧版和新版字段解析操作对象。
-    /// </summary>
-    /// <param name="operation">需要解析的工步操作。</param>
-    /// <returns>标准化操作对象名称。</returns>
-    private static string ResolveOperationObject(WorkStepOperation operation)
-    {
-        if (IsLuaOperationObject(operation.OperationType) ||
-            IsLuaOperationObject(operation.OperationObject))
-        {
-            return "Lua";
-        }
-
-        if (IsJudgeOperationObject(operation.OperationType) ||
-            IsJudgeOperationObject(operation.OperationObject))
-        {
-            return "判断";
-        }
-
-        if (IsNormalizedSystemOperationType(operation.OperationType) ||
-            IsNormalizedSystemOperationObject(operation.OperationObject))
-        {
-            return "System";
-        }
-
-        return string.IsNullOrWhiteSpace(operation.OperationObject)
-            ? "System"
-            : operation.OperationObject.Trim();
-    }
-
-    /// <summary>
-    /// 规范化操作参数并补齐序号和名称。
-    /// </summary>
-    /// <param name="parameter">原始操作参数。</param>
-    /// <param name="index">参数所在索引。</param>
-    /// <returns>规范化后的操作参数。</returns>
-    private static WorkStepOperationParameter NormalizeOperationParameter(WorkStepOperationParameter parameter, int index)
-    {
-        return new WorkStepOperationParameter
-        {
-            Id = string.IsNullOrWhiteSpace(parameter.Id) ? Guid.NewGuid().ToString("N") : parameter.Id.Trim(),
-            Sequence = parameter.Sequence <= 0 ? index + 1 : parameter.Sequence,
-            Name = string.IsNullOrWhiteSpace(parameter.Name) ? "设置值" : parameter.Name.Trim(),
-            ParameterName = string.IsNullOrWhiteSpace(parameter.ParameterName)
-                ? parameter.Description?.Trim() ?? string.Empty
-                : parameter.ParameterName.Trim(),
-            ValueType = parameter.ValueType?.Trim() ?? string.Empty,
-            Value = parameter.Value?.Trim() ?? string.Empty,
-            Remark = parameter.Remark?.Trim() ?? string.Empty
-        };
-    }
-
-    #endregion
-
     #region 方案内容规范化
+
     /// <summary>
-    /// 规范化方案集合，并重建方案工步参数快照。
+    /// 规范化方案集合，补齐方案、工步、步骤的标识与名称。
     /// </summary>
     /// <param name="schemes">需要规范化的方案集合。</param>
-    /// <param name="workSteps">可引用的工步集合。</param>
-    private static void NormalizeSchemes(
-        ObservableCollection<SchemeProfile> schemes,
-        ObservableCollection<WorkStepProfile> workSteps)
+    private static void NormalizeSchemes(ObservableCollection<SchemeProfile> schemes)
     {
         HashSet<string> usedIds = new(StringComparer.Ordinal);
         HashSet<string> usedSchemeNames = new(StringComparer.OrdinalIgnoreCase);
@@ -300,102 +156,63 @@ public static class SchemeConfigurationStore
 
         foreach (SchemeProfile scheme in schemes)
         {
-            DateTime normalizedLastModifiedAt = scheme.LastModifiedAt == default ? DateTime.Now : scheme.LastModifiedAt;
             scheme.Id = EnsureUniqueId(scheme.Id, usedIds);
             scheme.SchemeName = BuildUniqueName(
                 string.IsNullOrWhiteSpace(scheme.SchemeName) ? $"方案 {index}" : scheme.SchemeName.Trim(),
                 usedSchemeNames);
+            scheme.LastModifiedAt = scheme.LastModifiedAt == default ? DateTime.Now : scheme.LastModifiedAt;
 
-            ObservableCollection<SchemeWorkStepItem> normalizedSteps = new();
+            int stepIndex = 1;
             foreach (SchemeWorkStepItem step in scheme.Steps.Where(step => step is not null))
             {
-                SchemeWorkStepItem normalizedStep = step.Clone();
-                normalizedStep.Id = string.IsNullOrWhiteSpace(step.Id) ? Guid.NewGuid().ToString("N") : step.Id.Trim();
-
-                if (string.IsNullOrWhiteSpace(normalizedStep.StepName))
+                step.Id = string.IsNullOrWhiteSpace(step.Id) ? Guid.NewGuid().ToString("N") : step.Id.Trim();
+                step.Num = stepIndex;
+                if (string.IsNullOrWhiteSpace(step.StepName))
                 {
-                    normalizedStep.StepName = $"工步 {normalizedSteps.Count + 1}";
+                    step.StepName = $"工步 {stepIndex}";
                 }
 
-                normalizedStep.Parameters = SchemeWorkStepItem.CreateParametersFromOperations(
-                    normalizedStep.Operations,
-                    step.Parameters);
-                normalizedSteps.Add(normalizedStep);
+                int operationIndex = 1;
+                foreach (WorkStepOperation operation in step.Operations.Where(op => op is not null))
+                {
+                    operation.Id = string.IsNullOrWhiteSpace(operation.Id) ? Guid.NewGuid().ToString("N") : operation.Id.Trim();
+                    operation.Num = operationIndex;
+                    operation.DelayMilliseconds = Math.Max(0, operation.DelayMilliseconds);
+
+                    int paramIndex = 1;
+                    foreach (InputParameter param in operation.Parameters.Where(p => p is not null))
+                    {
+                        param.Id = string.IsNullOrWhiteSpace(param.Id) ? Guid.NewGuid().ToString("N") : param.Id.Trim();
+                        param.Num = paramIndex;
+                        param.ParameterName = param.ParameterName?.Trim() ?? string.Empty;
+                        param.ParameterType = string.IsNullOrWhiteSpace(param.ParameterType) ? "设置值" : param.ParameterType.Trim();
+                        param.Value = param.Value?.Trim() ?? string.Empty;
+                        paramIndex++;
+                    }
+
+                    int returnIndex = 1;
+                    foreach (ReturnValue rv in operation.ReturnValues.Where(r => r is not null))
+                    {
+                        rv.Id = string.IsNullOrWhiteSpace(rv.Id) ? Guid.NewGuid().ToString("N") : rv.Id.Trim();
+                        rv.Num = returnIndex;
+                        rv.ReturnParameterName = rv.ReturnParameterName?.Trim() ?? string.Empty;
+                        rv.JudgeType = rv.JudgeType?.Trim() ?? string.Empty;
+                        rv.JudgeSymbols = rv.JudgeSymbols?.Trim() ?? string.Empty;
+                        rv.JudgeValue = rv.JudgeValue?.Trim() ?? string.Empty;
+                        rv.OriginalUnit = rv.OriginalUnit?.Trim() ?? string.Empty;
+                        rv.ShowUnit = rv.ShowUnit?.Trim() ?? string.Empty;
+                        rv.DecimalPlaces = Math.Max(0, rv.DecimalPlaces);
+                        returnIndex++;
+                    }
+
+                    operationIndex++;
+                }
+
+                stepIndex++;
             }
 
-            scheme.Steps = normalizedSteps;
-            scheme.LastModifiedAt = normalizedLastModifiedAt;
             index++;
         }
-    }
-
-    #endregion
-
-    #region 操作类型判断
-
-    /// <summary>
-    /// 判断是否为旧版系统操作类型。
-    /// </summary>
-    /// <param name="operationType">操作类型文本。</param>
-    /// <returns>是旧版系统操作时返回 true。</returns>
-    private static bool IsLegacySystemOperationType(string? operationType)
-    {
-        return string.Equals(operationType?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// 判断操作对象是否表示系统操作。
-    /// </summary>
-    /// <param name="operationObject">操作对象文本。</param>
-    /// <returns>是系统操作对象时返回 true。</returns>
-    private static bool IsSystemOperationObject(string? operationObject)
-    {
-        return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operationObject?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// 判断操作类型是否表示已规范化的系统操作。
-    /// </summary>
-    /// <param name="operationType">操作类型文本。</param>
-    /// <returns>是系统操作类型时返回 true。</returns>
-    private static bool IsNormalizedSystemOperationType(string? operationType)
-    {
-        return string.Equals(operationType?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operationType?.Trim(), "系统", StringComparison.OrdinalIgnoreCase) ||
-               IsLegacySystemOperationType(operationType);
-    }
-
-    /// <summary>
-    /// 判断操作对象是否表示已规范化的系统操作。
-    /// </summary>
-    /// <param name="operationObject">操作对象文本。</param>
-    /// <returns>是系统操作对象时返回 true。</returns>
-    private static bool IsNormalizedSystemOperationObject(string? operationObject)
-    {
-        return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operationObject?.Trim(), "系统", StringComparison.OrdinalIgnoreCase) ||
-               IsSystemOperationObject(operationObject);
-    }
-
-    /// <summary>
-    /// 判断操作对象是否为判断操作。
-    /// </summary>
-    /// <param name="operationObject">操作对象文本。</param>
-    /// <returns>是判断操作时返回 true。</returns>
-    private static bool IsJudgeOperationObject(string? operationObject)
-    {
-        return string.Equals(operationObject?.Trim(), "判断", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// 判断操作对象是否为 Lua 操作。
-    /// </summary>
-    /// <param name="operationObject">操作对象文本。</param>
-    /// <returns>是 Lua 操作时返回 true。</returns>
-    private static bool IsLuaOperationObject(string? operationObject)
-    {
-        return string.Equals(operationObject?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
     }
 
     #endregion
@@ -443,6 +260,7 @@ public static class SchemeConfigurationStore
     #endregion
 
     #region 文件与数值工具
+
     /// <summary>
     /// 枚举指定目录下的配置文件。
     /// </summary>

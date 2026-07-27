@@ -586,24 +586,21 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
         SchemeConfigurationViewModel operationEditor = new();
         operationEditor.SetExternalReturnValueOptions(GetFlowchartReturnValueOptions(document, operationEditor));
-        operationEditor.SetOperationObjectOptionsForDecisionMode(e.NodeKind == FlowchartNodeKind.Decision);
 
-        WorkStepProfile temporaryWorkStep = new()
+        SchemeWorkStepItem temporaryWorkStep = new()
         {
             StepName = GetNodeEditorTitle(e.NodeKind),
-            Steps = new ObservableCollection<WorkStepOperation>()
+            Operations = new ObservableCollection<WorkStepOperation>()
         };
 
         WorkStepOperation editingOperation = operation.Clone();
         if (e.NodeKind == FlowchartNodeKind.Decision &&
-            string.IsNullOrWhiteSpace(editingOperation.OperationObject))
+            string.IsNullOrWhiteSpace(editingOperation.OperationObjectName))
         {
-            editingOperation.OperationObject = SchemeConfigurationViewModel.JudgeOperationObjectName;
+            editingOperation.OperationObjectName = SchemeConfigurationViewModel.JudgeOperationObjectName;
         }
 
-        temporaryWorkStep.Steps.Add(editingOperation);
-        operationEditor.WorkSteps.Clear();
-        operationEditor.WorkSteps.Add(temporaryWorkStep);
+        temporaryWorkStep.Operations.Add(editingOperation);
         operationEditor.SelectedWorkStep = temporaryWorkStep;
         operationEditor.SelectedOperation = editingOperation;
         operationEditor.OpenOperationDrawerForEdit(editingOperation);
@@ -683,13 +680,10 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
             .Select(line => line?.Trim() ?? string.Empty)
             .FirstOrDefault(line => !string.IsNullOrWhiteSpace(line))
             ?? string.Empty;
-        string summary = NormalizeInlineText(lines.Skip(1));
 
         string operationObject = ResolveOperationObject(e.NodeKind, firstLine);
         WorkStepOperation operationTemplate = SchemeConfigurationViewModel.CreateDefaultOperation();
-        operationTemplate.OperationObject = operationObject;
-        operationTemplate.DeviceId = operationObject;
-        operationTemplate.Remark = summary;
+        operationTemplate.OperationObjectName = operationObject;
         return operationTemplate;
     }
 
@@ -707,10 +701,10 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     private static string BuildNodeText(FlowchartNodeKind nodeKind, WorkStepOperation operation)
     {
-        string operationObject = string.IsNullOrWhiteSpace(operation.OperationObject)
+        string operationObject = string.IsNullOrWhiteSpace(operation.OperationObjectName)
             ? GetDefaultNodeText(nodeKind)
-            : operation.OperationObject.Trim();
-        string summary = NormalizeInlineText(operation.Remark);
+            : operation.OperationObjectName.Trim();
+        string summary = string.Empty;
 
         return string.IsNullOrWhiteSpace(summary)
             ? operationObject
@@ -768,12 +762,21 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
             yield break;
         }
 
-        if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
+        string? returnValueName = operation.ReturnValues.FirstOrDefault()?.ReturnParameterName;
+        if (!string.IsNullOrWhiteSpace(returnValueName))
         {
-            yield return operation.ReturnValue.Trim();
+            yield return returnValueName.Trim();
         }
 
-        foreach (WorkStepOperationParameter parameter in operationEditorViewModel.CreateReturnParametersFromOperation(operation))
+        foreach (ReturnValue returnValue in operation.ReturnValues)
+        {
+            if (!string.IsNullOrWhiteSpace(returnValue.ReturnParameterName))
+            {
+                yield return returnValue.ReturnParameterName.Trim();
+            }
+        }
+
+        foreach (InputParameter parameter in operation.Parameters)
         {
             string value = string.IsNullOrWhiteSpace(parameter.ParameterName)
                 ? parameter.Value

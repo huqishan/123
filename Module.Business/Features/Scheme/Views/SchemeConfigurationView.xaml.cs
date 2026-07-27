@@ -1,4 +1,4 @@
-﻿using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.SchemeConfiguration;
 using Module.Business.Models;
 using System;
 using System.Collections.Generic;
@@ -333,7 +333,7 @@ namespace Module.Business.Features.Scheme.Views
             }
 
             OperationsDataGrid.SelectedItem = operation;
-            ViewModel?.OpenStepEditorForEdit(operation);
+            ViewModel?.OpenOperationDrawerForEdit(operation);
             e.Handled = true;
         }
 
@@ -356,7 +356,7 @@ namespace Module.Business.Features.Scheme.Views
             }
 
             OperationsDataGrid.SelectedItem = operation;
-            ViewModel?.OpenInlineParameterEditor(operation);
+            ViewModel?.InlineParameterEditor.Open(operation, ViewModel.SelectedWorkStep?.Operations ?? Enumerable.Empty<WorkStepOperation>());
             OpenInlineParameterDrawer();
             e.Handled = true;
         }
@@ -392,7 +392,7 @@ namespace Module.Business.Features.Scheme.Views
                 return;
             }
 
-            if (ViewModel.ApplyInlineParameterEditor())
+            if (ViewModel.InlineParameterEditor.Apply())
             {
                 CloseInlineParameterDrawer();
                 e.Handled = true;
@@ -411,7 +411,7 @@ namespace Module.Business.Features.Scheme.Views
 
             InlineReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
             InlineReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
-            ViewModel?.RefreshInlineParameterEditor();
+            ViewModel?.InlineParameterEditor.RefreshInputValueOptions(ViewModel.SelectedWorkStep?.Operations ?? Enumerable.Empty<WorkStepOperation>());
         }
 
         /// <summary>
@@ -429,7 +429,7 @@ namespace Module.Business.Features.Scheme.Views
         private void CloseInlineParameterDrawer()
         {
             _isInlineParameterDrawerOpen = false;
-            ViewModel?.CloseInlineParameterEditor();
+            ViewModel?.InlineParameterEditor.Close();
             UpdateInlineParameterDrawerVisual(animate: true);
         }
 
@@ -588,11 +588,10 @@ namespace Module.Business.Features.Scheme.Views
                 bindingPath = templateColumn.SortMemberPath;
             }
 
-            return string.Equals(bindingPath, nameof(WorkStepOperation.OperationObject), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.InvokeMethod), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.AreParametersModified), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.DelayMilliseconds), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.Remark), StringComparison.Ordinal);
+            return string.Equals(bindingPath, nameof(WorkStepOperation.OperationObjectName), StringComparison.Ordinal) ||
+                   string.Equals(bindingPath, nameof(WorkStepOperation.PCommandName), StringComparison.Ordinal) ||
+                   string.Equals(bindingPath, nameof(WorkStepOperation.IsEditParameter), StringComparison.Ordinal) ||
+                   string.Equals(bindingPath, nameof(WorkStepOperation.DelayMilliseconds), StringComparison.Ordinal);
 
         }
 
