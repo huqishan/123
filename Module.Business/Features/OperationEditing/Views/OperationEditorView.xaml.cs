@@ -1,5 +1,6 @@
-using Module.Business.Features.SchemeConfiguration;
-using Module.Business.Models;
+using Module.Business.Features.OperationEditing.ViewModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
+using Module.Business.Features.OperationEditing.Models;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -12,39 +13,80 @@ namespace Module.Business.Features.OperationEditing.Views;
 
 public partial class OperationEditorView : UserControl
 {
+    #region 私有字段与当前 ViewModel
+
     private bool _isRefreshingReturnParameters;
     private bool _isRefreshingLuaScriptTemplates;
+    private bool _isSynchronizingMethodSelection;
     private INotifyPropertyChanged? _subscribedViewModel;
+
+    private OperationEditorViewModel? ViewModel => DataContext as OperationEditorViewModel;
+
+    #endregion
+
+    #region 构造与生命周期
 
     public OperationEditorView()
     {
         InitializeComponent();
         Loaded += OperationEditorView_Loaded;
+        Unloaded += OperationEditorView_Unloaded;
         DataContextChanged += OperationEditorView_DataContextChanged;
     }
 
-    private SchemeConfigurationViewModel? ViewModel => DataContext as SchemeConfigurationViewModel;
-
+    /// <summary>
+    /// 控件加载后订阅当前 ViewModel，并同步脚本模板、参数编辑状态和返回参数。
+    /// </summary>
     private void OperationEditorView_Loaded(object sender, RoutedEventArgs e)
     {
         AttachViewModelSubscription();
-        RefreshLuaScriptTemplateOptions();
-        EnableParameterEditing();
-        RefreshReturnParametersFromEditorState();
+        RefreshEditorState();
     }
 
+    /// <summary>
+    /// 控件离开视觉树时解除属性通知订阅，避免视图被旧 ViewModel 长期引用。
+    /// </summary>
+    private void OperationEditorView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        DetachViewModelSubscription(_subscribedViewModel);
+    }
+
+    /// <summary>
+    /// 数据上下文切换时解除旧订阅；控件已加载时再订阅并刷新新编辑状态。
+    /// </summary>
     private void OperationEditorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         DetachViewModelSubscription(e.OldValue as INotifyPropertyChanged);
+        if (!IsLoaded)
+        {
+            return;
+        }
+
         AttachViewModelSubscription();
+        RefreshEditorState();
+    }
+
+    /// <summary>
+    /// 将所有依赖当前 ViewModel 的界面状态同步到最新值。
+    /// </summary>
+    private void RefreshEditorState()
+    {
         RefreshLuaScriptTemplateOptions();
+        SynchronizeSupportedMethodSelection();
         EnableParameterEditing();
         RefreshReturnParametersFromEditorState();
     }
 
+    #endregion
+
+    #region 方法与模板选择事件
+
     private void OperationMethodDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isRefreshingReturnParameters || OperationMethodDataGrid.SelectedItem is not StationOperationMethodItem methodItem)
+        if (_isRefreshingReturnParameters ||
+            _isSynchronizingMethodSelection ||
+            ViewModel?.IsInitializingOperationDrawer == true ||
+            OperationMethodDataGrid.SelectedItem is not StationOperationMethodItem methodItem)
         {
             return;
         }
@@ -95,6 +137,13 @@ public partial class OperationEditorView : UserControl
         EnableParameterEditing();
     }
 
+    #endregion
+
+    #region 方法应用
+
+    /// <summary>
+    /// 将方法表选中项转换成步骤操作，并应用到当前编辑状态。
+    /// </summary>
     private void ApplyMethod(StationOperationMethodItem methodItem)
     {
         if (ViewModel is null)
@@ -111,35 +160,39 @@ public partial class OperationEditorView : UserControl
         ApplyMethod(operation);
     }
 
-    private void ApplyMethod(WorkStepOperation operation, ObservableCollection<WorkStepOperationParameter>? parameters = null)
+    /// <summary>
+    /// 将步骤操作中的对象、方法和参数完整同步到编辑器。
+    /// </summary>
+    private void ApplyMethod(WorkStepOperation operation)
     {
         if (ViewModel is null)
         {
             return;
         }
 
-        ViewModel.EditingOperationObject = operation.OperationObject;
-        ViewModel.EditingProtocolName = operation.ProtocolName;
-        ViewModel.EditingCommandName = string.IsNullOrWhiteSpace(operation.CommandName)
-            ? operation.InvokeMethod
-            : operation.CommandName;
-        ViewModel.EditingInvokeMethod = operation.InvokeMethod;
-        ViewModel.EditingReturnValue = operation.ReturnValue;
-        ViewModel.EditingModifyInvokeParameters = true;
-        ViewModel.EditingInvokeParameters.Clear();
-
-        IEnumerable<WorkStepOperationParameter> sourceParameters = parameters is null
-            ? operation.Parameters.OrderBy(parameter => parameter.Sequence)
-            : parameters.OrderBy(parameter => parameter.Sequence);
-
-        foreach (WorkStepOperationParameter parameter in sourceParameters)
+        ViewModel.EditingOperation.OperationObjectName = operation.OperationObjectName;
+        if (ViewModel.IsSystemOrJudgeOperationSelected || ViewModel.IsLuaOperationSelected)
         {
-            ViewModel.EditingInvokeParameters.Add(parameter.Clone());
+            ViewModel.EditingOperation.PCommandName = string.Empty;
+        }
+        ViewModel.EditingOperation.PCommandName = operation.PCommandName;
+        ViewModel.EditingOperation.Summary = operation.Summary;
+        ViewModel.EditingOperation.ReturnValue = operation.ReturnValue;
+        ViewModel.EditingOperation.IsEditParameter = true;
+        ViewModel.EditingOperation.Parameters.Clear();
+
+        foreach (InputParameter parameter in operation.Parameters.OrderBy(parameter => parameter.Num))
+        {
+            ViewModel.EditingOperation.Parameters.Add(parameter.Clone());
         }
 
-        ViewModel.SelectedEditingInvokeParameter = ViewModel.EditingInvokeParameters.FirstOrDefault();
+        ViewModel.SelectedEditingInvokeParameter = ViewModel.EditingOperation.Parameters.FirstOrDefault();
         RefreshReturnParameters(operation);
     }
+
+    #endregion
+
+    #region ViewModel 属性通知
 
     private void AttachViewModelSubscription()
     {
@@ -169,13 +222,53 @@ public partial class OperationEditorView : UserControl
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SchemeConfigurationViewModel.EditingOperationObject)
-            or nameof(SchemeConfigurationViewModel.EditingProtocolName)
-            or nameof(SchemeConfigurationViewModel.EditingCommandName)
-            or nameof(SchemeConfigurationViewModel.EditingInvokeMethod)
-            or nameof(SchemeConfigurationViewModel.EditingReturnValue))
+        if (e.PropertyName is nameof(OperationEditorViewModel.EditingOperation)
+            or nameof(OperationEditorViewModel.OperationMethods)
+            or nameof(WorkStepOperation.OperationObjectName)
+            or nameof(WorkStepOperation.PCommandName))
+        {
+            SynchronizeSupportedMethodSelection();
+        }
+
+        if (e.PropertyName is nameof(WorkStepOperation.OperationObjectName)
+            or nameof(WorkStepOperation.PCommandName)
+            or nameof(WorkStepOperation.ReturnValue))
         {
             RefreshReturnParametersFromEditorState();
+        }
+    }
+
+    #endregion
+
+    #region 编辑状态同步
+
+    /// <summary>
+    /// 根据当前步骤保存的操作对象和方法名称恢复“支持的方法/指令”选中行。
+    /// 此处仅同步 DataGrid 的视觉状态，不重新应用方法，避免编辑步骤时覆盖已经保存的输入参数和返回参数。
+    /// </summary>
+    private void SynchronizeSupportedMethodSelection()
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        StationOperationMethodItem? selectedMethod = ViewModel.OperationMethods.FirstOrDefault(item =>
+            string.Equals(item.OperationObject, ViewModel.EditingOperation.OperationObjectName, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.InvokeMethod, ViewModel.EditingOperation.PCommandName, StringComparison.OrdinalIgnoreCase));
+
+        _isSynchronizingMethodSelection = true;
+        try
+        {
+            OperationMethodDataGrid.SelectedItem = selectedMethod;
+            if (selectedMethod is not null)
+            {
+                OperationMethodDataGrid.ScrollIntoView(selectedMethod);
+            }
+        }
+        finally
+        {
+            _isSynchronizingMethodSelection = false;
         }
     }
 
@@ -186,7 +279,7 @@ public partial class OperationEditorView : UserControl
             return;
         }
 
-        ViewModel.EditingModifyInvokeParameters = true;
+        ViewModel.EditingOperation.IsEditParameter = true;
     }
 
     private void RefreshReturnParametersFromEditorState()
@@ -201,7 +294,7 @@ public partial class OperationEditorView : UserControl
             _isRefreshingReturnParameters = true;
             try
             {
-                ViewModel.EditingReturnValue = string.Empty;
+                ViewModel.EditingOperation.ReturnValue = string.Empty;
                 ViewModel.ClearStepEditorReturnParameterRows();
             }
             finally
@@ -212,7 +305,16 @@ public partial class OperationEditorView : UserControl
             return;
         }
 
-        RefreshReturnParameters(CreateEditingOperationSnapshot());
+        WorkStepOperation editingOperation = new()
+        {
+            OperationObjectName = ViewModel.EditingOperation.OperationObjectName,
+            PCommandName = ViewModel.EditingOperation.PCommandName,
+            ReturnValues = new ObservableCollection<ReturnValue>(
+                ViewModel.EditingOperation.ReturnValues
+                    .OrderBy(returnValue => returnValue.Num)
+                    .Select(returnValue => returnValue.Clone()))
+        };
+        RefreshReturnParameters(editingOperation);
     }
 
     private void RefreshReturnParameters(WorkStepOperation? operation)
@@ -233,24 +335,13 @@ public partial class OperationEditorView : UserControl
         }
     }
 
-    private WorkStepOperation CreateEditingOperationSnapshot()
-    {
-        return new WorkStepOperation
-        {
-            OperationObject = ViewModel?.EditingOperationObject ?? string.Empty,
-            DeviceId = ViewModel?.EditingOperationObject ?? string.Empty,
-            ProtocolName = ViewModel?.EditingProtocolName ?? string.Empty,
-            CommandName = ViewModel?.EditingCommandName ?? string.Empty,
-            InvokeMethod = ViewModel?.EditingInvokeMethod ?? string.Empty,
-            OperationId = ViewModel?.EditingInvokeMethod ?? string.Empty,
-            ReturnValue = ViewModel?.EditingReturnValue ?? string.Empty,
-            ShowDataToView = ViewModel?.EditingShowDataToView ?? false,
-            ViewDataName = ViewModel?.EditingViewDataName ?? string.Empty,
-            ViewJudgeType = ViewModel?.EditingViewJudgeType ?? string.Empty,
-            ViewJudgeCondition = ViewModel?.EditingViewJudgeCondition ?? string.Empty
-        };
-    }
+    #endregion
 
+    #region 视觉树辅助
+
+    /// <summary>
+    /// 从事件源向上查找指定类型的视觉树父级。
+    /// </summary>
     private static T? FindAncestor<T>(DependencyObject? source)
         where T : DependencyObject
     {
@@ -266,4 +357,6 @@ public partial class OperationEditorView : UserControl
 
         return null;
     }
+
+    #endregion
 }

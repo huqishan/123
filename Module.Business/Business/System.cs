@@ -75,31 +75,23 @@ namespace Module.Business.Business
         /// <summary>
         /// 发送数据到视图层
         /// </summary>
-        /// <param name="name">数据名称</param>
-        /// <param name="type">判断类型</param>
+        /// <param name="name">显示到界面的数据名称</param>
         /// <param name="value">数据值</param>
-        /// <param name="judge">判断条件</param>
         [BusinessOperation("SendDataToView", "发送数据到视图层")]
         public static void SendDataToView(
-            [BusinessParam("数据名称")] string name,
-            [BusinessParam("判断类型")] string type,
-            [BusinessParam("数据值")] string value,
-            [BusinessParam("判断条件")] string judge)
+            [BusinessParam("显示名称")] string name,
+            [BusinessParam("数据值")] string value)
         {
             _eventAggregator?.GetEvent<MessageShowView>().Publish(new MessageShowView
             {
                 Name = name,
-                Type = type,
-                Value = value,
-                Judge = judge
+                Value = value
             });
         }
         public sealed class MessageShowView : PubSubEvent<MessageShowView>
         {
-            public string Name { get; set; }
-            public string Type { get; set; }
-            public string Value { get; set; }
-            public string Judge { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public string Value { get; set; } = string.Empty;
         }
     }
 

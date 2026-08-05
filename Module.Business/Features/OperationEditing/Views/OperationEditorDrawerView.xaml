@@ -1,0 +1,50 @@
+<UserControl x:Class="Module.Business.Features.OperationEditing.Views.OperationEditorDrawerView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Module.Business.Features.OperationEditing.Views">
+    <Grid x:Name="DrawerHost"
+          Width="840"
+          HorizontalAlignment="Left"
+          Opacity="0"
+          IsHitTestVisible="False">
+        <Border Background="#3A000000"
+                MouseLeftButtonDown="DrawerBackdrop_MouseLeftButtonDown" />
+
+        <Border Style="{StaticResource DrawerBorderStyle}">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="DrawerTranslateTransform" X="-56" />
+            </Border.RenderTransform>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <DockPanel LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Style="{StaticResource SectionTitleStyle}"
+                                   Text="{Binding Title, ElementName=Root}" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                   Text="{Binding HostStepName, ElementName=Root}" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                        <Button Content="关闭"
+                                Command="{Binding CloseCommand, ElementName=Root}"
+                                Style="{StaticResource ActionButtonStyle}" />
+                        <Button Content="{Binding BtnTitle, ElementName=Root}"
+                                Command="{Binding SaveCommand, ElementName=Root}"
+                                Style="{StaticResource PrimaryActionButtonStyle}" />
+                    </StackPanel>
+                </DockPanel>
+
+                <local:OperationEditorView Grid.Row="1"
+                                           DataContext="{Binding Editor, ElementName=Root}" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

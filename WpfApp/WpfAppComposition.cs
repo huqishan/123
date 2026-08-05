@@ -84,7 +84,10 @@ internal static class WpfAppComposition
             .InstancePerDependency();
 
         builder.RegisterAssemblyTypes(assemblies)
-            .Where(type => type.Name.EndsWith("ViewModel", StringComparison.Ordinal))
+            // OperationEditorViewModel 是 SchemeConfigurationViewModel 内部组合的子视图模型，
+            // 构造时必须传入当前宿主，不能由 Autofac 脱离宿主单独创建。
+            .Where(type => type.Name.EndsWith("ViewModel", StringComparison.Ordinal) &&
+                           type != typeof(Module.Business.Features.OperationEditing.ViewModels.OperationEditorViewModel))
             .AsSelf()
             .InstancePerDependency();
     }

@@ -3,7 +3,10 @@ using ControlLibrary.ControlViews.Flowchart;
 using ControlLibrary.Controls.FlowchartEditor.Control;
 using ControlLibrary.Controls.FlowchartEditor.Models;
 using Microsoft.Win32;
-using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.Scheme.ViewModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
+using Module.Business.Features.OperationEditing.ViewModels;
 using Module.Business.Models;
 using Module.Business.Services;
 using System;
@@ -121,7 +124,9 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// <summary>
     /// 当前流程图节点操作编辑器。
     /// </summary>
-    private SchemeConfigurationViewModel? _nodeOperationEditor;
+    private OperationEditorViewModel? _nodeOperationEditor;
+
+    private WorkStepOperation? _savedNodeOperation;
 
     /// <summary>
     /// 当前正在编辑的流程图节点编号。
@@ -307,7 +312,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// <summary>
     /// 当前流程图节点操作编辑器。
     /// </summary>
-    public SchemeConfigurationViewModel? NodeOperationEditor
+    public OperationEditorViewModel? NodeOperationEditor
     {
         get => _nodeOperationEditor;
         private set
@@ -584,29 +589,20 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
         WorkStepOperation operation = DeserializeNodeOperation(e);
         _editingNodeId = e.NodeId;
 
-        SchemeConfigurationViewModel operationEditor = new();
+        OperationEditorViewModel operationEditor = new();
+        operationEditor.OperationSaved += NodeOperationEditor_OperationSaved;
         operationEditor.SetExternalReturnValueOptions(GetFlowchartReturnValueOptions(document, operationEditor));
-        operationEditor.SetOperationObjectOptionsForDecisionMode(e.NodeKind == FlowchartNodeKind.Decision);
-
-        WorkStepProfile temporaryWorkStep = new()
-        {
-            StepName = GetNodeEditorTitle(e.NodeKind),
-            Steps = new ObservableCollection<WorkStepOperation>()
-        };
+        operationEditor.SetDecisionMode(e.NodeKind == FlowchartNodeKind.Decision);
 
         WorkStepOperation editingOperation = operation.Clone();
         if (e.NodeKind == FlowchartNodeKind.Decision &&
-            string.IsNullOrWhiteSpace(editingOperation.OperationObject))
+            string.IsNullOrWhiteSpace(editingOperation.OperationObjectName))
         {
-            editingOperation.OperationObject = SchemeConfigurationViewModel.JudgeOperationObjectName;
+            editingOperation.OperationObjectName = "判断";
         }
 
-        temporaryWorkStep.Steps.Add(editingOperation);
-        operationEditor.WorkSteps.Clear();
-        operationEditor.WorkSteps.Add(temporaryWorkStep);
-        operationEditor.SelectedWorkStep = temporaryWorkStep;
-        operationEditor.SelectedOperation = editingOperation;
-        operationEditor.OpenOperationDrawerForEdit(editingOperation);
+        _savedNodeOperation = null;
+        operationEditor.Open(editingOperation, isNewOperation: false, new[] { editingOperation });
 
         NodeOperationEditor = operationEditor;
         return true;
@@ -622,12 +618,8 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
             return false;
         }
 
-        if (!NodeOperationEditor.TrySaveStepEditor())
-        {
-            return false;
-        }
-
-        WorkStepOperation? operation = NodeOperationEditor.CreateSelectedOperationSnapshot();
+        NodeOperationEditor.Save();
+        WorkStepOperation? operation = _savedNodeOperation;
         if (operation is null)
         {
             return false;
@@ -656,14 +648,26 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
     /// </summary>
     public void CancelNodeOperationEdit()
     {
-        NodeOperationEditor?.CloseStepEditor();
+        NodeOperationEditor?.Close();
         CloseNodeOperationEditor();
     }
 
     private void CloseNodeOperationEditor()
     {
+        if (NodeOperationEditor is not null)
+        {
+            NodeOperationEditor.OperationSaved -= NodeOperationEditor_OperationSaved;
+            NodeOperationEditor.Close();
+        }
+
         _editingNodeId = null;
+        _savedNodeOperation = null;
         NodeOperationEditor = null;
+    }
+
+    private void NodeOperationEditor_OperationSaved(object? sender, OperationEditorSavedEventArgs e)
+    {
+        _savedNodeOperation = e.Operation;
     }
 
     private static WorkStepOperation DeserializeNodeOperation(FlowchartNodeInteractionEventArgs e)
@@ -687,9 +691,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
         string operationObject = ResolveOperationObject(e.NodeKind, firstLine);
         WorkStepOperation operationTemplate = SchemeConfigurationViewModel.CreateDefaultOperation();
-        operationTemplate.OperationObject = operationObject;
-        operationTemplate.DeviceId = operationObject;
-        operationTemplate.Remark = summary;
+        operationTemplate.OperationObjectName = operationObject;
         return operationTemplate;
     }
 
@@ -707,14 +709,11 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     private static string BuildNodeText(FlowchartNodeKind nodeKind, WorkStepOperation operation)
     {
-        string operationObject = string.IsNullOrWhiteSpace(operation.OperationObject)
+        string operationObject = string.IsNullOrWhiteSpace(operation.OperationObjectName)
             ? GetDefaultNodeText(nodeKind)
-            : operation.OperationObject.Trim();
-        string summary = NormalizeInlineText(operation.Remark);
+            : operation.OperationObjectName.Trim();
 
-        return string.IsNullOrWhiteSpace(summary)
-            ? operationObject
-            : $"{operationObject} {summary}";
+        return operationObject;
     }
 
     private static string ResolveOperationObject(FlowchartNodeKind nodeKind, string firstLine)
@@ -722,14 +721,14 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
         if (string.IsNullOrWhiteSpace(firstLine))
         {
             return nodeKind == FlowchartNodeKind.Process
-                ? SchemeConfigurationViewModel.SystemOperationObjectName
+                ? "System"
                 : GetDefaultNodeText(nodeKind);
         }
 
         if (nodeKind == FlowchartNodeKind.Process &&
             string.Equals(firstLine, "处理", StringComparison.Ordinal))
         {
-            return SchemeConfigurationViewModel.SystemOperationObjectName;
+            return "System";
         }
 
         return firstLine.Trim();
@@ -748,7 +747,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     private static IEnumerable<string> GetFlowchartReturnValueOptions(
         FlowchartDocument document,
-        SchemeConfigurationViewModel operationEditorViewModel)
+        OperationEditorViewModel operationEditorViewModel)
     {
         return document.Nodes
             .SelectMany(node => GetNodeReturnValueOptions(node, operationEditorViewModel))
@@ -760,7 +759,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     private static IEnumerable<string> GetNodeReturnValueOptions(
         FlowchartNodeDocument node,
-        SchemeConfigurationViewModel operationEditorViewModel)
+        OperationEditorViewModel operationEditorViewModel)
     {
         if (!TryDeserializeNodeOperationMetadata(node.MetadataJson, out WorkStepOperation? operation) ||
             operation is null)
@@ -768,19 +767,19 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
             yield break;
         }
 
-        if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
+        foreach (ReturnValue returnValue in operation.ReturnValues)
         {
-            yield return operation.ReturnValue.Trim();
+            if (!string.IsNullOrWhiteSpace(returnValue.ReturnParameterName))
+            {
+                yield return returnValue.ReturnParameterName.Trim();
+            }
         }
 
-        foreach (WorkStepOperationParameter parameter in operationEditorViewModel.CreateReturnParametersFromOperation(operation))
+        foreach (ReturnValue returnValue in operationEditorViewModel.CreateReturnParametersFromOperation(operation))
         {
-            string value = string.IsNullOrWhiteSpace(parameter.ParameterName)
-                ? parameter.Value
-                : parameter.ParameterName;
-            if (!string.IsNullOrWhiteSpace(value))
+            if (!string.IsNullOrWhiteSpace(returnValue.ReturnParameterName))
             {
-                yield return value.Trim();
+                yield return returnValue.ReturnParameterName.Trim();
             }
         }
     }

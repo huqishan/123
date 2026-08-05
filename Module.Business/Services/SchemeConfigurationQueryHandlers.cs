@@ -1,6 +1,6 @@
 using ControlLibrary.Models.MediatorModels.Business;
 using Module.Business.Features.StationConfiguration;
-using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.Scheme.ViewModels.PresentationModels;
 using Shared.Infrastructure.Mediator;
 using System;
 using System.Linq;
@@ -37,12 +37,11 @@ public sealed class GetBusinessSchemesRequestHandler
                 scheme.Id,
                 scheme.SchemeName,
                 scheme.Steps
-                    .OrderBy(step => step.DisplayOrder)
-                    .Select(step => new BusinessSchemeWorkStepInfo(
+                    .Select((step, index) => new BusinessSchemeWorkStepInfo(
                         step.Id,
-                        step.DisplayOrder,
+                        index + 1,
                         ResolveWorkStepName(step),
-                        step.SchemeStepName,
+                        step.StepName,
                         step.Operations.Count))
                     .ToList()))
             .ToList();
@@ -61,9 +60,7 @@ public sealed class GetBusinessSchemesRequestHandler
     /// <returns>用于展示的工步名称。</returns>
     private static string ResolveWorkStepName(SchemeWorkStepItem step)
     {
-        return string.IsNullOrWhiteSpace(step.StepName)
-            ? step.SchemeStepName
-            : step.StepName;
+        return step.StepName;
     }
 
     #endregion

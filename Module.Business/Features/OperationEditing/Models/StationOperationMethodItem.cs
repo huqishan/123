@@ -1,4 +1,4 @@
-namespace Module.Business.Models;
+namespace Module.Business.Features.OperationEditing.Models;
 
 public sealed class StationOperationMethodItem
 {

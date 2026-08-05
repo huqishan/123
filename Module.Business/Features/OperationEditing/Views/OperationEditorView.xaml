@@ -1,10 +1,12 @@
-﻿<UserControl x:Class="Module.Business.Features.OperationEditing.Views.OperationEditorView"
+<UserControl x:Class="Module.Business.Features.OperationEditing.Views.OperationEditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:luaEditor="clr-namespace:ControlLibrary.ControlViews.LuaScrip;assembly=ControlLibrary"
              xmlns:converts="clr-namespace:ControlLibrary.Converts;assembly=ControlLibrary"
+             xmlns:local="clr-namespace:Module.Business.Features.OperationEditing.Views"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="900"
              d:DesignWidth="1200">
@@ -12,6 +14,8 @@
         <BooleanToVisibilityConverter x:Key="b2v" />
         <converts:ComparisonToVisibilityConvert x:Key="comp2v"/>
         <converts:InvertVisibilityConvert x:Key="in2v"/>
+        <!-- DataGridColumn 不继承数据上下文，使用 Freezable 代理避免 x:Reference 构造循环。 -->
+        <local:BindingProxy x:Key="DataContextProxy" Data="{Binding}" />
     </UserControl.Resources>
 
     <Grid Margin="0,18,0,0"
@@ -34,30 +38,35 @@
 AcceptsReturn="True"
 TextWrapping="Wrap"
 VerticalScrollBarVisibility="Auto" Width="200"
-Text="{Binding EditingRemark, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+Text="{Binding EditingOperation.Summary, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
             <StackPanel Margin="16,0,0,0">
                 <TextBlock Style="{StaticResource FieldLabelStyle}"
   Text="{DynamicResource 延时(ms)}" />
                 <TextBox Style="{StaticResource InputTextBoxStyle}" Width="118"
-Text="{Binding EditingDelayMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+Text="{Binding EditingOperation.DelayMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
         </StackPanel>
-        <StackPanel Grid.Row="1" Margin="0,6,0,0" x:Name="operationObj">
-            <TextBlock Style="{StaticResource FieldLabelStyle}"
+        <StackPanel Grid.Row="1" Margin="0,6,0,0" Orientation="Horizontal">
+            <StackPanel x:Name="operationObj" Width="200">
+                <TextBlock Style="{StaticResource FieldLabelStyle}"
  Text="{DynamicResource 操作对象}" />
-            <ComboBox Style="{StaticResource EditableInputComboBoxStyle}" x:Name="OperationObject"
+                <ComboBox Style="{StaticResource EditableInputComboBoxStyle}" x:Name="OperationObject"
 ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
 ItemsSource="{Binding OperationObjectOptions}"
-Text="{Binding EditingOperationObject, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <StackPanel Visibility="{Binding ElementName=luaEdit, Path=Visibility, Converter={StaticResource in2v}}">
-                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="支持的方法/指令" />
-                <TextBlock Margin="0,6,0,8"
-                     Foreground="{DynamicResource AppMutedTextBrush}"
-                     Text="选中后自动同步输入参数和返回参数。"
-                     TextWrapping="Wrap" />
+Text="{Binding EditingOperation.OperationObjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Visibility="{Binding ElementName=luaEdit, Path=Visibility, Converter={StaticResource in2v}}">
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="支持的方法/指令" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Margin="16,0,0,0">
+                <TextBlock Style="{StaticResource FieldLabelStyle}" x:Name="returnValue"
+  Text="返回值" />
+                <TextBox Style="{StaticResource InputTextBoxStyle}" Width="118"
+Text="{Binding EditingOperation.ReturnValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
         </StackPanel>
+
         <StackPanel Grid.Row="1" Grid.Column="2" Margin="16,6,0,0">
             <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Lua脚本模版" />
             <ComboBox x:Name="LuaScriptTemplateComboBox"
@@ -73,7 +82,6 @@ HorizontalScrollBarVisibility="Disabled"
 AutoGenerateColumns="False"
 IsReadOnly="True"
 ItemsSource="{Binding StationOperationMethodCollection}"
-SelectedItem="{Binding SelectedStationOperationMethod, Mode=TwoWay}"
 SelectionChanged="OperationMethodDataGrid_SelectionChanged"
 MouseDoubleClick="OperationMethodDataGrid_MouseDoubleClick"
 Style="{StaticResource ColumnsDataGridStyle}">
@@ -90,7 +98,7 @@ Style="{StaticResource ColumnsDataGridStyle}">
             </DataGrid>
         </Grid>
         <Grid Grid.Row="2" Grid.ColumnSpan="3" x:Name="luaEdit" VerticalAlignment="Stretch" Margin="0,14,0,0" Visibility="{Binding ElementName=OperationObject, Path=SelectedItem, Converter={StaticResource comp2v}, ConverterParameter='Lua'}">
-            <luaEditor:LuaScriptCompilerView ScriptText="{Binding EditingLuaScript, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <luaEditor:LuaScriptCompilerView ScriptText="{Binding EditingOperation.LuaScript, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
         </Grid>
         <ScrollViewer Grid.Column="2" Grid.RowSpan="3"
                       VerticalScrollBarVisibility="Auto"
@@ -106,8 +114,12 @@ Style="{StaticResource ColumnsDataGridStyle}">
                 </Style>
             </ScrollViewer.Style>
 
-            <StackPanel Margin="0,0,4,0">
-                <StackPanel>
+            <Grid Margin="0,0,4,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0">
                     <TextBlock Style="{StaticResource FieldLabelStyle}"
                                Text="{DynamicResource 输入参数}" />
                     <DataGrid x:Name="InvokeParameterDataGrid"
@@ -116,15 +128,15 @@ Style="{StaticResource ColumnsDataGridStyle}">
                               CellEditEnding="InvokeParameterDataGrid_CellEditEnding"
                               HorizontalScrollBarVisibility="Disabled"
                               IsReadOnly="False"
-                              ItemsSource="{Binding EditingInvokeParameters}"
+                              ItemsSource="{Binding EditingOperation.Parameters}"
                               SelectedItem="{Binding SelectedEditingInvokeParameter, Mode=TwoWay}"
                               Style="{StaticResource ColumnsDataGridStyle}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Width="54"
+                            <DataGridTextColumn Width="54" IsReadOnly="True"
                                                 Header="{DynamicResource 序号}"
                                                 ElementStyle="{StaticResource CellTextBlockStyle}"
                                                 EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Sequence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                Binding="{Binding Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGridTemplateColumn Width="1.2*"
                                                     Header="{DynamicResource 参数类型}">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -132,203 +144,87 @@ Style="{StaticResource ColumnsDataGridStyle}">
                                         <ComboBox Style="{StaticResource EditableInputComboBoxStyle}"
                                                   ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
                                                   ItemsSource="{Binding DataContext.ParameterTypeOptions, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                  Text="{Binding Type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                  SelectedItem="{Binding ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="1.25*"
+                            <DataGridTemplateColumn Width="1.35*"
                                                     Header="{DynamicResource 参数值}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                                <TextBox.Style>
-                                                    <Style TargetType="{x:Type TextBox}"
-                                                           BasedOn="{StaticResource CellTextBoxStyle}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Type}" Value="设置值">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBox.Style>
-                                            </TextBox>
+                                            <TextBox Style="{StaticResource CellTextBoxStyle}" ToolTip="{Binding Value}"
+                                                     Visibility="{Binding ParameterType, Converter={StaticResource comp2v}, ConverterParameter=设置值}"
+                                                     Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <ComboBox ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-                                                      ItemsSource="{Binding ValueOptions}"
-                                                      Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                                <ComboBox.Style>
-                                                    <Style TargetType="{x:Type ComboBox}"
-                                                           BasedOn="{StaticResource EditableInputComboBoxStyle}">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Type}" Value="设置值">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </ComboBox.Style>
-                                            </ComboBox>
+                                                      ItemsSource="{Binding ValueOptions}" ToolTip="{Binding Value}"
+                                                      Style="{StaticResource EditableInputComboBoxStyle}" Padding="0" Height="34"
+                                                      Visibility="{Binding ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|系统值}"
+                                                      Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Width="1.35*"
+                            <DataGridTextColumn Width="1.25*" IsReadOnly="True"
                                                 Header="{DynamicResource 描述}"
-                                                ElementStyle="{StaticResource CellTextBlockStyle}"
                                                 EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                Binding="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CellTextBlockStyle}">
+                                        <!-- 描述列宽度有限，悬停时通过 ToolTip 展示完整参数说明。 -->
+                                        <Setter Property="ToolTip" Value="{Binding Description}" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </StackPanel>
 
-                <StackPanel Margin="0,6,0,0">
+                <Grid Margin="0,6,0,0" Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
                     <TextBlock Style="{StaticResource FieldLabelStyle}"
                                Text="{DynamicResource 返回参数}" />
-                    <TextBlock Margin="0,6,0,8"
+                    <TextBlock Margin="0,6,0,8" Grid.Row="1"
                                Foreground="{DynamicResource AppMutedTextBrush}"
                                Text="返回参数列表中的所有项都会作为当前步骤可输出的返回值。"
                                TextWrapping="Wrap" />
 
-                    <DataGrid x:Name="ReturnParameterDataGrid"
-                              Height="180"
+                    <DataGrid x:Name="ReturnParameterDataGrid" Grid.Row="2"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              HorizontalScrollBarVisibility="Disabled"
+                              HorizontalScrollBarVisibility="Auto"
                               IsReadOnly="False"
-                              ItemsSource="{Binding StepEditorReturnParameterRows}"
+                              ItemsSource="{Binding EditingOperation.ReturnValues}"
                               Style="{StaticResource ColumnsDataGridStyle}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Width="1.2*"
+                            <DataGridTextColumn Width="100"
                                                 Header="返回值键"
                                                 IsReadOnly="True"
                                                 ElementStyle="{StaticResource CellTextBlockStyle}"
                                                 EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Key, Mode=OneWay}" />
+                                                Binding="{Binding ReturnParameterName, Mode=OneWay}" />
                             <DataGridCheckBoxColumn Width="Auto"
                                                     Header="显示"
-                                                    Binding="{Binding ShowDataToView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <DataGridTextColumn Width="1.2*"
-                                                Header="显示名称"
-                                                ElementStyle="{StaticResource CellTextBlockStyle}"
-                                                EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding ViewDataName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <DataGridTemplateColumn Width="2.2*"
-                                                    Header="判断条件">
+                                                    Binding="{Binding IsShowView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <DataGridTemplateColumn Header="显示名称"
+                                                    Visibility="{Binding Data.HasVisibleReturnValueName, Source={StaticResource DataContextProxy}, Converter={StaticResource b2v}}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
-                                            <Grid>
-                                                <Grid.Style>
-                                                    <Style TargetType="{x:Type Grid}">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsRangeJudgeTemplate}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Grid.Style>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="112" />
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource AppMutedTextBrush}"
-                                                           Text="条件" />
-                                                <ComboBox Grid.Column="2"
-                                                          ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-                                                          ItemsSource="{Binding JudgeTemplateOptions}"
-                                                          IsEditable="False"
-                                                          DisplayMemberPath="DisplayText"
-                                                          SelectedValuePath="Value"
-                                                          SelectedValue="{Binding ViewJudgeType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                          ToolTip="判断模板">
-                                                    <ComboBox.Style>
-                                                        <Style TargetType="{x:Type ComboBox}"
-                                                               BasedOn="{StaticResource EditableInputComboBoxStyle}">
-                                                            <Setter Property="MinHeight" Value="30" />
-                                                            <Setter Property="Padding" Value="8,3" />
-                                                        </Style>
-                                                    </ComboBox.Style>
-                                                </ComboBox>
-                                                <TextBox Grid.Column="4"
-                                                         Text="{Binding FirstJudgeConditionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="条件值">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="{x:Type TextBox}"
-                                                               BasedOn="{StaticResource CellTextBoxStyle}">
-                                                            <Setter Property="MinHeight" Value="30" />
-                                                        </Style>
-                                                    </TextBox.Style>
-                                                </TextBox>
-                                            </Grid>
-
-                                            <Grid>
-                                                <Grid.Style>
-                                                    <Style TargetType="{x:Type Grid}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsRangeJudgeTemplate}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Grid.Style>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="112" />
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBox Text="{Binding FirstJudgeConditionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="下限值">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="{x:Type TextBox}"
-                                                               BasedOn="{StaticResource CellTextBoxStyle}">
-                                                            <Setter Property="MinHeight" Value="30" />
-                                                        </Style>
-                                                    </TextBox.Style>
-                                                </TextBox>
-                                                <ComboBox Grid.Column="2"
-                                                          ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-                                                          ItemsSource="{Binding JudgeTemplateOptions}"
-                                                          IsEditable="False"
-                                                          DisplayMemberPath="DisplayText"
-                                                          SelectedValuePath="Value"
-                                                          SelectedValue="{Binding ViewJudgeType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                          ToolTip="判断模板">
-                                                    <ComboBox.Style>
-                                                        <Style TargetType="{x:Type ComboBox}"
-                                                               BasedOn="{StaticResource EditableInputComboBoxStyle}">
-                                                            <Setter Property="MinHeight" Value="30" />
-                                                            <Setter Property="Padding" Value="8,3" />
-                                                        </Style>
-                                                    </ComboBox.Style>
-                                                </ComboBox>
-                                                <TextBox Grid.Column="4"
-                                                         Text="{Binding SecondJudgeConditionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="上限值">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="{x:Type TextBox}"
-                                                               BasedOn="{StaticResource CellTextBoxStyle}">
-                                                            <Setter Property="MinHeight" Value="30" />
-                                                        </Style>
-                                                    </TextBox.Style>
-                                                </TextBox>
-                                            </Grid>
-                                        </Grid>
+                                        <!-- DataGridColumn 不继承行数据上下文，可见性必须绑定在单元格内容上。 -->
+                                        <TextBox HorizontalAlignment="Left" Width="250" Visibility="{Binding IsShowView, Converter={StaticResource b2v}}"
+                                                 Style="{StaticResource CellTextBoxStyle}"
+                                                 Text="{Binding ViewDataName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                </StackPanel>
-            </StackPanel>
+                </Grid>
+            </Grid>
         </ScrollViewer>
     </Grid>
 </UserControl>

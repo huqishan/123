@@ -219,14 +219,7 @@
                         <StackPanel DockPanel.Dock="Left">
                             <TextBlock Style="{StaticResource SectionTitleStyle}"
                                        Text="编辑步骤" />
-                            <TextBlock Margin="0,8,0,0"
-                                       Foreground="{DynamicResource AppMutedTextBrush}"
-                                       Text="{Binding SelectedWorkStep.StepName}" />
                         </StackPanel>
-                        <TextBlock DockPanel.Dock="Right"
-                                   VerticalAlignment="Center"
-                                   Foreground="{Binding PageStatusBrush}"
-                                   Text="{Binding PageStatusText}" />
                     </DockPanel>
 
                     <businessViews:OperationEditorView Grid.Row="1" />

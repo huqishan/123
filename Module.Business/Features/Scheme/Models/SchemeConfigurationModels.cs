@@ -1,12 +1,12 @@
 using ControlLibrary;
-using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
-using System.Text.Json.Serialization;
 
 namespace Module.Business.Models;
 
@@ -16,33 +16,7 @@ namespace Module.Business.Models;
 public sealed class SchemeConfigurationCatalog
 {
     /// <summary>
-    /// 工步模板集合。
-    /// </summary>
-    public ObservableCollection<WorkStepProfile> WorkSteps { get; set; } = new();
-
-    /// <summary>
     /// 业务方案集合。
     /// </summary>
     public ObservableCollection<SchemeProfile> Schemes { get; set; } = new();
-}
-
-/// <summary>
-/// 方案导入导出包，包含方案本体和完整工步内容。
-/// </summary>
-public sealed class SchemeConfigurationPackage
-{
-    /// <summary>
-    /// 导入导出包版本。
-    /// </summary>
-    public int Version { get; set; } = 1;
-
-    /// <summary>
-    /// 方案本体。
-    /// </summary>
-    public SchemeProfile? Scheme { get; set; }
-
-    /// <summary>
-    /// 方案引用的工步模板集合。
-    /// </summary>
-    public ObservableCollection<WorkStepProfile> WorkSteps { get; set; } = new();
 }

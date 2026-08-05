@@ -206,7 +206,6 @@
     <sys:String x:Key="标识">标识</sys:String>
     <sys:String x:Key="波特率">波特率</sys:String>
     <sys:String x:Key="步骤编辑">步骤编辑</sys:String>
-    <sys:String x:Key="参数编辑">参数编辑</sys:String>
     <sys:String x:Key="参数名称">参数名称</sys:String>
     <sys:String x:Key="参数类型">参数类型</sys:String>
     <sys:String x:Key="参数名">参数名</sys:String>
@@ -367,7 +366,6 @@
     <sys:String x:Key="刷新串口">刷新串口</sys:String>
     <sys:String x:Key="刷新配置">刷新配置</sys:String>
     <sys:String x:Key="刷新数据">刷新数据</sys:String>
-    <sys:String x:Key="双击步骤可打开完整编辑；直接修改操作对象和调用方法会同步参数，点击“...”可调整参数，拖拽可调整步骤顺序。">双击步骤可打开完整编辑；直接修改操作对象和调用方法会同步参数，点击“...”可调整参数，拖拽可调整步骤顺序。</sys:String>
     <sys:String x:Key="双击处理块或判断块可打开同一个编辑步骤弹框。">双击处理块或判断块可打开同一个编辑步骤弹框。</sys:String>
     <sys:String x:Key="双击可直接添加协议，也可以拖动到上方支持协议表格中。">双击可直接添加协议，也可以拖动到上方支持协议表格中。</sys:String>
     <sys:String x:Key="搜索方案配置...">搜索方案配置...</sys:String>
@@ -419,7 +417,6 @@
     <sys:String x:Key="新增">新增</sys:String>
     <sys:String x:Key="新增列">新增列</sys:String>
     <sys:String x:Key="姓名">姓名</sys:String>
-    <sys:String x:Key="修改参数">修改参数</sys:String>
     <sys:String x:Key="序号">序号</sys:String>
     <sys:String x:Key="选择">选择</sys:String>
     <sys:String x:Key="选择角色后，在右侧配置该角色可看到、可点击的界面、弹窗和按钮。">选择角色后，在右侧配置该角色可看到、可点击的界面、弹窗和按钮。</sys:String>

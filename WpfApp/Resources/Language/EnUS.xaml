@@ -478,7 +478,6 @@
     <sys:String x:Key="PLC 类型">PLC Type</sys:String>
     <sys:String x:Key="报文">Message</sys:String>
     <sys:String x:Key="步骤编辑">Step Editor</sys:String>
-    <sys:String x:Key="参数编辑">Parameter Editor</sys:String>
     <sys:String x:Key="参数名">Parameter Name</sys:String>
     <sys:String x:Key="参数预览">Parameter Preview</sys:String>
     <sys:String x:Key="测试区域会根据当前配置创建通信对象。TCP 服务端模式下可对指定客户端发送报文，PLC 模式下支持下方读写测试。">The test area creates a communication object from the current configuration. TCP Server mode can send messages to a selected client, and PLC mode supports the read/write tests below.</sys:String>
@@ -499,7 +498,6 @@
     <sys:String x:Key="启用">Enable</sys:String>
     <sys:String x:Key="删除工步">Delete Work Step</sys:String>
     <sys:String x:Key="输入参数">Input Parameters</sys:String>
-    <sys:String x:Key="双击步骤可打开完整编辑；直接修改操作对象和调用方法会同步参数，点击“...”可调整参数，拖拽可调整步骤顺序。">Double-click a step to open full editing. Changing the operation target or method synchronizes parameters. Click &quot;...&quot; to adjust parameters, and drag to reorder steps.</sys:String>
     <sys:String x:Key="双击可直接添加协议，也可以拖动到上方支持协议表格中。">Double-click to add a protocol directly, or drag it into the supported protocol table above.</sys:String>
     <sys:String x:Key="搜索设备通信配置...">Search device communication configs...</sys:String>
     <sys:String x:Key="搜索协议...">Search protocols...</sys:String>
@@ -513,7 +511,6 @@
     <sys:String x:Key="显示当前支持协议中的全部指令。双击后会直接生成并填充报文到下方文本框。">Show all commands in the current supported protocols. Double-click to generate and fill the message into the text box below.</sys:String>
     <sys:String x:Key="协议列表">Protocol List</sys:String>
     <sys:String x:Key="协议文件路径">Protocol File Path</sys:String>
-    <sys:String x:Key="修改参数">Edit Parameters</sys:String>
     <sys:String x:Key="一个设备可关联多个协议。点击“添加”后会在下方通信测试区域弹出协议列表，支持将协议拖入表格，也可点击协议路径直接导入协议文件。">One device can be associated with multiple protocols. Click Add to open the protocol list in the communication test area below; protocols can be dragged into the table, or imported directly by clicking the protocol path.</sys:String>
     <sys:String x:Key="已连接客户端">Connected Clients</sys:String>
     <sys:String x:Key="应用">Apply</sys:String>

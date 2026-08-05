@@ -1,7 +1,8 @@
 using ControlLibrary.Controls.FlowchartEditor.Models;
 using Module.Business.Models;
 using Module.Business.Features.StationConfiguration;
-using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -20,8 +21,6 @@ public static class FlowchartExecutionService
     #region 常量与运行状态字段
     // 执行步数上限用于兜底阻断错误连线形成的无限循环。
     private const int MaxExecutionSteps = 500;
-
-    private const string JudgeOperationObjectName = "判断";
 
     // 工位名作为唯一占用键：不同工位可并发，同一工位同一时间只允许一个流程图实例。
     private static readonly ConcurrentDictionary<string, FlowchartExecutionContext> ActiveExecutions =
@@ -376,7 +375,7 @@ public static class FlowchartExecutionService
                 result = output.Result;
                 isSuccess = output.IsSuccess;
                 message = output.IsSuccess
-                    ? $"Node {stepIndex} finished: {operation.DisplayText}."
+                    ? $"Node {stepIndex} finished: {operation.Summary}."
                     : $"Node {stepIndex} failed: {output.Message}";
             }
         }
@@ -471,11 +470,11 @@ public static class FlowchartExecutionService
         out string message)
     {
         List<string> values = operation.Parameters
-            .OrderBy(parameter => parameter.Sequence)
+            .OrderBy(parameter => parameter.Num)
             .Select(parameter => ResolveParameterValue(parameter, returnValues))
             .ToList();
 
-        string methodName = operation.InvokeMethod?.Trim() ?? string.Empty;
+        string methodName = operation.PCommandName?.Trim() ?? string.Empty;
         result = methodName switch
         {
             "等于判断" => TextEquals(GetValue(values, 0), GetValue(values, 1)),
@@ -564,10 +563,10 @@ public static class FlowchartExecutionService
     /// 解析并返回对应的业务值。
     /// </summary>
     private static string ResolveParameterValue(
-        WorkStepOperationParameter parameter,
+        InputParameter parameter,
         IReadOnlyDictionary<string, string> returnValues)
     {
-        string type = parameter.Type?.Trim() ?? string.Empty;
+        string type = parameter.ParameterType?.Trim() ?? string.Empty;
         string value = parameter.Value?.Trim() ?? string.Empty;
 
         return type switch
@@ -582,8 +581,7 @@ public static class FlowchartExecutionService
     /// </summary>
     private static bool IsJudgeOperation(WorkStepOperation operation)
     {
-        return string.Equals(operation.OperationObject?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operation.OperationType?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(operation.OperationObjectName?.Trim(), "判断", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -1,37 +1,30 @@
-﻿using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.Scheme.ViewModels;
+using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using Module.Business.Models;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 
 namespace Module.Business.Features.Scheme.Views
 {
     /// <summary>
-    /// 方案配置视图，负责方案工步拖拽、操作编辑抽屉和行内参数编辑。
+    /// 方案配置视图，负责方案工步拖拽和操作编辑抽屉。
     /// </summary>
     public partial class SchemeConfigurationView : UserControl
     {
         #region 拖拽数据格式
         private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
-        private const double OperationDrawerClosedOffset = 56d;
-        private const double InlineParameterDrawerClosedOffset = 56d;
-
-        private static readonly Duration OperationDrawerAnimationDuration =
-            new(TimeSpan.FromMilliseconds(220));
-
-        private static readonly IEasingFunction OperationDrawerEasing =
-            new CubicEase { EasingMode = EasingMode.EaseOut };
-
+        private const string OperationDragDataFormat = "Module.Business.WorkStepOperation";
         private Point _schemeStepDragStartPoint;
         private SchemeWorkStepItem? _pendingDraggedSchemeStep;
-        private bool _isInlineParameterDrawerOpen;
+        private Point _operationDragStartPoint;
+        private WorkStepOperation? _pendingDraggedOperation;
 
         #endregion
 
@@ -53,10 +46,6 @@ namespace Module.Business.Features.Scheme.Views
         {
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-            Loaded += SchemeConfigurationView_Loaded;
-            Unloaded += SchemeConfigurationView_Unloaded;
-            UpdateOperationDrawerVisual(animate: false);
-            UpdateInlineParameterDrawerVisual(animate: false);
         }
 
         private SchemeConfigurationViewModel? ViewModel => DataContext as SchemeConfigurationViewModel;
@@ -64,28 +53,9 @@ namespace Module.Business.Features.Scheme.Views
         /// <summary>
         /// 处理视图加载后的初始化逻辑。
         /// </summary>
-        private void SchemeConfigurationView_Loaded(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel is not null)
-            {
-                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-            }
-
-            UpdateOperationDrawerVisual(animate: false);
-            UpdateInlineParameterDrawerVisual(animate: false);
-        }
-
         /// <summary>
         /// 处理视图加载后的初始化逻辑。
         /// </summary>
-        private void SchemeConfigurationView_Unloaded(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel is not null)
-            {
-                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-            }
-        }
-
         #endregion
 
         #region 视图模型联动
@@ -93,14 +63,6 @@ namespace Module.Business.Features.Scheme.Views
         /// 响应视图模型属性变化并刷新界面状态。
         /// </summary>
         /// <summary>
-        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(SchemeConfigurationViewModel.IsStepEditorOpen))
-            {
-                UpdateOperationDrawerVisual(animate: true);
-            }
-        }
-
         #endregion
 
         #region 方案工步拖拽
@@ -315,10 +277,140 @@ namespace Module.Business.Features.Scheme.Views
 
         #endregion
 
-        #region 操作编辑抽屉
+        #region 工步步骤拖拽与操作编辑抽屉
         /// <summary>
-        /// 处理界面按钮点击事件。
+        /// 记录步骤拖拽起点；复选框及可编辑单元格继续保留原有点击、编辑行为。
         /// </summary>
+        private void OperationsDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            DependencyObject? source = e.OriginalSource as DependencyObject;
+            if (IsOperationSelectionCheckBox(source) || IsInlineEditableOperationCell(source))
+            {
+                _pendingDraggedOperation = null;
+                return;
+            }
+
+            _operationDragStartPoint = e.GetPosition(OperationsDataGrid);
+            _pendingDraggedOperation = FindAncestor<DataGridRow>(source)?.Item as WorkStepOperation;
+        }
+
+        /// <summary>
+        /// 鼠标移动超过系统阈值后开始拖拽，避免普通单击被误判为排序。
+        /// </summary>
+        private void OperationsDataGrid_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || _pendingDraggedOperation is null)
+            {
+                return;
+            }
+
+            Point currentPoint = e.GetPosition(OperationsDataGrid);
+            if (Math.Abs(currentPoint.X - _operationDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(currentPoint.Y - _operationDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            WorkStepOperation draggedOperation = _pendingDraggedOperation;
+            _pendingDraggedOperation = null;
+            DataObject dataObject = new();
+            dataObject.SetData(OperationDragDataFormat, draggedOperation);
+            DragDrop.DoDragDrop(OperationsDataGrid, dataObject, DragDropEffects.Move);
+        }
+
+        /// <summary>
+        /// 根据目标行的上半区或下半区显示步骤插入位置。
+        /// </summary>
+        private void OperationsDataGrid_DragOver(object sender, DragEventArgs e)
+        {
+            if (!TryGetOperationDropInfo(e, out _, out _, out bool insertAfter))
+            {
+                HideOperationDropIndicator();
+                e.Effects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            ShowOperationDropIndicator(FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject), insertAfter);
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 鼠标离开列表时隐藏插入位置提示。
+        /// </summary>
+        private void OperationsDataGrid_DragLeave(object sender, DragEventArgs e)
+        {
+            HideOperationDropIndicator();
+        }
+
+        /// <summary>
+        /// 完成当前工步内的步骤移动并清理拖拽状态。
+        /// </summary>
+        private void OperationsDataGrid_Drop(object sender, DragEventArgs e)
+        {
+            if (TryGetOperationDropInfo(e, out WorkStepOperation? draggedOperation, out WorkStepOperation? targetOperation, out bool insertAfter) &&
+                draggedOperation is not null && targetOperation is not null)
+            {
+                ViewModel?.MoveOperationStep(draggedOperation, targetOperation, insertAfter);
+            }
+
+            _pendingDraggedOperation = null;
+            HideOperationDropIndicator();
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 解析拖拽步骤、目标步骤及插入方向。
+        /// </summary>
+        private static bool TryGetOperationDropInfo(DragEventArgs e, out WorkStepOperation? draggedOperation,
+            out WorkStepOperation? targetOperation, out bool insertAfter)
+        {
+            draggedOperation = e.Data.GetDataPresent(OperationDragDataFormat)
+                ? e.Data.GetData(OperationDragDataFormat) as WorkStepOperation : null;
+            DataGridRow? targetRow = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
+            targetOperation = targetRow?.Item as WorkStepOperation;
+            insertAfter = targetRow is not null && e.GetPosition(targetRow).Y > targetRow.ActualHeight / 2d;
+            return draggedOperation is not null && targetOperation is not null &&
+                   !ReferenceEquals(draggedOperation, targetOperation);
+        }
+
+        /// <summary>
+        /// 在目标行边缘绘制步骤插入提示线。
+        /// </summary>
+        private void ShowOperationDropIndicator(DataGridRow? targetRow, bool insertAfter)
+        {
+            if (targetRow is null || OperationDropIndicatorCanvas is null || OperationDropIndicator is null)
+            {
+                HideOperationDropIndicator();
+                return;
+            }
+
+            const double horizontalPadding = 8d;
+            const double indicatorHeight = 3d;
+            double width = Math.Max(0d, OperationDropIndicatorCanvas.ActualWidth - horizontalPadding * 2);
+            Point rowTopLeft = targetRow.TranslatePoint(new Point(0, 0), OperationDropIndicatorCanvas);
+            double top = rowTopLeft.Y + (insertAfter ? targetRow.ActualHeight : 0d) - indicatorHeight / 2d;
+            top = Math.Clamp(top, 0d, Math.Max(0d, OperationDropIndicatorCanvas.ActualHeight - indicatorHeight));
+
+            OperationDropIndicator.Width = width;
+            OperationDropIndicator.Height = indicatorHeight;
+            Canvas.SetLeft(OperationDropIndicator, horizontalPadding);
+            Canvas.SetTop(OperationDropIndicator, top);
+            OperationDropIndicator.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// 隐藏步骤插入位置提示线。
+        /// </summary>
+        private void HideOperationDropIndicator()
+        {
+            if (OperationDropIndicator is not null)
+            {
+                OperationDropIndicator.Visibility = Visibility.Collapsed;
+            }
+        }
+
         private void OperationsDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (IsOperationSelectionCheckBox(e.OriginalSource as DependencyObject) ||
@@ -333,7 +425,7 @@ namespace Module.Business.Features.Scheme.Views
             }
 
             OperationsDataGrid.SelectedItem = operation;
-            ViewModel?.OpenStepEditorForEdit(operation);
+            ViewModel?.OpenOperationEditorForEdit(operation);
             e.Handled = true;
         }
 
@@ -341,215 +433,12 @@ namespace Module.Business.Features.Scheme.Views
 
         #region 抽屉动画
 
-        #region 行内参数编辑
-
-        /// <summary>
-        /// 处理界面按钮点击事件。
-        /// </summary>
-        private void InlineOperationParametersButton_Click(object sender, RoutedEventArgs e)
-        {
-            CommitEditableDataGrids();
-
-            if ((sender as FrameworkElement)?.DataContext is not WorkStepOperation operation)
-            {
-                return;
-            }
-
-            OperationsDataGrid.SelectedItem = operation;
-            ViewModel?.OpenInlineParameterEditor(operation);
-            OpenInlineParameterDrawer();
-            e.Handled = true;
-        }
-
         /// <summary>
         /// 处理鼠标交互事件。
         /// </summary>
-        private void InlineParameterDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            CloseInlineParameterDrawer();
-        }
-
-        /// <summary>
-        /// 处理界面按钮点击事件。
-        /// </summary>
-        private void CloseInlineParameterDrawerButton_Click(object sender, RoutedEventArgs e)
-        {
-            CloseInlineParameterDrawer();
-        }
-
-        /// <summary>
-        /// 处理界面按钮点击事件。
-        /// </summary>
-        private void ApplyInlineParameterDrawerButton_Click(object sender, RoutedEventArgs e)
-        {
-            InlineInputParameterDataGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-            InlineInputParameterDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
-            InlineReturnParameterDataGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-            InlineReturnParameterDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
-
-            if (ViewModel is null)
-            {
-                return;
-            }
-
-            if (ViewModel.ApplyInlineParameterEditor())
-            {
-                CloseInlineParameterDrawer();
-                e.Handled = true;
-            }
-        }
-
-        /// <summary>
-        /// 处理状态或数据变更后的联动刷新。
-        /// </summary>
-        private void InlineParameterTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!ReferenceEquals(e.OriginalSource, sender))
-            {
-                return;
-            }
-
-            InlineReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
-            InlineReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
-            ViewModel?.RefreshInlineParameterEditor();
-        }
-
-        /// <summary>
-        /// 打开对应的编辑界面或抽屉。
-        /// </summary>
-        private void OpenInlineParameterDrawer()
-        {
-            _isInlineParameterDrawerOpen = true;
-            UpdateInlineParameterDrawerVisual(animate: true);
-        }
-
-        /// <summary>
-        /// 关闭对应的编辑界面或抽屉。
-        /// </summary>
-        private void CloseInlineParameterDrawer()
-        {
-            _isInlineParameterDrawerOpen = false;
-            ViewModel?.CloseInlineParameterEditor();
-            UpdateInlineParameterDrawerVisual(animate: true);
-        }
-
-        /// <summary>
-        /// 更新行内参数编辑抽屉的显示状态。
-        /// </summary>
-        private void UpdateInlineParameterDrawerVisual(bool animate)
-        {
-            if (InlineParameterDrawerHost is null || InlineParameterDrawerTranslateTransform is null)
-            {
-                return;
-            }
-
-            double targetOpacity = _isInlineParameterDrawerOpen ? 1d : 0d;
-            double targetOffset = _isInlineParameterDrawerOpen ? 0d : InlineParameterDrawerClosedOffset;
-
-            if (_isInlineParameterDrawerOpen)
-            {
-                InlineParameterDrawerHost.IsHitTestVisible = true;
-            }
-
-            if (!animate)
-            {
-                InlineParameterDrawerHost.BeginAnimation(UIElement.OpacityProperty, null);
-                InlineParameterDrawerTranslateTransform.BeginAnimation(TranslateTransform.YProperty, null);
-                InlineParameterDrawerHost.Opacity = targetOpacity;
-                InlineParameterDrawerTranslateTransform.Y = targetOffset;
-                InlineParameterDrawerHost.IsHitTestVisible = _isInlineParameterDrawerOpen;
-                return;
-            }
-
-            DoubleAnimation opacityAnimation = new(targetOpacity, OperationDrawerAnimationDuration)
-            {
-                EasingFunction = OperationDrawerEasing
-            };
-
-            if (!_isInlineParameterDrawerOpen)
-            {
-                opacityAnimation.Completed += (_, _) =>
-                {
-                    if (!_isInlineParameterDrawerOpen)
-                    {
-                        InlineParameterDrawerHost.IsHitTestVisible = false;
-                    }
-                };
-            }
-
-            DoubleAnimation translateAnimation = new(targetOffset, OperationDrawerAnimationDuration)
-            {
-                EasingFunction = OperationDrawerEasing
-            };
-
-            InlineParameterDrawerHost.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
-            InlineParameterDrawerTranslateTransform.BeginAnimation(TranslateTransform.YProperty, translateAnimation);
-        }
-
-        #endregion
-
-        /// <summary>
-        /// 处理鼠标交互事件。
-        /// </summary>
-        private void OperationDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            ViewModel?.CloseStepEditor();
-        }
-
         /// <summary>
         /// 更新操作编辑抽屉的显示状态。
         /// </summary>
-        private void UpdateOperationDrawerVisual(bool animate)
-        {
-            if (OperationDrawerHost is null || OperationDrawerTranslateTransform is null)
-            {
-                return;
-            }
-
-            bool isOpen = ViewModel?.IsStepEditorOpen == true;
-            double targetOpacity = isOpen ? 1d : 0d;
-            double targetOffset = isOpen ? 0d : -OperationDrawerClosedOffset;
-
-            if (isOpen)
-            {
-                OperationDrawerHost.IsHitTestVisible = true;
-            }
-
-            if (!animate)
-            {
-                OperationDrawerHost.BeginAnimation(UIElement.OpacityProperty, null);
-                OperationDrawerTranslateTransform.BeginAnimation(TranslateTransform.XProperty, null);
-                OperationDrawerHost.Opacity = targetOpacity;
-                OperationDrawerTranslateTransform.X = targetOffset;
-                OperationDrawerHost.IsHitTestVisible = isOpen;
-                return;
-            }
-
-            DoubleAnimation opacityAnimation = new(targetOpacity, OperationDrawerAnimationDuration)
-            {
-                EasingFunction = OperationDrawerEasing
-            };
-
-            if (!isOpen)
-            {
-                opacityAnimation.Completed += (_, _) =>
-                {
-                    if (ViewModel?.IsStepEditorOpen != true)
-                    {
-                        OperationDrawerHost.IsHitTestVisible = false;
-                    }
-                };
-            }
-
-            DoubleAnimation translateAnimation = new(targetOffset, OperationDrawerAnimationDuration)
-            {
-                EasingFunction = OperationDrawerEasing
-            };
-
-            OperationDrawerHost.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
-            OperationDrawerTranslateTransform.BeginAnimation(TranslateTransform.XProperty, translateAnimation);
-        }
-
         #endregion
 
         #region 交互辅助方法
@@ -588,11 +477,8 @@ namespace Module.Business.Features.Scheme.Views
                 bindingPath = templateColumn.SortMemberPath;
             }
 
-            return string.Equals(bindingPath, nameof(WorkStepOperation.OperationObject), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.InvokeMethod), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.AreParametersModified), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.DelayMilliseconds), StringComparison.Ordinal) ||
-                   string.Equals(bindingPath, nameof(WorkStepOperation.Remark), StringComparison.Ordinal);
+            return string.Equals(bindingPath, nameof(WorkStepOperation.IsEditParameter), StringComparison.Ordinal) ||
+                   string.Equals(bindingPath, nameof(WorkStepOperation.DelayMilliseconds), StringComparison.Ordinal);
 
         }
 

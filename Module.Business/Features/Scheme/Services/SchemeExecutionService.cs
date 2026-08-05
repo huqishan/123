@@ -2,7 +2,8 @@ using ControlLibrary.Models.EventsModels.Test;
 using ControlLibrary.Models.MediatorModels.Communication;
 using Module.Business.Models;
 using Module.Business.Services.BusinessOperations;
-using Module.Business.Features.SchemeConfiguration;
+using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Events;
 using Shared.Infrastructure.Extensions;
@@ -27,12 +28,9 @@ namespace Module.Business.Services;
 
 public static class SchemeExecutionService
 {
-    #region ³£Á¿ÓëÔËÐÐ×´Ì¬×Ö¶Î
+    #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½Ö¶ï¿½
 
-    // ²Ù×÷¶ÔÏóÃû³ÆÓë¿ØÖÆÂÖÑ¯ÖÜÆÚ£¬Í³Ò»·ÅÔÚÕâÀï±ÜÃâÉ¢ÂäÄ§·¨Öµ¡£
-    private const string SystemOperationObjectName = "System";
-    private const string LuaOperationObjectName = "Lua";
-    private const string JudgeOperationObjectName = "ÅÐ¶Ï";
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½Ú£ï¿½Í³Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¢ï¿½ï¿½Ä§ï¿½ï¿½Öµï¿½ï¿½
     private const int ControlPollingIntervalMilliseconds = 50;
 
     private static readonly Regex PlaceholderRegex =
@@ -56,59 +54,59 @@ public static class SchemeExecutionService
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
 
-    #region Ö´ÐÐÉúÃüÖÜÆÚÊÂ¼þ
+    #region Ö´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½
 
     /// <summary>
-    /// ·½°¸Ö´ÐÐÇ°ÊÂ¼þ£¬¿ÉÍ¨¹ý <see cref="SchemeExecutionEventArgs.Cancel"/> È¡ÏûÖ´ÐÐ¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Ç°ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ <see cref="SchemeExecutionEventArgs.Cancel"/> È¡ï¿½ï¿½Ö´ï¿½Ð¡ï¿½
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? BeforeSchemeExecuting;
 
     /// <summary>
-    /// ·½°¸Ö´ÐÐÖÐÊÂ¼þ£¬ÔÚ·½°¸½øÈëÖ÷Ö´ÐÐÑ­»·ºó´¥·¢¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ó´¥·ï¿½ï¿½ï¿½
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? SchemeExecuting;
 
     /// <summary>
-    /// ·½°¸Ö´ÐÐºóÊÂ¼þ£¬°üº¬Ö´ÐÐ¿ªÊ¼Ê±¼ä¡¢½áÊøÊ±¼äºÍºÄÊ±¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ðºï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¿ï¿½Ê¼Ê±ï¿½ä¡¢ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Íºï¿½Ê±ï¿½ï¿½?
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? AfterSchemeExecuted;
 
     /// <summary>
-    /// ¹¤²½Ö´ÐÐÇ°ÊÂ¼þ£¬¿ÉÍ¨¹ý <see cref="SchemeExecutionEventArgs.Cancel"/> È¡ÏûÖ´ÐÐ¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Ç°ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ <see cref="SchemeExecutionEventArgs.Cancel"/> È¡ï¿½ï¿½Ö´ï¿½Ð¡ï¿½
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? BeforeWorkStepExecuting;
 
     /// <summary>
-    /// ¹¤²½Ö´ÐÐÖÐÊÂ¼þ£¬ÔÚ¹¤²½ÄÚ²½Öè¿ªÊ¼Ö´ÐÐÇ°´¥·¢¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½Ú¹ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½è¿ªÊ¼Ö´ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? WorkStepExecuting;
 
     /// <summary>
-    /// ¹¤²½Ö´ÐÐºóÊÂ¼þ£¬°üº¬Ö´ÐÐ¿ªÊ¼Ê±¼ä¡¢½áÊøÊ±¼äºÍºÄÊ±¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ðºï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¿ï¿½Ê¼Ê±ï¿½ä¡¢ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Íºï¿½Ê±ï¿½ï¿½?
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? AfterWorkStepExecuted;
 
     /// <summary>
-    /// ²½ÖèÖ´ÐÐÇ°ÊÂ¼þ£¬¿ÉÍ¨¹ý <see cref="SchemeExecutionEventArgs.Cancel"/> È¡ÏûÖ´ÐÐ¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Ç°ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ <see cref="SchemeExecutionEventArgs.Cancel"/> È¡ï¿½ï¿½Ö´ï¿½Ð¡ï¿½
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? BeforeStepExecuting;
 
     /// <summary>
-    /// ²½ÖèÖ´ÐÐÖÐÊÂ¼þ£¬ÔÚµ¥Ìõ²Ù×÷ÕýÊ½µ÷ÓÃÇ°´¥·¢¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½Úµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? StepExecuting;
 
     /// <summary>
-    /// ²½ÖèÖ´ÐÐºóÊÂ¼þ£¬°üº¬Ö´ÐÐ¿ªÊ¼Ê±¼ä¡¢½áÊøÊ±¼ä¡¢ºÄÊ±ºÍÖ´ÐÐ½á¹û¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ðºï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¿ï¿½Ê¼Ê±ï¿½ä¡¢ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ä¡¢ï¿½ï¿½Ê±ï¿½ï¿½Ö´ï¿½Ð½ï¿½ï¿½ï¿½ï¿½?
     /// </summary>
     public static event EventHandler<SchemeExecutionEventArgs>? AfterStepExecuted;
 
     #endregion
 
-    #region ¶ÔÍâÖ´ÐÐÓë¿ØÖÆÈë¿Ú
+    #region ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
-    /// ¸ù¾Ý¹¤Î»ºÅºÍ·½°¸Ãû³Æ¶ÁÈ¡·½°¸ÎÄ¼þ²¢Ö´ÐÐ£»Í¬Ò»¹¤Î»Í¬Ò»Ê±¼äÖ»ÔÊÐíÒ»¸ö·½°¸Ö´ÐÐÊµÀý¡£
+    /// ï¿½ï¿½ï¿½Ý¹ï¿½Î»ï¿½ÅºÍ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ¶ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½Ö´ï¿½Ð£ï¿½Í¬Ò»ï¿½ï¿½Î»Í¬Ò»Ê±ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static async Task<SchemeExecutionResult> ExecuteAsync(string stationNo, string schemeName)
     {
@@ -127,11 +125,11 @@ public static class SchemeExecutionService
 
         PublishTestStatus(
             normalizedStationNo,
-            "×¼±¸²âÊÔ",
+            "×¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½",
             string.Empty,
             normalizedSchemeName,
             string.Empty,
-            $"×¼±¸Ö´ÐÐ²âÊÔ·½°¸£º{normalizedSchemeName}");
+            $"×¼ï¿½ï¿½Ö´ï¿½Ð²ï¿½ï¿½Ô·ï¿½ï¿½ï¿½ï¿½ï¿½{normalizedSchemeName}");
 
         SchemeExecutionKey key = new(normalizedStationNo, normalizedSchemeName);
         SchemeExecutionContext context = new(key, startTime);
@@ -146,7 +144,7 @@ public static class SchemeExecutionService
                 : $"Station '{normalizedStationNo}' is already running scheme '{runningSchemeName}'.";
             PublishTestStatus(
                 normalizedStationNo,
-                "²âÊÔÊ§°Ü",
+                "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½",
                 string.Empty,
                 normalizedSchemeName,
                 string.Empty,
@@ -167,7 +165,7 @@ public static class SchemeExecutionService
             {
                 PublishTestStatus(
                     normalizedStationNo,
-                    "²âÊÔÊ§°Ü",
+                    "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½",
                     string.Empty,
                     normalizedSchemeName,
                     string.Empty,
@@ -186,7 +184,7 @@ public static class SchemeExecutionService
         {
             PublishTestStatus(
                 normalizedStationNo,
-                "ÒÑÍ£Ö¹",
+                "ï¿½ï¿½Í£Ö¹",
                 string.Empty,
                 normalizedSchemeName,
                 string.Empty,
@@ -202,7 +200,7 @@ public static class SchemeExecutionService
         {
             PublishTestStatus(
                 normalizedStationNo,
-                "²âÊÔÊ§°Ü",
+                "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½",
                 string.Empty,
                 normalizedSchemeName,
                 string.Empty,
@@ -221,7 +219,7 @@ public static class SchemeExecutionService
         }
     }
     /// <summary>
-    /// ÔÝÍ£Ö¸¶¨¹¤Î»ÏÂËùÓÐÕýÔÚÔËÐÐµÄ·½°¸Ö´ÐÐÊµÀý¡£
+    /// ï¿½ï¿½Í£Ö¸ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÐµÄ·ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static SchemeExecutionControlActionResult Pause(string stationNo)
     {
@@ -234,7 +232,7 @@ public static class SchemeExecutionService
         int pausedCount = contexts.Count(context => context.Pause());
         if (pausedCount > 0)
         {
-            PublishExecutionControlStatus(normalizedStationNo, "ÒÑÔÝÍ£", contexts.First().Key.SchemeName, "²âÊÔÒÑÔÝÍ£");
+            PublishExecutionControlStatus(normalizedStationNo, "ï¿½ï¿½ï¿½ï¿½Í£", contexts.First().Key.SchemeName, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£");
         }
 
         return pausedCount > 0
@@ -244,7 +242,7 @@ public static class SchemeExecutionService
                 $"Station '{normalizedStationNo}' executions are already paused.");
     }
     /// <summary>
-    /// ¼ÌÐøÖ¸¶¨¹¤Î»ÏÂËùÓÐÒÑÔÝÍ£µÄ·½°¸Ö´ÐÐÊµÀý¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£ï¿½Ä·ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static SchemeExecutionControlActionResult Continue(string stationNo)
     {
@@ -257,7 +255,7 @@ public static class SchemeExecutionService
         int resumedCount = contexts.Count(context => context.Resume());
         if (resumedCount > 0)
         {
-            PublishExecutionControlStatus(normalizedStationNo, "²âÊÔÖÐ", contexts.First().Key.SchemeName, "²âÊÔÒÑ¼ÌÐø");
+            PublishExecutionControlStatus(normalizedStationNo, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", contexts.First().Key.SchemeName, "ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¼ï¿½ï¿½ï¿½");
         }
 
         return resumedCount > 0
@@ -267,7 +265,7 @@ public static class SchemeExecutionService
                 $"Station '{normalizedStationNo}' executions are not paused.");
     }
     /// <summary>
-    /// Í£Ö¹Ö¸¶¨¹¤Î»ÏÂËùÓÐÕýÔÚÔËÐÐµÄ·½°¸Ö´ÐÐÊµÀý¡£
+    /// Í£Ö¹Ö¸ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÐµÄ·ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static SchemeExecutionControlActionResult Stop(string stationNo)
     {
@@ -282,13 +280,13 @@ public static class SchemeExecutionService
         }
 
         string normalizedStationNo = NormalizeRequiredText(stationNo);
-        PublishExecutionControlStatus(normalizedStationNo, "Í£Ö¹ÖÐ", contexts.First().Key.SchemeName, "ÒÑ·¢ËÍÍ£Ö¹²âÊÔÇëÇó");
+        PublishExecutionControlStatus(normalizedStationNo, "Í£Ö¹ï¿½ï¿½", contexts.First().Key.SchemeName, "ï¿½Ñ·ï¿½ï¿½ï¿½Í£Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½");
         return SchemeExecutionControlActionResult.CreateSuccess(
             $"Stop request sent to {contexts.Count} execution(s) on station '{normalizedStationNo}'.");
     }
 
     /// <summary>
-    /// »ñÈ¡µ±Ç°ÕýÔÚÔËÐÐµÄ·½°¸Ö´ÐÐ¿ìÕÕ¡£
+    /// ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÐµÄ·ï¿½ï¿½ï¿½Ö´ï¿½Ð¿ï¿½ï¿½Õ¡ï¿½
     /// </summary>
     public static IReadOnlyList<SchemeExecutionSnapshot> GetActiveExecutions()
     {
@@ -301,7 +299,7 @@ public static class SchemeExecutionService
 
     #endregion
 
-    #region ·½°¸¡¢¹¤²½¡¢²½ÖèÖ´ÐÐ±àÅÅ
+    #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð±ï¿½ï¿½ï¿½
 
     private static async Task<SchemeExecutionResult> ExecuteSchemeAsync(
         SchemeExecutionContext context,
@@ -316,7 +314,7 @@ public static class SchemeExecutionService
         if (beforeSchemeArgs.Cancel)
         {
             DateTime canceledAt = DateTime.Now;
-            PublishSchemeStatus(context.Key.StationNo, "ÒÑÈ¡Ïû", scheme, "Scheme execution was canceled before start.", false);
+            PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½È¡ï¿½ï¿½", scheme, "Scheme execution was canceled before start.", false);
             return SchemeExecutionResult.CreateCanceled(
                 "Scheme execution was canceled before start.",
                 context.Logs,
@@ -330,7 +328,7 @@ public static class SchemeExecutionService
             scheme,
             message: "Scheme is executing.",
             startTime: startTime));
-        PublishSchemeStatus(context.Key.StationNo, "²âÊÔÖÐ", scheme, $"²âÊÔ·½°¸Ö´ÐÐÖÐ£º{scheme.SchemeName}");
+        PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", scheme, $"ï¿½ï¿½ï¿½Ô·ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½Ð£ï¿½{scheme.SchemeName}");
 
         for (int workStepIndex = 0; workStepIndex < scheme.Steps.Count; workStepIndex++)
         {
@@ -340,13 +338,13 @@ public static class SchemeExecutionService
             SchemeWorkStepItem schemeStep = scheme.Steps[workStepIndex];
             if (!schemeStep.IsStartupEnabled)
             {
-                context.AddLog($"Skip work step {workStepIndex + 1}: {schemeStep.SchemeStepName}.");
+                context.AddLog($"Skip work step {workStepIndex + 1}: {schemeStep.StepName}.");
                 continue;
             }
 
             if (schemeStep.Operations.Count == 0)
             {
-                string failureMessage = $"Work step '{schemeStep.SchemeStepName}' has no operations.";
+                string failureMessage = $"Work step '{schemeStep.StepName}' has no operations.";
                 DateTime failedAt = DateTime.Now;
                 Raise(AfterSchemeExecuted, SchemeExecutionEventArgs.CreateScheme(
                     context.Key.StationNo,
@@ -355,17 +353,14 @@ public static class SchemeExecutionService
                     failureMessage,
                     startTime,
                     failedAt));
-                PublishSchemeStatus(context.Key.StationNo, "²âÊÔÊ§°Ü", scheme, failureMessage, false);
+                PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½", scheme, failureMessage, false);
                 return SchemeExecutionResult.CreateFailure(failureMessage, context.Logs, startTime, failedAt);
             }
-
-            WorkStepProfile workStep = schemeStep.ToWorkStepProfile();
 
             SchemeExecutionResult workStepResult = await ExecuteWorkStepAsync(
                     context,
                     scheme,
                     schemeStep,
-                    workStep,
                     workStepIndex + 1)
                 .ConfigureAwait(false);
             if (!workStepResult.IsSuccess)
@@ -378,7 +373,7 @@ public static class SchemeExecutionService
                     workStepResult.Message,
                     startTime,
                     failedAt));
-                PublishSchemeStatus(context.Key.StationNo, "²âÊÔÊ§°Ü", scheme, workStepResult.Message, false);
+                PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½", scheme, workStepResult.Message, false);
                 return workStepResult;
             }
         }
@@ -393,7 +388,7 @@ public static class SchemeExecutionService
             message,
             startTime,
             endTime));
-        PublishSchemeStatus(context.Key.StationNo, "²âÊÔÍ¨¹ý", scheme, message, true);
+        PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½", scheme, message, true);
         return SchemeExecutionResult.CreateSuccess(message, context.Logs, startTime, endTime);
     }
 
@@ -401,7 +396,6 @@ public static class SchemeExecutionService
         SchemeExecutionContext context,
         SchemeProfile scheme,
         SchemeWorkStepItem schemeStep,
-        WorkStepProfile workStep,
         int workStepIndex)
     {
         DateTime startTime = DateTime.Now;
@@ -409,14 +403,13 @@ public static class SchemeExecutionService
             context.Key.StationNo,
             scheme,
             schemeStep,
-            workStep,
             workStepIndex,
             startTime: startTime);
         Raise(BeforeWorkStepExecuting, beforeWorkStepArgs);
         if (beforeWorkStepArgs.Cancel)
         {
             DateTime canceledAt = DateTime.Now;
-            PublishSchemeStatus(context.Key.StationNo, "ÒÑÈ¡Ïû", scheme, "Work step execution was canceled before start.", false);
+            PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½È¡ï¿½ï¿½", scheme, "Work step execution was canceled before start.", false);
             return SchemeExecutionResult.CreateCanceled(
                 "Work step execution was canceled before start.",
                 context.Logs,
@@ -424,33 +417,31 @@ public static class SchemeExecutionService
                 canceledAt);
         }
 
-        context.AddLog($"Start work step {workStepIndex}: {schemeStep.SchemeStepName}.");
+        context.AddLog($"Start work step {workStepIndex}: {schemeStep.StepName}.");
         Raise(WorkStepExecuting, SchemeExecutionEventArgs.CreateWorkStep(
             context.Key.StationNo,
             scheme,
             schemeStep,
-            workStep,
             workStepIndex,
             message: "Work step is executing.",
             startTime: startTime));
         PublishSchemeStatus(
             context.Key.StationNo,
-            "²âÊÔÖÐ",
+            "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½",
             scheme,
-            $"ÕýÔÚÖ´ÐÐ¹¤²½ {workStepIndex}£º{schemeStep.SchemeStepName}");
+            $"ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¹ï¿½ï¿½ï¿½ {workStepIndex}ï¿½ï¿½{schemeStep.StepName}");
 
         Dictionary<string, string> returnValues = new(StringComparer.OrdinalIgnoreCase);
-        for (int stepIndex = 0; stepIndex < workStep.Steps.Count; stepIndex++)
+        for (int stepIndex = 0; stepIndex < schemeStep.Operations.Count; stepIndex++)
         {
             await context.WaitIfPausedAsync().ConfigureAwait(false);
             context.ThrowIfCancellationRequested();
 
-            WorkStepOperation operation = workStep.Steps[stepIndex];
+            WorkStepOperation operation = schemeStep.Operations[stepIndex];
             SchemeExecutionResult stepResult = await ExecuteStepAsync(
                     context,
                     scheme,
                     schemeStep,
-                    workStep,
                     operation,
                     returnValues,
                     workStepIndex,
@@ -463,7 +454,6 @@ public static class SchemeExecutionService
                     context.Key.StationNo,
                     scheme,
                     schemeStep,
-                    workStep,
                     workStepIndex,
                     false,
                     stepResult.Message,
@@ -473,14 +463,13 @@ public static class SchemeExecutionService
             }
         }
 
-        string message = $"Work step {workStepIndex} finished: {schemeStep.SchemeStepName}.";
+        string message = $"Work step {workStepIndex} finished: {schemeStep.StepName}.";
         DateTime endTime = DateTime.Now;
         context.AddLog(message);
         Raise(AfterWorkStepExecuted, SchemeExecutionEventArgs.CreateWorkStep(
             context.Key.StationNo,
             scheme,
             schemeStep,
-            workStep,
             workStepIndex,
             true,
             message,
@@ -493,7 +482,6 @@ public static class SchemeExecutionService
         SchemeExecutionContext context,
         SchemeProfile scheme,
         SchemeWorkStepItem schemeStep,
-        WorkStepProfile workStep,
         WorkStepOperation operation,
         Dictionary<string, string> returnValues,
         int workStepIndex,
@@ -504,7 +492,6 @@ public static class SchemeExecutionService
             context.Key.StationNo,
             scheme,
             schemeStep,
-            workStep,
             operation,
             workStepIndex,
             stepIndex,
@@ -513,7 +500,7 @@ public static class SchemeExecutionService
         if (beforeStepArgs.Cancel)
         {
             DateTime canceledAt = DateTime.Now;
-            PublishSchemeStatus(context.Key.StationNo, "ÒÑÈ¡Ïû", scheme, "Step execution was canceled before start.", false);
+            PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½È¡ï¿½ï¿½", scheme, "Step execution was canceled before start.", false);
             return SchemeExecutionResult.CreateCanceled(
                 "Step execution was canceled before start.",
                 context.Logs,
@@ -521,12 +508,11 @@ public static class SchemeExecutionService
                 canceledAt);
         }
 
-        context.AddLog($"Start step {workStepIndex}.{stepIndex}: {operation.DisplayText}.");
+        context.AddLog($"Start step {workStepIndex}.{stepIndex}: {operation.Summary}.");
         Raise(StepExecuting, SchemeExecutionEventArgs.CreateStep(
             context.Key.StationNo,
             scheme,
             schemeStep,
-            workStep,
             operation,
             workStepIndex,
             stepIndex,
@@ -534,9 +520,9 @@ public static class SchemeExecutionService
             startTime: startTime));
         PublishSchemeStatus(
             context.Key.StationNo,
-            "²âÊÔÖÐ",
+            "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½",
             scheme,
-            $"ÕýÔÚÖ´ÐÐ²½Öè {workStepIndex}.{stepIndex}£º{operation.DisplayText}");
+            $"ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð²ï¿½ï¿½ï¿½ {workStepIndex}.{stepIndex}ï¿½ï¿½{operation.Summary}");
 
         SchemeStepExecutionOutput output;
         try
@@ -554,18 +540,22 @@ public static class SchemeExecutionService
         }
 
         string resultText = output.Result?.ToString() ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
+        foreach (var rv in operation.ReturnValues)
         {
-            returnValues[operation.ReturnValue.Trim()] = resultText;
+            if (!string.IsNullOrWhiteSpace(operation.ReturnValue) &&
+                !string.IsNullOrWhiteSpace(rv.ReturnParameterName))
+            {
+                // è¿”å›žå€¼å­—å…¸ä¸Žå‚æ•°ä¸‹æ‹‰æ¡†ä½¿ç”¨åŒä¸€å‘½åè§„åˆ™ï¼ŒåŽç»­æ­¥éª¤å¯ç›´æŽ¥æŒ‰â€œè¿”å›žå€¼_è¿”å›žå€¼é”®â€å¼•ç”¨ã€‚
+                string returnValueName = $"{operation.ReturnValue.Trim()}_{rv.ReturnParameterName.Trim()}";
+                returnValues[returnValueName] = resultText;
+            }
         }
 
-        if (operation.ShowDataToView)
+        foreach (var rv in operation.ReturnValues.Where(rv => rv.IsShowView))
         {
             Module.Business.Business.System.SendDataToView(
-                ResolveDisplayDataName(operation),
-                operation.ViewJudgeType,
-                resultText,
-                operation.ViewJudgeCondition);
+                rv.ViewDataName,
+                resultText);
         }
 
         if (operation.DelayMilliseconds > 0)
@@ -574,7 +564,7 @@ public static class SchemeExecutionService
         }
 
         string message = output.IsSuccess
-            ? $"Step {workStepIndex}.{stepIndex} finished: {operation.DisplayText}."
+            ? $"Step {workStepIndex}.{stepIndex} finished: {operation.Summary}."
             : $"Step {workStepIndex}.{stepIndex} failed: {output.Message}";
         DateTime endTime = DateTime.Now;
         context.AddLog(message);
@@ -582,7 +572,6 @@ public static class SchemeExecutionService
             context.Key.StationNo,
             scheme,
             schemeStep,
-            workStep,
             operation,
             workStepIndex,
             stepIndex,
@@ -593,7 +582,7 @@ public static class SchemeExecutionService
             endTime));
         if (!output.IsSuccess)
         {
-            PublishSchemeStatus(context.Key.StationNo, "²âÊÔÊ§°Ü", scheme, message, false);
+            PublishSchemeStatus(context.Key.StationNo, "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½", scheme, message, false);
         }
 
         return output.IsSuccess
@@ -603,10 +592,10 @@ public static class SchemeExecutionService
 
     #endregion
 
-    #region µ¥²½Öè²Ù×÷Ö´ÐÐ
+    #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½?
 
     /// <summary>
-    /// ¹©Á÷³ÌÍ¼µÈ¶ÀÁ¢ÔËÐÐÈë¿Ú¸´ÓÃµ¥²½²Ù×÷Ö´ÐÐÂß¼­¡£
+    /// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½È¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¸ï¿½ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ß¼ï¿½ï¿½ï¿½?
     /// </summary>
     internal static async Task<SchemeStepExecutionOutput> ExecuteStandaloneStepAsync(
         IControlledExecutionContext context,
@@ -618,18 +607,22 @@ public static class SchemeExecutionService
             .ConfigureAwait(false);
 
         string resultText = output.Result?.ToString() ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
+        foreach (var rv in operation.ReturnValues)
         {
-            returnValues[operation.ReturnValue.Trim()] = resultText;
+            if (!string.IsNullOrWhiteSpace(operation.ReturnValue) &&
+                !string.IsNullOrWhiteSpace(rv.ReturnParameterName))
+            {
+                // ç‹¬ç«‹æ­¥éª¤æ‰§è¡Œä¸Žæ–¹æ¡ˆæ‰§è¡Œä¿æŒä¸€è‡´ï¼Œç»Ÿä¸€ä½¿ç”¨â€œè¿”å›žå€¼_è¿”å›žå€¼é”®â€ä½œä¸ºå­—å…¸é”®ã€‚
+                string returnValueName = $"{operation.ReturnValue.Trim()}_{rv.ReturnParameterName.Trim()}";
+                returnValues[returnValueName] = resultText;
+            }
         }
 
-        if (operation.ShowDataToView)
+        foreach (var rv in operation.ReturnValues.Where(rv => rv.IsShowView))
         {
             Module.Business.Business.System.SendDataToView(
-                ResolveDisplayDataName(operation),
-                operation.ViewJudgeType,
-                resultText,
-                operation.ViewJudgeCondition);
+                rv.ViewDataName,
+                resultText);
         }
 
         if (operation.DelayMilliseconds > 0)
@@ -696,11 +689,8 @@ public static class SchemeExecutionService
         out string operationId)
     {
         deviceId = BusinessOperationBindingResolver.ResolveCatalogDeviceId(
-            operation.OperationObject,
-            operation.DeviceId);
-        operationId = string.IsNullOrWhiteSpace(operation.OperationId)
-            ? operation.InvokeMethod?.Trim() ?? string.Empty
-            : operation.OperationId.Trim();
+            operation.OperationObjectName);
+        operationId = operation.PCommandName?.Trim() ?? string.Empty;
 
         return BusinessOperationCatalog.Find(deviceId, operationId) is not null;
     }
@@ -714,16 +704,16 @@ public static class SchemeExecutionService
         string operationId)
     {
         Dictionary<string, string> parameterValues = operation.Parameters
-            .OrderBy(parameter => parameter.Sequence)
+            .OrderBy(parameter => parameter.Num)
             .Where(parameter => !string.IsNullOrWhiteSpace(parameter.ParameterName))
             .GroupBy(parameter => parameter.ParameterName.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => ResolveParameterValue(group.First(), schemeStep, returnValues),
                 StringComparer.OrdinalIgnoreCase);
-        string? operationObjectName = string.IsNullOrWhiteSpace(operation.OperationObject)
+        string? operationObjectName = string.IsNullOrWhiteSpace(operation.OperationObjectName)
             ? null
-            : operation.OperationObject.Trim();
+            : operation.OperationObjectName.Trim();
 
         BusinessOperationInvocationResult result = await BusinessOperationInvoker
             .InvokeAsync(deviceId, operationId, parameterValues, operationObjectName, context.CancellationToken)
@@ -740,8 +730,8 @@ public static class SchemeExecutionService
         SchemeWorkStepItem schemeStep,
         IReadOnlyDictionary<string, string> returnValues)
     {
-        string methodName = operation.InvokeMethod?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(methodName) || string.Equals(methodName, "µÈ´ý", StringComparison.OrdinalIgnoreCase))
+        string methodName = operation.PCommandName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(methodName) || string.Equals(methodName, "ï¿½È´ï¿½", StringComparison.OrdinalIgnoreCase))
         {
             return SchemeStepExecutionOutput.Success(string.Empty);
         }
@@ -773,23 +763,23 @@ public static class SchemeExecutionService
         IReadOnlyDictionary<string, string> returnValues)
     {
         List<string> values = operation.Parameters
-            .OrderBy(parameter => parameter.Sequence)
+            .OrderBy(parameter => parameter.Num)
             .Select(parameter => ResolveParameterValue(parameter, schemeStep, returnValues))
             .ToList();
 
-        string methodName = operation.InvokeMethod?.Trim() ?? string.Empty;
+        string methodName = operation.PCommandName?.Trim() ?? string.Empty;
         bool result = methodName switch
         {
-            "µÈÓÚÅÐ¶Ï" => TextEquals(GetValue(values, 0), GetValue(values, 1)),
-            "²»µÈÅÐ¶Ï" => !TextEquals(GetValue(values, 0), GetValue(values, 1)),
-            "´óÓÚÅÐ¶Ï" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) > 0,
-            "´óÓÚµÈÓÚÅÐ¶Ï" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) >= 0,
-            "Ð¡ÓÚÅÐ¶Ï" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) < 0,
-            "Ð¡ÓÚµÈÓÚÅÐ¶Ï" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) <= 0,
-            "°üº¬ÅÐ¶Ï" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) >= 0,
-            "²»°üº¬ÅÐ¶Ï" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) < 0,
-            "Îª¿ÕÅÐ¶Ï" => string.IsNullOrWhiteSpace(GetValue(values, 0)),
-            "²»Îª¿ÕÅÐ¶Ï" => !string.IsNullOrWhiteSpace(GetValue(values, 0)),
+            "ç­‰äºŽåˆ¤æ–­" => TextEquals(GetValue(values, 0), GetValue(values, 1)),
+            "ä¸ç­‰åˆ¤æ–­" => !TextEquals(GetValue(values, 0), GetValue(values, 1)),
+            "å¤§äºŽåˆ¤æ–­" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) > 0,
+            "å¤§äºŽç­‰äºŽåˆ¤æ–­" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) >= 0,
+            "å°äºŽåˆ¤æ–­" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) < 0,
+            "å°äºŽç­‰äºŽåˆ¤æ–­" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) <= 0,
+            "åŒ…å«åˆ¤æ–­" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) >= 0,
+            "ä¸åŒ…å«åˆ¤æ–­" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) < 0,
+            "ä¸ºç©ºåˆ¤æ–­" => string.IsNullOrWhiteSpace(GetValue(values, 0)),
+            "ä¸ä¸ºç©ºåˆ¤æ–­" => !string.IsNullOrWhiteSpace(GetValue(values, 0)),
             _ => false
         };
 
@@ -804,7 +794,7 @@ public static class SchemeExecutionService
         SchemeWorkStepItem schemeStep,
         IReadOnlyDictionary<string, string> returnValues)
     {
-        string communicationName = operation.OperationObject?.Trim() ?? string.Empty;
+        string communicationName = operation.OperationObjectName?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(communicationName))
         {
             return SchemeStepExecutionOutput.Failure("Communication name is required.");
@@ -837,7 +827,7 @@ public static class SchemeExecutionService
         IReadOnlyDictionary<string, string> returnValues)
     {
         Dictionary<string, string> parameterValues = operation.Parameters
-            .OrderBy(parameter => parameter.Sequence)
+            .OrderBy(parameter => parameter.Num)
             .Where(parameter => !string.IsNullOrWhiteSpace(parameter.ParameterName))
             .GroupBy(parameter => parameter.ParameterName.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
@@ -845,15 +835,7 @@ public static class SchemeExecutionService
                 group => ResolveParameterValue(group.First(), schemeStep, returnValues),
                 StringComparer.OrdinalIgnoreCase);
 
-        if (TryResolveProtocolCommand(operation.ProtocolName, operation.CommandName, parameterValues, out string message))
-        {
-            return message;
-        }
-
-        string fallback = string.IsNullOrWhiteSpace(operation.CommandName)
-            ? operation.InvokeMethod
-            : operation.CommandName;
-        return PlaceholderRegex.Replace(fallback ?? string.Empty, match =>
+        return PlaceholderRegex.Replace(operation.PCommandName ?? string.Empty, match =>
         {
             string name = match.Groups["name"].Value.Trim();
             return parameterValues.TryGetValue(name, out string? value) ? value : match.Value;
@@ -862,7 +844,7 @@ public static class SchemeExecutionService
 
     #endregion
 
-    #region Ð­ÒéÅäÖÃ¶ÁÈ¡Óë±¨ÎÄÉú³É
+    #region Ð­ï¿½ï¿½ï¿½ï¿½ï¿½Ã¶ï¿½È¡ï¿½ë±¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     private static bool TryResolveProtocolCommand(
         string protocolName,
@@ -947,7 +929,7 @@ public static class SchemeExecutionService
                 }
 
                 if (string.Equals(GetJsonString(root, "CommandName"), commandName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(commandName, "Ö¸Áî 1", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(commandName, "Ö¸ï¿½ï¿½ 1", StringComparison.OrdinalIgnoreCase))
                 {
                     return root.Clone();
                 }
@@ -963,7 +945,7 @@ public static class SchemeExecutionService
 
     #endregion
 
-    #region ÏµÍ³·½·¨²ÎÊýÓëÔËÐÐÖµ½âÎö
+    #region ÏµÍ³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½
 
     private static object?[] BuildMethodArguments(
         MethodInfo method,
@@ -971,13 +953,13 @@ public static class SchemeExecutionService
         SchemeWorkStepItem schemeStep,
         IReadOnlyDictionary<string, string> returnValues)
     {
-        Dictionary<string, WorkStepOperationParameter> configuredParameters = operation.Parameters
+        Dictionary<string, InputParameter> configuredParameters = operation.Parameters
             .Where(parameter => !string.IsNullOrWhiteSpace(parameter.ParameterName))
             .GroupBy(parameter => parameter.ParameterName.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
-        List<WorkStepOperationParameter> orderedParameters = operation.Parameters
-            .OrderBy(parameter => parameter.Sequence)
+        List<InputParameter> orderedParameters = operation.Parameters
+            .OrderBy(parameter => parameter.Num)
             .ToList();
 
         ParameterInfo[] methodParameters = method.GetParameters();
@@ -985,8 +967,8 @@ public static class SchemeExecutionService
         for (int index = 0; index < methodParameters.Length; index++)
         {
             ParameterInfo parameterInfo = methodParameters[index];
-            WorkStepOperationParameter? configuredParameter =
-                configuredParameters.TryGetValue(parameterInfo.Name ?? string.Empty, out WorkStepOperationParameter? matched)
+            InputParameter? configuredParameter =
+                configuredParameters.TryGetValue(parameterInfo.Name ?? string.Empty, out InputParameter? matched)
                     ? matched
                     : orderedParameters.ElementAtOrDefault(index);
             string value = configuredParameter is null
@@ -999,37 +981,32 @@ public static class SchemeExecutionService
     }
 
     private static string ResolveParameterValue(
-        WorkStepOperationParameter parameter,
+        InputParameter parameter,
         SchemeWorkStepItem schemeStep,
         IReadOnlyDictionary<string, string> returnValues)
     {
-        string type = parameter.Type?.Trim() ?? string.Empty;
+        string type = parameter.ParameterType?.Trim() ?? string.Empty;
         string value = parameter.Value?.Trim() ?? string.Empty;
 
         return type switch
         {
-            "¹¤²½Öµ" => ResolveSchemeStepParameterValue(parameter, schemeStep),
-            "·µ»ØÖµ" => returnValues.TryGetValue(value, out string? returnValue) ? returnValue : string.Empty,
-            "È«¾ÖÖµ" or "ÏµÍ³Öµ" => GlobalValues.TryGetValue(value, out string? globalValue) ? globalValue : string.Empty,
+            "è®¾ç½®å€¼" => ResolveSchemeStepParameterValue(parameter, schemeStep),
+            "è¿”å›žå€¼" => returnValues.TryGetValue(value, out string? returnValue) ? returnValue : string.Empty,
+            "ç³»ç»Ÿå€¼" or "å…¨å±€å€¼" => GlobalValues.TryGetValue(value, out string? globalValue) ? globalValue : string.Empty,
             _ => value
         };
     }
 
     private static string ResolveSchemeStepParameterValue(
-        WorkStepOperationParameter parameter,
+        InputParameter parameter,
         SchemeWorkStepItem schemeStep)
     {
-        SchemeWorkStepParameter? schemeParameter = schemeStep.Parameters.FirstOrDefault(item =>
-            string.Equals(item.SourceParameterId?.Trim(), parameter.Id?.Trim(), StringComparison.Ordinal)) ??
-            schemeStep.Parameters.FirstOrDefault(item =>
-                string.Equals(item.ParameterName?.Trim(), ResolveParameterDisplayName(parameter), StringComparison.OrdinalIgnoreCase));
-
-        return schemeParameter?.JudgeCondition?.Trim() ?? string.Empty;
+        return parameter.Value?.Trim() ?? string.Empty;
     }
 
     #endregion
 
-    #region ·½°¸¹¤²½½âÎöÓëÖ´ÐÐ¿ØÖÆ¹¤¾ß
+    #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¿ï¿½ï¿½Æ¹ï¿½ï¿½ï¿½
 
     private static async Task DelayWithControlAsync(IControlledExecutionContext context, int delayMilliseconds)
     {
@@ -1049,17 +1026,8 @@ public static class SchemeExecutionService
     {
         return new SchemeWorkStepItem
         {
-            StepName = "Á÷³ÌÍ¼½Úµã",
-            SchemeStepName = "Á÷³ÌÍ¼½Úµã",
-            Parameters = new ObservableCollection<SchemeWorkStepParameter>(
-                operation.Parameters.Select(parameter => new SchemeWorkStepParameter
-                {
-                    SourceOperationId = operation.Id,
-                    SourceParameterId = parameter.Id,
-                    ParameterName = ResolveParameterDisplayName(parameter),
-                    ParameterType = "ÉèÖÃÖµ",
-                    JudgeCondition = parameter.Value
-                }))
+            StepName = "ä¸´æ—¶æ­¥éª¤",
+            Operations = new ObservableCollection<WorkStepOperation> { operation }
         };
     }
 
@@ -1090,25 +1058,22 @@ public static class SchemeExecutionService
 
     #endregion
 
-    #region ²Ù×÷ÀàÐÍ¡¢ÊÂ¼þºÍÍ¨ÓÃ¹¤¾ß
+    #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¡ï¿½ï¿½Â¼ï¿½ï¿½ï¿½Í¨ï¿½Ã¹ï¿½ï¿½ï¿½
 
     private static bool IsSystemOperation(WorkStepOperation operation)
     {
-        return string.Equals(operation.OperationObject?.Trim(), SystemOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operation.OperationObject?.Trim(), "ÏµÍ³", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operation.OperationType?.Trim(), "ÏµÍ³", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(operation.OperationObjectName?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(operation.OperationObjectName?.Trim(), "System", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsLuaOperation(WorkStepOperation operation)
     {
-        return string.Equals(operation.OperationObject?.Trim(), LuaOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operation.OperationType?.Trim(), LuaOperationObjectName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(operation.OperationObjectName?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsJudgeOperation(WorkStepOperation operation)
     {
-        return string.Equals(operation.OperationObject?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operation.OperationType?.Trim(), JudgeOperationObjectName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(operation.OperationObjectName?.Trim(), "åˆ¤æ–­", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void Raise(EventHandler<SchemeExecutionEventArgs>? handler, SchemeExecutionEventArgs args)
@@ -1370,19 +1335,7 @@ public static class SchemeExecutionService
         return string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string ResolveDisplayDataName(WorkStepOperation operation)
-    {
-        if (!string.IsNullOrWhiteSpace(operation.ViewDataName))
-        {
-            return operation.ViewDataName.Trim();
-        }
-
-        return string.IsNullOrWhiteSpace(operation.ReturnValue)
-            ? operation.DisplayText
-            : operation.ReturnValue.Trim();
-    }
-
-    private static string ResolveParameterDisplayName(WorkStepOperationParameter parameter)
+    private static string ResolveParameterDisplayName(InputParameter parameter)
     {
         if (!string.IsNullOrWhiteSpace(parameter.Value))
         {
@@ -1394,7 +1347,7 @@ public static class SchemeExecutionService
             return parameter.ParameterName.Trim();
         }
 
-        return parameter.Description?.Trim() ?? string.Empty;
+        return string.Empty;
     }
 
     private static string NormalizeRequiredText(string? value)
@@ -1404,7 +1357,7 @@ public static class SchemeExecutionService
 
     #endregion
 
-    #region ÄÚ²¿Ö´ÐÐÉÏÏÂÎÄ
+    #region ï¿½Ú²ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     private sealed class SchemeExecutionKey : IEquatable<SchemeExecutionKey>
     {
@@ -1570,7 +1523,7 @@ public static class SchemeExecutionService
     #endregion
 }
 
-#region Ö´ÐÐ½á¹ûÓëÊÂ¼þÄ£ÐÍ
+#region Ö´ï¿½Ð½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½Ä£ï¿½ï¿½?
 
 public sealed class SchemeExecutionEventArgs : EventArgs
 {
@@ -1655,7 +1608,6 @@ public sealed class SchemeExecutionEventArgs : EventArgs
         string stationNo,
         SchemeProfile scheme,
         SchemeWorkStepItem schemeStep,
-        WorkStepProfile workStep,
         int workStepIndex,
         bool? isSuccess = null,
         string message = "",
@@ -1665,13 +1617,13 @@ public sealed class SchemeExecutionEventArgs : EventArgs
         return new SchemeExecutionEventArgs(
             stationNo,
             scheme.SchemeName,
-            schemeStep.SchemeStepName,
+            schemeStep.StepName,
             null,
             workStepIndex,
             0,
             isSuccess,
             message,
-            workStep,
+            null,
             startTime,
             endTime);
     }
@@ -1680,7 +1632,6 @@ public sealed class SchemeExecutionEventArgs : EventArgs
         string stationNo,
         SchemeProfile scheme,
         SchemeWorkStepItem schemeStep,
-        WorkStepProfile workStep,
         WorkStepOperation operation,
         int workStepIndex,
         int stepIndex,
@@ -1690,12 +1641,11 @@ public sealed class SchemeExecutionEventArgs : EventArgs
         DateTime? startTime = null,
         DateTime? endTime = null)
     {
-        _ = workStep;
         return new SchemeExecutionEventArgs(
             stationNo,
             scheme.SchemeName,
-            schemeStep.SchemeStepName,
-            operation.DisplayText,
+            schemeStep.StepName,
+            operation.Summary,
             workStepIndex,
             stepIndex,
             isSuccess,

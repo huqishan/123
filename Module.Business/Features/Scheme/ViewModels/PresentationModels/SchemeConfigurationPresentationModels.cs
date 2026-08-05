@@ -1,4 +1,5 @@
 using ControlLibrary;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -9,1042 +10,23 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Module.Business.Features.SchemeConfiguration
+namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
 {
-    public sealed class WorkStepProfile : ViewModelProperties
-    {
-        #region ÀΩ”–◊÷∂Œ
-
-        private string _id = Guid.NewGuid().ToString("N");
-        private string _stepName = "π§≤Ω 1";
-        private DateTime _lastModifiedAt = DateTime.Now;
-        private ObservableCollection<WorkStepOperation> _steps = new();
-
-        #endregion
-
-        #region ππ‘Ï∑Ω∑®
-
-        public WorkStepProfile()
-        {
-            AttachSteps(_steps);
-        }
-
-        #endregion
-
-        #region ª˘¥° Ù–‘
-
-        public string Id
-        {
-            get => _id;
-            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
-        }
-
-        public string StepName
-        {
-            get => _stepName;
-            set => SetField(ref _stepName, value ?? string.Empty, true);
-        }
-
-        public DateTime LastModifiedAt
-        {
-            get => _lastModifiedAt;
-            set
-            {
-                DateTime normalizedValue = value == default ? DateTime.Now : value;
-                if (SetField(ref _lastModifiedAt, normalizedValue))
-                {
-                    OnPropertyChanged(nameof(LastModifiedText));
-                }
-            }
-        }
-
-        public ObservableCollection<WorkStepOperation> Steps
-        {
-            get => _steps;
-            set
-            {
-                if (ReferenceEquals(_steps, value))
-                {
-                    return;
-                }
-
-                DetachSteps(_steps);
-                _steps = value ?? new ObservableCollection<WorkStepOperation>();
-                AttachSteps(_steps);
-                OnPropertyChanged();
-                RaiseStepSummaryChanged();
-            }
-        }
-
-        [JsonIgnore]
-        public int OperationCount => Steps.Count;
-
-        [JsonIgnore]
-        public string OperationSummary =>
-            Steps.Count == 0
-                ? "Œ¥≈‰÷√≤Ω÷Ë"
-                : string.Join(" / ", Steps.Select(step => step.DisplayText));
-
-        [JsonIgnore]
-        public string LastModifiedText => $"◊Ó∫Û–ﬁ∏ƒ£∫{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
-
-        #endregion
-
-        #region ºØ∫œÕ®÷™
-
-        private void AttachSteps(ObservableCollection<WorkStepOperation> steps)
-        {
-            steps.CollectionChanged += Steps_CollectionChanged;
-            foreach (WorkStepOperation step in steps)
-            {
-                step.PropertyChanged += Step_PropertyChanged;
-            }
-
-            RefreshOperationDisplayOrders(steps);
-        }
-
-        private void DetachSteps(ObservableCollection<WorkStepOperation> steps)
-        {
-            steps.CollectionChanged -= Steps_CollectionChanged;
-            foreach (WorkStepOperation step in steps)
-            {
-                step.PropertyChanged -= Step_PropertyChanged;
-            }
-        }
-
-        private void Steps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            if (e.Action == NotifyCollectionChangedAction.Move)
-            {
-                if (sender is ObservableCollection<WorkStepOperation> movedSteps)
-                {
-                    RefreshOperationDisplayOrders(movedSteps);
-                }
-
-                RaiseStepSummaryChanged();
-                return;
-            }
-
-            if (e.NewItems is not null)
-            {
-                foreach (WorkStepOperation step in e.NewItems.OfType<WorkStepOperation>())
-                {
-                    step.PropertyChanged += Step_PropertyChanged;
-                }
-            }
-
-            if (e.OldItems is not null)
-            {
-                foreach (WorkStepOperation step in e.OldItems.OfType<WorkStepOperation>())
-                {
-                    step.PropertyChanged -= Step_PropertyChanged;
-                }
-            }
-
-            if (sender is ObservableCollection<WorkStepOperation> changedSteps)
-            {
-                RefreshOperationDisplayOrders(changedSteps);
-            }
-
-            RaiseStepSummaryChanged();
-        }
-
-        private void Step_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName is nameof(WorkStepOperation.OperationObject)
-                or nameof(WorkStepOperation.DeviceId)
-                or nameof(WorkStepOperation.ProtocolName)
-                or nameof(WorkStepOperation.CommandName)
-                or nameof(WorkStepOperation.InvokeMethod)
-                or nameof(WorkStepOperation.OperationId)
-                or nameof(WorkStepOperation.ReturnValue)
-                or nameof(WorkStepOperation.ShowDataToView)
-                or nameof(WorkStepOperation.ViewDataName)
-                or nameof(WorkStepOperation.ViewJudgeType)
-                or nameof(WorkStepOperation.ViewJudgeCondition)
-                or nameof(WorkStepOperation.LuaScript)
-                or nameof(WorkStepOperation.DelayMilliseconds)
-                or nameof(WorkStepOperation.Remark)
-                or nameof(WorkStepOperation.ParameterCount)
-                or nameof(WorkStepOperation.DisplayText))
-            {
-                RaiseStepSummaryChanged();
-            }
-
-            if (e.PropertyName is nameof(WorkStepOperation.IsChecked)
-                or nameof(WorkStepOperation.DisplayOrder))
-            {
-                OnPropertyChanged(nameof(Steps));
-            }
-        }
-
-        private static void RefreshOperationDisplayOrders(ObservableCollection<WorkStepOperation> steps)
-        {
-            for (int index = 0; index < steps.Count; index++)
-            {
-                steps[index].DisplayOrder = index + 1;
-            }
-        }
-
-        private void RaiseStepSummaryChanged()
-        {
-            OnPropertyChanged(nameof(OperationCount));
-            OnPropertyChanged(nameof(OperationSummary));
-        }
-
-        #endregion
-
-        #region ∏¥÷∆∑Ω∑®
-
-        public WorkStepProfile Clone()
-        {
-            WorkStepProfile clone = new()
-            {
-                Id = Id,
-                StepName = StepName,
-                LastModifiedAt = LastModifiedAt,
-                Steps = new ObservableCollection<WorkStepOperation>(Steps.Select(step => step.Clone()))
-            };
-
-            return clone;
-        }
-
-        #endregion
-
-        #region –ﬁ∏ƒ ±º‰∑Ω∑®
-
-        public void MarkModified()
-        {
-            LastModifiedAt = DateTime.Now;
-        }
-
-        #endregion
-    }
-
     /// <summary>
-    /// π§≤Ωƒ⁄µƒµ•∏ˆ≤Ω÷Ë°£
-    /// </summary>
-    public sealed class WorkStepOperation : ViewModelProperties
-    {
-        #region ÀΩ”–◊÷∂Œ
-
-        private string _id = Guid.NewGuid().ToString("N");
-
-        #endregion
-
-        #region ππ‘Ï∑Ω∑®
-
-        public WorkStepOperation()
-        {
-            AttachParameters(_parameters);
-        }
-
-        #endregion
-
-        #region ∞Û∂® Ù–‘
-
-        public string Id
-        {
-            get => _id;
-            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
-        }
-
-        #region ≤Ÿ◊˜¿‡–Õ
-
-        private string _operationType = "…Ë±∏";
-
-        /// <summary>
-        /// ≤Ÿ◊˜¿‡–Õ
-        /// </summary>
-        public string OperationType
-        {
-            get => _operationType;
-            set
-            {
-                if (SetField(ref _operationType, string.IsNullOrWhiteSpace(value) ? "…Ë±∏" : value, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region ≤Ÿ◊˜∂‘œÛ
-
-        private string _operationObject = "System";
-
-        /// <summary>
-        /// ≤Ÿ◊˜∂‘œÛ
-        /// </summary>
-        public string OperationObject
-        {
-            get => _operationObject;
-            set
-            {
-                if (SetField(ref _operationObject, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DeviceId));
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region …Ë±∏±Í ∂
-
-        private string _deviceId = string.Empty;
-
-        /// <summary>
-        /// …Ë±∏±Í ∂
-        /// </summary>
-        public string DeviceId
-        {
-            get => string.IsNullOrWhiteSpace(_deviceId) ? _operationObject : _deviceId;
-            set
-            {
-                if (SetField(ref _deviceId, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region –≠“È√˚≥∆
-
-        private string _protocolName = string.Empty;
-
-        /// <summary>
-        /// –≠“È√˚≥∆
-        /// </summary>
-        public string ProtocolName
-        {
-            get => _protocolName;
-            set
-            {
-                if (SetField(ref _protocolName, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region ÷∏¡Ó√˚≥∆
-
-        private string _commandName = string.Empty;
-
-        /// <summary>
-        /// ÷∏¡Ó√˚≥∆
-        /// </summary>
-        public string CommandName
-        {
-            get => _commandName;
-            set
-            {
-                if (SetField(ref _commandName, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region µ˜”√∑Ω∑®
-
-        private string _invokeMethod = "µ»¥˝";
-
-        /// <summary>
-        /// µ˜”√∑Ω∑®
-        /// </summary>
-        public string InvokeMethod
-        {
-            get => _invokeMethod;
-            set
-            {
-                if (SetField(ref _invokeMethod, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(OperationId));
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region ≤Ÿ◊˜±Í ∂
-
-        private string _operationId = string.Empty;
-
-        /// <summary>
-        /// ≤Ÿ◊˜±Í ∂
-        /// </summary>
-        public string OperationId
-        {
-            get => string.IsNullOrWhiteSpace(_operationId) ? _invokeMethod : _operationId;
-            set
-            {
-                if (SetField(ref _operationId, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region ∑µªÿ÷µ
-
-        private string _returnValue = string.Empty;
-
-        /// <summary>
-        /// ∑µªÿ÷µ
-        /// </summary>
-        public string ReturnValue
-        {
-            get => _returnValue;
-            set
-            {
-                if (SetField(ref _returnValue, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region œ‘ æµΩΩÁ√Ê
-
-        private bool _showDataToView;
-
-        /// <summary>
-        /// œ‘ æµΩΩÁ√Ê
-        /// </summary>
-        public bool ShowDataToView
-        {
-            get => _showDataToView;
-            set => SetField(ref _showDataToView, value);
-        }
-
-        #endregion
-
-        #region œ‘ æ√˚≥∆
-
-        private string _viewDataName = string.Empty;
-
-        /// <summary>
-        /// œ‘ æ√˚≥∆
-        /// </summary>
-        public string ViewDataName
-        {
-            get => _viewDataName;
-            set => SetField(ref _viewDataName, value ?? string.Empty, true);
-        }
-
-        #endregion
-
-        #region ≈–∂œ¿‡–Õ
-
-        private string _viewJudgeType = string.Empty;
-
-        /// <summary>
-        /// ≈–∂œ¿‡–Õ
-        /// </summary>
-        public string ViewJudgeType
-        {
-            get => _viewJudgeType;
-            set => SetField(ref _viewJudgeType, value ?? string.Empty, true);
-        }
-
-        #endregion
-
-        #region ≈–∂œÃıº˛
-
-        private string _viewJudgeCondition = string.Empty;
-
-        /// <summary>
-        /// ≈–∂œÃıº˛
-        /// </summary>
-        public string ViewJudgeCondition
-        {
-            get => _viewJudgeCondition;
-            set => SetField(ref _viewJudgeCondition, value ?? string.Empty, true);
-        }
-
-        #endregion
-
-        #region LuaΩ≈±æ
-
-        private string _luaScript = string.Empty;
-
-        /// <summary>
-        /// LuaΩ≈±æ
-        /// </summary>
-        public string LuaScript
-        {
-            get => _luaScript;
-            set
-            {
-                if (SetField(ref _luaScript, value ?? string.Empty))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region —” ± ±º‰
-
-        private int _delayMilliseconds;
-
-        /// <summary>
-        /// —” ± ±º‰
-        /// </summary>
-        public int DelayMilliseconds
-        {
-            get => _delayMilliseconds;
-            set
-            {
-                int normalizedValue = Math.Max(0, value);
-                if (SetField(ref _delayMilliseconds, normalizedValue))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region ±∏◊¢
-
-        private string _remark = string.Empty;
-
-        /// <summary>
-        /// ±∏◊¢
-        /// </summary>
-        public string Remark
-        {
-            get => _remark;
-            set
-            {
-                if (SetField(ref _remark, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        #endregion
-
-        #region  «∑Ò—°÷–
-
-        private bool _isChecked;
-
-        /// <summary>
-        ///  «∑Ò—°÷–
-        /// </summary>
-        [JsonIgnore]
-        public bool IsChecked
-        {
-            get => _isChecked;
-            set => SetField(ref _isChecked, value);
-        }
-
-        #endregion
-
-        #region ≤Œ ˝ «∑Ò–ﬁ∏ƒ
-
-        private bool _areParametersModified;
-
-        /// <summary>
-        /// ≤Œ ˝ «∑Ò–ﬁ∏ƒ
-        /// </summary>
-        [JsonIgnore]
-        public bool AreParametersModified
-        {
-            get => _areParametersModified;
-            set => SetField(ref _areParametersModified, value);
-        }
-
-        #endregion
-
-        #region œ‘ æÀ≥–Ú
-
-        private int _displayOrder = 1;
-
-        /// <summary>
-        /// œ‘ æÀ≥–Ú
-        /// </summary>
-        [JsonIgnore]
-        public int DisplayOrder
-        {
-            get => _displayOrder;
-            set => SetField(ref _displayOrder, Math.Max(1, value));
-        }
-
-        #endregion
-
-        #region ≤Œ ˝ºØ∫œ
-
-        private ObservableCollection<WorkStepOperationParameter> _parameters = new();
-
-        /// <summary>
-        /// ≤Œ ˝ºØ∫œ
-        /// </summary>
-        public ObservableCollection<WorkStepOperationParameter> Parameters
-        {
-            get => _parameters;
-            set
-            {
-                if (ReferenceEquals(_parameters, value))
-                {
-                    return;
-                }
-
-                DetachParameters(_parameters);
-                _parameters = value ?? new ObservableCollection<WorkStepOperationParameter>();
-                AttachParameters(_parameters);
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(ParameterCount));
-                OnPropertyChanged(nameof(DisplayText));
-            }
-        }
-
-        #endregion
-
-        [JsonIgnore]
-        public int ParameterCount => Parameters.Count;
-
-        [JsonIgnore]
-        public string DisplayText
-        {
-            get
-            {
-                string returnText = string.IsNullOrWhiteSpace(ReturnValue) ? string.Empty : $" -> {ReturnValue}";
-                string delayText = DelayMilliseconds <= 0 ? string.Empty : $" / {DelayMilliseconds}ms";
-                string remarkText = string.IsNullOrWhiteSpace(Remark) ? string.Empty : $" / {Remark}";
-                string parameterText = ParameterCount == 0 ? string.Empty : $" / ≤Œ ˝{ParameterCount}";
-                if (IsLuaOperationObject(OperationObject) || IsLuaOperationObject(OperationType))
-                {
-                    return $"Lua{delayText}{remarkText}";
-                }
-
-                string methodText = string.IsNullOrWhiteSpace(CommandName) ? OperationId : CommandName;
-                string protocolText = string.IsNullOrWhiteSpace(ProtocolName) ? string.Empty : $"{ProtocolName}.";
-                string actionText = IsSystemOperationObject(OperationObject)
-                    ? OperationId
-                    : $"{protocolText}{methodText}";
-                string operationObject = DeviceId;
-                string operationPath = string.IsNullOrWhiteSpace(operationObject)
-                    ? actionText
-                    : $"{operationObject}.{actionText}";
-
-                return $"{operationPath}{returnText}{delayText}{remarkText}{parameterText}";
-            }
-        }
-
-        #endregion
-
-        #region ºØ∫œÕ®÷™
-
-        private void AttachParameters(ObservableCollection<WorkStepOperationParameter> parameters)
-        {
-            parameters.CollectionChanged += Parameters_CollectionChanged;
-            foreach (WorkStepOperationParameter parameter in parameters)
-            {
-                parameter.PropertyChanged += Parameter_PropertyChanged;
-            }
-        }
-
-        private void DetachParameters(ObservableCollection<WorkStepOperationParameter> parameters)
-        {
-            parameters.CollectionChanged -= Parameters_CollectionChanged;
-            foreach (WorkStepOperationParameter parameter in parameters)
-            {
-                parameter.PropertyChanged -= Parameter_PropertyChanged;
-            }
-        }
-
-        private void Parameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            if (e.NewItems is not null)
-            {
-                foreach (WorkStepOperationParameter parameter in e.NewItems.OfType<WorkStepOperationParameter>())
-                {
-                    parameter.PropertyChanged += Parameter_PropertyChanged;
-                }
-            }
-
-            if (e.OldItems is not null)
-            {
-                foreach (WorkStepOperationParameter parameter in e.OldItems.OfType<WorkStepOperationParameter>())
-                {
-                    parameter.PropertyChanged -= Parameter_PropertyChanged;
-                }
-            }
-
-            OnPropertyChanged(nameof(ParameterCount));
-            OnPropertyChanged(nameof(DisplayText));
-        }
-
-        private void Parameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName is nameof(WorkStepOperationParameter.Name)
-                or nameof(WorkStepOperationParameter.Type)
-                or nameof(WorkStepOperationParameter.ParameterName)
-                or nameof(WorkStepOperationParameter.ValueType)
-                or nameof(WorkStepOperationParameter.Sequence)
-                or nameof(WorkStepOperationParameter.Value)
-                or nameof(WorkStepOperationParameter.Remark)
-                or nameof(WorkStepOperationParameter.Description))
-            {
-                OnPropertyChanged(nameof(DisplayText));
-            }
-        }
-
-        #endregion
-
-        #region ∏¥÷∆∑Ω∑®
-
-        public WorkStepOperation Clone()
-        {
-            return new WorkStepOperation
-            {
-                Id = Id,
-                OperationType = OperationType,
-                OperationObject = OperationObject,
-                DeviceId = _deviceId,
-                ProtocolName = ProtocolName,
-                CommandName = CommandName,
-                InvokeMethod = InvokeMethod,
-                OperationId = _operationId,
-                ReturnValue = ReturnValue,
-                ShowDataToView = ShowDataToView,
-                ViewDataName = ViewDataName,
-                ViewJudgeType = ViewJudgeType,
-                ViewJudgeCondition = ViewJudgeCondition,
-                LuaScript = LuaScript,
-                DelayMilliseconds = DelayMilliseconds,
-                Remark = Remark,
-                IsChecked = false,
-                AreParametersModified = AreParametersModified,
-                Parameters = new ObservableCollection<WorkStepOperationParameter>(Parameters.Select(parameter => parameter.Clone()))
-            };
-        }
-
-        #endregion
-
-        #region æ≤Ã¨π§æﬂ
-
-        private static bool IsSystemOperationObject(string? operationObject)
-        {
-            return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(operationObject?.Trim(), "œµÕ≥", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool IsLuaOperationObject(string? operationObject)
-        {
-            return string.Equals(operationObject?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
-        }
-
-        #endregion
-    }
-
-    /// <summary>
-    /// π§≤Ω≤Ω÷Ëµ˜”√∑Ω∑®≤Œ ˝°£
-    /// </summary>
-    public sealed class WorkStepOperationParameter : ViewModelProperties
-    {
-        #region ÀΩ”–◊÷∂Œ
-
-        private string _id = Guid.NewGuid().ToString("N");
-        private int _sequence = 1;
-        private string _name = "…Ë÷√÷µ";
-        private string _parameterName = string.Empty;
-        private string _valueType = string.Empty;
-        private string _value = string.Empty;
-        private string _remark = string.Empty;
-
-        #endregion
-
-        #region ∞Û∂® Ù–‘
-
-        public string Id
-        {
-            get => _id;
-            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
-        }
-
-        public int Sequence
-        {
-            get => _sequence;
-            set => SetField(ref _sequence, Math.Max(1, value));
-        }
-
-        public string Name
-        {
-            get => _name;
-            set => SetParameterType(value, nameof(Name));
-        }
-
-        [JsonIgnore]
-        public string Type
-        {
-            get => _name;
-            set => SetParameterType(value, nameof(Type));
-        }
-
-        public string Value
-        {
-            get => _value;
-            set => SetField(ref _value, value ?? string.Empty, true);
-        }
-
-        public string ParameterName
-        {
-            get => _parameterName;
-            set => SetField(ref _parameterName, value ?? string.Empty, true);
-        }
-
-        public string ValueType
-        {
-            get => _valueType;
-            set => SetField(ref _valueType, value ?? string.Empty, true);
-        }
-
-        public string Remark
-        {
-            get => _remark;
-            set => SetParameterDescription(value, nameof(Remark));
-        }
-
-        [JsonIgnore]
-        public string Description
-        {
-            get => _remark;
-            set => SetParameterDescription(value, nameof(Description));
-        }
-
-        [JsonIgnore]
-        public ObservableCollection<string> ValueOptions { get; } = new();
-
-        [JsonIgnore]
-        public bool UsesTextValueEditor =>
-            string.Equals(Type, "…Ë÷√÷µ", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(Type, "π§≤Ω÷µ", StringComparison.OrdinalIgnoreCase);
-
-        [JsonIgnore]
-        public bool UsesComboValueEditor => !UsesTextValueEditor;
-
-        #endregion
-
-        #region  Ù–‘±√˚∑Ω∑®
-
-        private void SetParameterType(string? value, string propertyName)
-        {
-            string normalizedValue = string.IsNullOrWhiteSpace(value) ? "…Ë÷√÷µ" : value.Trim();
-            if (!SetField(ref _name, normalizedValue, propertyName))
-            {
-                return;
-            }
-
-            OnPropertyChanged(propertyName == nameof(Name) ? nameof(Type) : nameof(Name));
-            OnPropertyChanged(nameof(UsesTextValueEditor));
-            OnPropertyChanged(nameof(UsesComboValueEditor));
-        }
-
-        private void SetParameterDescription(string? value, string propertyName)
-        {
-            string normalizedValue = value?.Trim() ?? string.Empty;
-            if (!SetField(ref _remark, normalizedValue, propertyName))
-            {
-                return;
-            }
-
-            OnPropertyChanged(propertyName == nameof(Remark) ? nameof(Description) : nameof(Remark));
-        }
-
-        #endregion
-
-        #region ∏¥÷∆∑Ω∑®
-
-        public WorkStepOperationParameter Clone()
-        {
-            return new WorkStepOperationParameter
-            {
-                Id = Id,
-                Sequence = Sequence,
-                Name = Name,
-                ParameterName = ParameterName,
-                ValueType = ValueType,
-                Value = Value,
-                Remark = Remark
-            };
-        }
-
-        #endregion
-    }
-
-    /// <summary>
-    /// ∑Ω∞∏π§≤Ω≤Œ ˝°£
-    /// </summary>
-    public sealed class SchemeWorkStepParameter : ViewModelProperties
-    {
-        private static readonly string[] DefaultJudgeTypeOptions =
-        {
-        "µ»”⁄"
-    };
-
-        #region ÀΩ”–◊÷∂Œ
-
-        private string _id = Guid.NewGuid().ToString("N");
-        private string _sourceOperationId = string.Empty;
-        private string _sourceParameterId = string.Empty;
-        private string _parameterName = "≤Œ ˝";
-        private string _parameterType = "…Ë÷√÷µ";
-        private string _judgeType = string.Empty;
-        private string _judgeCondition = string.Empty;
-
-        #endregion
-
-        #region ∞Û∂® Ù–‘
-
-        public string Id
-        {
-            get => _id;
-            set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
-        }
-
-        public string SourceOperationId
-        {
-            get => _sourceOperationId;
-            set => SetField(ref _sourceOperationId, value ?? string.Empty, true);
-        }
-
-        public string SourceParameterId
-        {
-            get => _sourceParameterId;
-            set => SetField(ref _sourceParameterId, value ?? string.Empty, true);
-        }
-
-        public string ParameterName
-        {
-            get => _parameterName;
-            set => SetField(ref _parameterName, string.IsNullOrWhiteSpace(value) ? "≤Œ ˝" : value, true);
-        }
-
-        public string ParameterType
-        {
-            get => _parameterType;
-            set
-            {
-                string normalizedValue = string.IsNullOrWhiteSpace(value) ? "…Ë÷√÷µ" : value.Trim();
-                if (!SetField(ref _parameterType, normalizedValue, nameof(ParameterType)))
-                {
-                    return;
-                }
-
-                if (UsesJudgeType && string.IsNullOrWhiteSpace(_judgeType))
-                {
-                    _judgeType = "µ»”⁄";
-                    OnPropertyChanged(nameof(JudgeType));
-                }
-                else if (!UsesJudgeType && !string.IsNullOrWhiteSpace(_judgeType))
-                {
-                    _judgeType = string.Empty;
-                    OnPropertyChanged(nameof(JudgeType));
-                }
-
-                OnPropertyChanged(nameof(UsesJudgeType));
-            }
-        }
-
-        public string JudgeType
-        {
-            get => _judgeType;
-            set => SetField(ref _judgeType, value ?? string.Empty, true);
-        }
-
-        public string JudgeCondition
-        {
-            get => _judgeCondition;
-            set => SetField(ref _judgeCondition, value ?? string.Empty, true);
-        }
-
-        [JsonIgnore]
-        public bool UsesJudgeType => string.Equals(ParameterType, "≈–∂œ÷µ", StringComparison.OrdinalIgnoreCase);
-
-        [JsonIgnore]
-        public ObservableCollection<string> JudgeTypeOptions { get; } = new(DefaultJudgeTypeOptions);
-
-        public void ReplaceJudgeTypeOptions(IEnumerable<string> options)
-        {
-            List<string> normalizedOptions = options
-                .Where(option => !string.IsNullOrWhiteSpace(option))
-                .Select(option => option.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (normalizedOptions.Count == 0)
-            {
-                normalizedOptions = DefaultJudgeTypeOptions.ToList();
-            }
-
-            if (JudgeTypeOptions.SequenceEqual(normalizedOptions, StringComparer.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            JudgeTypeOptions.Clear();
-            foreach (string option in normalizedOptions)
-            {
-                JudgeTypeOptions.Add(option);
-            }
-        }
-
-        #endregion
-
-        #region ∏¥÷∆∑Ω∑®
-
-        public SchemeWorkStepParameter Clone()
-        {
-            return new SchemeWorkStepParameter
-            {
-                Id = Id,
-                SourceOperationId = SourceOperationId,
-                SourceParameterId = SourceParameterId,
-                ParameterName = ParameterName,
-                ParameterType = ParameterType,
-                JudgeType = JudgeType,
-                JudgeCondition = JudgeCondition
-            };
-        }
-
-        #endregion
-    }
-
-    /// <summary>
-    /// ∑Ω∞∏≈‰÷√£¨±£¥Ê∑Ω∞∏√˚≥∆∫Õπ§≤Ω“˝”√øÏ’’°£
+    /// ‰∏öÂä°ÊñπÊ°àÔºåÊâøËΩΩÂ∑•‰ΩúÊµÅÁ®ãÂíåÊâßË°åÈ°∫Â∫èÁöÑÈ°∂Â±ÇÂÆπÂô®
     /// </summary>
     public sealed class SchemeProfile : ViewModelProperties
     {
-        #region ÀΩ”–◊÷∂Œ
+        #region ÁßÅÊúâÂ≠óÊÆµ
 
         private string _id = Guid.NewGuid().ToString("N");
-        private string _schemeName = "∑Ω∞∏ 1";
+        private string _schemeName = "ÊñπÊ°à 1";
         private DateTime _lastModifiedAt = DateTime.Now;
         private ObservableCollection<SchemeWorkStepItem> _steps = new();
 
         #endregion
 
-        #region ππ‘Ï∑Ω∑®
+        #region ÊûÑÈÄ†ÂáΩÊï∞
 
         public SchemeProfile()
         {
@@ -1053,14 +35,20 @@ namespace Module.Business.Features.SchemeConfiguration
 
         #endregion
 
-        #region ∞Û∂® Ù–‘
+        #region Â±ûÊÄß
 
+        /// <summary>
+        /// ÊñπÊ°àÂîØ‰∏ÄÊ†áËØÜ
+        /// </summary>
         public string Id
         {
             get => _id;
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
 
+        /// <summary>
+        /// ÊñπÊ°àÂêçÁß∞
+        /// </summary>
         public string SchemeName
         {
             get => _schemeName;
@@ -1073,6 +61,9 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        /// <summary>
+        /// ÊúÄÂêé‰øÆÊîπÊó∂Èó¥
+        /// </summary>
         public DateTime LastModifiedAt
         {
             get => _lastModifiedAt;
@@ -1086,6 +77,9 @@ namespace Module.Business.Features.SchemeConfiguration
             }
         }
 
+        /// <summary>
+        /// Â∑•Ê≠•È°πÈõÜÂêà
+        /// </summary>
         public ObservableCollection<SchemeWorkStepItem> Steps
         {
             get => _steps;
@@ -1109,11 +103,11 @@ namespace Module.Business.Features.SchemeConfiguration
         public int StepCount => Steps.Count;
 
         [JsonIgnore]
-        public string LastModifiedText => $"◊Ó∫Û–ﬁ∏ƒ£∫{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+        public string LastModifiedText => $"ÊúÄÂêé‰øÆÊîπÔºö{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
 
         #endregion
 
-        #region ºØ∫œÕ®÷™
+        #region ÈõÜÂêàÈÄöÁü•
 
         private void AttachSteps(ObservableCollection<SchemeWorkStepItem> steps)
         {
@@ -1123,7 +117,6 @@ namespace Module.Business.Features.SchemeConfiguration
                 step.PropertyChanged += Step_PropertyChanged;
             }
 
-            RefreshStepDisplayOrders(steps);
         }
 
         private void DetachSteps(ObservableCollection<SchemeWorkStepItem> steps)
@@ -1139,11 +132,6 @@ namespace Module.Business.Features.SchemeConfiguration
         {
             if (e.Action == NotifyCollectionChangedAction.Move)
             {
-                if (sender is ObservableCollection<SchemeWorkStepItem> movedSteps)
-                {
-                    RefreshStepDisplayOrders(movedSteps);
-                }
-
                 OnPropertyChanged(nameof(Steps));
                 MarkModified();
                 return;
@@ -1165,11 +153,6 @@ namespace Module.Business.Features.SchemeConfiguration
                 }
             }
 
-            if (sender is ObservableCollection<SchemeWorkStepItem> changedSteps)
-            {
-                RefreshStepDisplayOrders(changedSteps);
-            }
-
             OnPropertyChanged(nameof(Steps));
             OnPropertyChanged(nameof(StepCount));
             MarkModified();
@@ -1177,30 +160,21 @@ namespace Module.Business.Features.SchemeConfiguration
 
         private void Step_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName is nameof(SchemeWorkStepItem.IsStartupEnabled)
-                or nameof(SchemeWorkStepItem.WorkStepId)
-                or nameof(SchemeWorkStepItem.SchemeStepName)
-                or nameof(SchemeWorkStepItem.Operations)
-                or nameof(SchemeWorkStepItem.Parameters)
-                or nameof(SchemeWorkStepItem.LastModifiedAt)
-                or nameof(SchemeWorkStepItem.LastModifiedText))
+            if (e.PropertyName is nameof(SchemeWorkStepItem.StepName)
+                or nameof(SchemeWorkStepItem.IsStartupEnabled)
+                or nameof(SchemeWorkStepItem.IsReTestEnabled)
+                or nameof(SchemeWorkStepItem.ReTestCount)
+                or nameof(SchemeWorkStepItem.IsConfirmReTest)
+                or nameof(SchemeWorkStepItem.Operations))
             {
                 OnPropertyChanged(nameof(Steps));
                 MarkModified();
             }
         }
 
-        private static void RefreshStepDisplayOrders(ObservableCollection<SchemeWorkStepItem> steps)
-        {
-            for (int index = 0; index < steps.Count; index++)
-            {
-                steps[index].DisplayOrder = index + 1;
-            }
-        }
-
         #endregion
 
-        #region ∏¥÷∆∑Ω∑®
+        #region ÂÖãÈöÜ
 
         public SchemeProfile Clone()
         {
@@ -1213,6 +187,13 @@ namespace Module.Business.Features.SchemeConfiguration
             };
         }
 
+        #endregion
+
+        #region ‰øÆÊîπÊó∂Èó¥Êà≥
+
+        /// <summary>
+        /// Ê†áËÆ∞‰øÆÊîπÊó∂Èó¥
+        /// </summary>
         public void MarkModified()
         {
             LastModifiedAt = DateTime.Now;
@@ -1222,118 +203,101 @@ namespace Module.Business.Features.SchemeConfiguration
     }
 
     /// <summary>
-    /// ∑Ω∞∏÷–µƒπ§≤Ω“˝”√øÏ’’°£
+    /// ÊñπÊ°à‰∏≠ÁöÑÂ∑•Ê≠•È°π
     /// </summary>
     public sealed class SchemeWorkStepItem : ViewModelProperties
     {
-        private const string DisplayedViewDataSourceId = "__display_to_view__";
-
-        #region ÀΩ”–◊÷∂Œ
+        #region ÁßÅÊúâÂ≠óÊÆµ
 
         private string _id = Guid.NewGuid().ToString("N");
-        private bool _isStartupEnabled = true;
-        private string _workStepId = string.Empty;
+        private int _num = 1;
         private string _stepName = string.Empty;
-        private string _schemeStepName = string.Empty;
-        private DateTime _lastModifiedAt = DateTime.Now;
-        private int _displayOrder = 1;
+        private bool _isStartupEnabled = true;
+        private bool _isReTestEnabled;
+        private int _reTestCount = 1;
+        private bool _isConfirmReTest;
         private ObservableCollection<WorkStepOperation> _operations = new();
-        private ObservableCollection<SchemeWorkStepParameter> _parameters = new();
+        private readonly HashSet<WorkStepOperation> _trackedOperations = new();
 
         #endregion
 
-        #region ππ‘Ï∑Ω∑®
+        #region ÊûÑÈÄ†ÂáΩÊï∞
 
         public SchemeWorkStepItem()
         {
             AttachOperations(_operations);
-            AttachParameters(_parameters);
         }
 
         #endregion
 
-        #region ∞Û∂® Ù–‘
+        #region Â±ûÊÄß
 
+        /// <summary>
+        /// Â∑•Ê≠•ÂîØ‰∏ÄÊ†áËØÜ
+        /// </summary>
         public string Id
         {
             get => _id;
             set => SetField(ref _id, string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value.Trim());
         }
 
-        public bool IsStartupEnabled
+        /// <summary>
+        /// Â∫èÂè∑
+        /// </summary>
+        public int Num
         {
-            get => _isStartupEnabled;
-            set
-            {
-                if (SetField(ref _isStartupEnabled, value))
-                {
-                    LastModifiedAt = DateTime.Now;
-                }
-            }
+            get => _num;
+            set => SetField(ref _num, Math.Max(1, value));
         }
 
-        public string WorkStepId
-        {
-            get => _workStepId;
-            set
-            {
-                if (SetField(ref _workStepId, value ?? string.Empty, true))
-                {
-                    LastModifiedAt = DateTime.Now;
-                }
-            }
-        }
-
+        /// <summary>
+        /// Â∑•Ê≠•ÂêçÁß∞
+        /// </summary>
         public string StepName
         {
             get => _stepName;
-            set
-            {
-                if (SetField(ref _stepName, value ?? string.Empty, true))
-                {
-                    OnPropertyChanged(nameof(SchemeStepName));
-                    LastModifiedAt = DateTime.Now;
-                }
-            }
+            set => SetField(ref _stepName, value ?? string.Empty, true);
         }
 
-        public string SchemeStepName
+        /// <summary>
+        /// ÊòØÂê¶ÂêØÁî®
+        /// </summary>
+        public bool IsStartupEnabled
         {
-            get => string.IsNullOrWhiteSpace(_schemeStepName) ? StepName : _schemeStepName;
-            set
-            {
-                string normalizedValue = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
-                string storedValue = string.Equals(normalizedValue, StepName, StringComparison.OrdinalIgnoreCase)
-                    ? string.Empty
-                    : normalizedValue;
-
-                if (SetField(ref _schemeStepName, storedValue, true))
-                {
-                    LastModifiedAt = DateTime.Now;
-                }
-            }
+            get => _isStartupEnabled;
+            set => SetField(ref _isStartupEnabled, value);
         }
 
-        public DateTime LastModifiedAt
+        /// <summary>
+        /// ÊòØÂê¶NGÈáçÊµã
+        /// </summary>
+        public bool IsReTestEnabled
         {
-            get => _lastModifiedAt;
-            set
-            {
-                DateTime normalizedValue = value == default ? DateTime.Now : value;
-                if (SetField(ref _lastModifiedAt, normalizedValue))
-                {
-                    OnPropertyChanged(nameof(LastModifiedText));
-                }
-            }
+            get => _isReTestEnabled;
+            set => SetField(ref _isReTestEnabled, value);
         }
 
-        [JsonIgnore]
-        public int DisplayOrder
+        /// <summary>
+        /// ÈáçÊµãÊ¨°Êï∞
+        /// </summary>
+        public int ReTestCount
         {
-            get => _displayOrder;
-            set => SetField(ref _displayOrder, Math.Max(1, value));
+            get => _reTestCount;
+            set => SetField(ref _reTestCount, Math.Max(1, value));
         }
 
+        /// <summary>
+        /// ÂºπÊ°ÜÁ°ÆËÆ§ÊòØÂê¶ÈáçÊµã
+        /// </summary>
+        public bool IsConfirmReTest
+        {
+            get => _isConfirmReTest;
+            set => SetField(ref _isConfirmReTest, value);
+        }
+
+        /// <summary>
+        /// Ê≠•È™§ÈõÜÂêà
+        /// </summary>
         public ObservableCollection<WorkStepOperation> Operations
         {
             get => _operations;
@@ -1348,75 +312,62 @@ namespace Module.Business.Features.SchemeConfiguration
                 _operations = value ?? new ObservableCollection<WorkStepOperation>();
                 AttachOperations(_operations);
                 OnPropertyChanged();
-                RefreshOperationSnapshot();
-                LastModifiedAt = DateTime.Now;
-            }
-        }
-
-        public ObservableCollection<SchemeWorkStepParameter> Parameters
-        {
-            get => _parameters;
-            set
-            {
-                if (ReferenceEquals(_parameters, value))
-                {
-                    return;
-                }
-
-                DetachParameters(_parameters);
-                _parameters = value ?? new ObservableCollection<SchemeWorkStepParameter>();
-                AttachParameters(_parameters);
-                OnPropertyChanged();
-                LastModifiedAt = DateTime.Now;
+                OnPropertyChanged(nameof(OperationCount));
             }
         }
 
         [JsonIgnore]
-        public string LastModifiedText => $"◊Ó∫Û–ﬁ∏ƒ£∫{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
+        public int OperationCount => Operations.Count;
 
         #endregion
 
-        #region ºØ∫œÕ®÷™
+        #region ÈõÜÂêàÈÄöÁü•
 
         private void AttachOperations(ObservableCollection<WorkStepOperation> operations)
         {
             operations.CollectionChanged += Operations_CollectionChanged;
             foreach (WorkStepOperation operation in operations)
             {
-                operation.PropertyChanged += Operation_PropertyChanged;
+                if (_trackedOperations.Add(operation))
+                {
+                    operation.PropertyChanged += Operation_PropertyChanged;
+                }
             }
 
-            RefreshOperationDisplayOrders(operations);
-            RefreshOperationSnapshot(updateLastModified: false);
+            RefreshOperationNums(operations);
         }
 
         private void DetachOperations(ObservableCollection<WorkStepOperation> operations)
         {
             operations.CollectionChanged -= Operations_CollectionChanged;
-            foreach (WorkStepOperation operation in operations)
+            foreach (WorkStepOperation operation in _trackedOperations)
             {
                 operation.PropertyChanged -= Operation_PropertyChanged;
             }
+
+            _trackedOperations.Clear();
         }
 
         private void Operations_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            if (e.Action == NotifyCollectionChangedAction.Move)
+            if (e.Action == NotifyCollectionChangedAction.Reset)
             {
-                if (sender is ObservableCollection<WorkStepOperation> movedOperations)
+                foreach (WorkStepOperation operation in _trackedOperations)
                 {
-                    RefreshOperationDisplayOrders(movedOperations);
+                    operation.PropertyChanged -= Operation_PropertyChanged;
                 }
 
-                RefreshOperationSnapshot();
-                return;
+                _trackedOperations.Clear();
             }
 
             if (e.NewItems is not null)
             {
                 foreach (WorkStepOperation operation in e.NewItems.OfType<WorkStepOperation>())
                 {
-                    operation.PropertyChanged += Operation_PropertyChanged;
+                    if (_trackedOperations.Add(operation))
+                    {
+                        operation.PropertyChanged += Operation_PropertyChanged;
+                    }
                 }
             }
 
@@ -1424,359 +375,71 @@ namespace Module.Business.Features.SchemeConfiguration
             {
                 foreach (WorkStepOperation operation in e.OldItems.OfType<WorkStepOperation>())
                 {
-                    operation.PropertyChanged -= Operation_PropertyChanged;
+                    if (_trackedOperations.Remove(operation))
+                    {
+                        operation.PropertyChanged -= Operation_PropertyChanged;
+                    }
                 }
+            }
+
+            if (e.Action == NotifyCollectionChangedAction.Move)
+            {
+                if (sender is ObservableCollection<WorkStepOperation> movedOperations)
+                {
+                    RefreshOperationNums(movedOperations);
+                }
+
+                // Operations ÂºïÁî®Ê≤°ÊúâÂèòÂåñÔºå‰ΩÜÈ°∫Â∫èÂ±û‰∫éÊñπÊ°àÂÜÖÂÆπÂèòÂåñÔºåÂøÖÈ°ªÂêë‰∏äÂ±ÇÊñπÊ°àÂèëÈÄÅ‰øÆÊîπÈÄöÁü•„ÄÇ
+                OnPropertyChanged(nameof(Operations));
+                return;
             }
 
             if (sender is ObservableCollection<WorkStepOperation> changedOperations)
             {
-                RefreshOperationDisplayOrders(changedOperations);
+                RefreshOperationNums(changedOperations);
             }
 
-            RefreshOperationSnapshot();
+            OnPropertyChanged(nameof(OperationCount));
+            OnPropertyChanged(nameof(Operations));
         }
 
+        /// <summary>
+        /// Êìç‰ΩúÂÆû‰ΩìÂÜÖÈÉ®Â≠óÊÆµÂèëÁîüÂèòÂåñÊó∂ÂêëÊñπÊ°àÂ±ÇËΩ¨Âèë Operations ÈÄöÁü•Ôºå
+        /// Á°Æ‰øùÊìç‰ΩúÂØπË±°„ÄÅÊñπÊ≥ï„ÄÅÂèÇÊï∞„ÄÅËøîÂõûÂÄºÊàñÊèèËø∞Êõ¥Êñ∞ÂêéÈÉΩËÉΩÂà∑Êñ∞ÊñπÊ°àÊúÄÂêé‰øÆÊîπÊó∂Èó¥„ÄÇ
+        /// </summary>
         private void Operation_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName is nameof(WorkStepOperation.OperationObject)
-                or nameof(WorkStepOperation.ProtocolName)
-                or nameof(WorkStepOperation.CommandName)
-                or nameof(WorkStepOperation.InvokeMethod)
-                or nameof(WorkStepOperation.ReturnValue)
-                or nameof(WorkStepOperation.ShowDataToView)
-                or nameof(WorkStepOperation.ViewDataName)
-                or nameof(WorkStepOperation.ViewJudgeType)
-                or nameof(WorkStepOperation.ViewJudgeCondition)
-                or nameof(WorkStepOperation.LuaScript)
-                or nameof(WorkStepOperation.DelayMilliseconds)
-                or nameof(WorkStepOperation.Remark)
-                or nameof(WorkStepOperation.ParameterCount)
-                or nameof(WorkStepOperation.DisplayText)
-                or nameof(WorkStepOperation.Parameters))
-            {
-                RefreshOperationSnapshot();
-            }
+            OnPropertyChanged(nameof(Operations));
         }
 
-        private void AttachParameters(ObservableCollection<SchemeWorkStepParameter> parameters)
-        {
-            parameters.CollectionChanged += Parameters_CollectionChanged;
-            foreach (SchemeWorkStepParameter parameter in parameters)
-            {
-                parameter.PropertyChanged += Parameter_PropertyChanged;
-            }
-        }
-
-        private void DetachParameters(ObservableCollection<SchemeWorkStepParameter> parameters)
-        {
-            parameters.CollectionChanged -= Parameters_CollectionChanged;
-            foreach (SchemeWorkStepParameter parameter in parameters)
-            {
-                parameter.PropertyChanged -= Parameter_PropertyChanged;
-            }
-        }
-
-        private void Parameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            if (e.NewItems is not null)
-            {
-                foreach (SchemeWorkStepParameter parameter in e.NewItems.OfType<SchemeWorkStepParameter>())
-                {
-                    parameter.PropertyChanged += Parameter_PropertyChanged;
-                }
-            }
-
-            if (e.OldItems is not null)
-            {
-                foreach (SchemeWorkStepParameter parameter in e.OldItems.OfType<SchemeWorkStepParameter>())
-                {
-                    parameter.PropertyChanged -= Parameter_PropertyChanged;
-                }
-            }
-
-            LastModifiedAt = DateTime.Now;
-        }
-
-        private void Parameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName is nameof(SchemeWorkStepParameter.ParameterName)
-                or nameof(SchemeWorkStepParameter.ParameterType)
-                or nameof(SchemeWorkStepParameter.JudgeType)
-                or nameof(SchemeWorkStepParameter.JudgeCondition))
-            {
-                LastModifiedAt = DateTime.Now;
-            }
-        }
-
-        private static void RefreshOperationDisplayOrders(ObservableCollection<WorkStepOperation> operations)
+        private static void RefreshOperationNums(ObservableCollection<WorkStepOperation> operations)
         {
             for (int index = 0; index < operations.Count; index++)
             {
-                operations[index].DisplayOrder = index + 1;
-            }
-        }
-
-        private void RefreshOperationSnapshot(bool updateLastModified = true)
-        {
-            ObservableCollection<SchemeWorkStepParameter> updatedParameters =
-                CreateParametersFromOperations(Operations, Parameters);
-            if (!HasSameSchemeStepParameters(_parameters, updatedParameters))
-            {
-                DetachParameters(_parameters);
-                _parameters = updatedParameters;
-                AttachParameters(_parameters);
-                OnPropertyChanged(nameof(Parameters));
-            }
-
-            if (updateLastModified)
-            {
-                LastModifiedAt = DateTime.Now;
+                operations[index].Num = index + 1;
             }
         }
 
         #endregion
 
-        #region π§≥ß”Î∏¥÷∆∑Ω∑®
-
-        public static SchemeWorkStepItem FromWorkStep(WorkStepProfile workStep)
-        {
-            return new SchemeWorkStepItem
-            {
-                IsStartupEnabled = true,
-                WorkStepId = workStep.Id,
-                StepName = workStep.StepName,
-                LastModifiedAt = workStep.LastModifiedAt,
-                Operations = new ObservableCollection<WorkStepOperation>(workStep.Steps.Select(operation => operation.Clone())),
-                Parameters = CreateParametersFromWorkStep(workStep)
-            };
-        }
+        #region ÂÖãÈöÜ
 
         public SchemeWorkStepItem Clone()
         {
             return new SchemeWorkStepItem
             {
                 Id = Id,
-                IsStartupEnabled = IsStartupEnabled,
-                WorkStepId = WorkStepId,
+                Num = Num,
                 StepName = StepName,
-                SchemeStepName = _schemeStepName,
-                LastModifiedAt = LastModifiedAt,
-                Operations = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone())),
-                Parameters = new ObservableCollection<SchemeWorkStepParameter>(Parameters.Select(parameter => parameter.Clone()))
+                IsStartupEnabled = IsStartupEnabled,
+                IsReTestEnabled = IsReTestEnabled,
+                ReTestCount = ReTestCount,
+                IsConfirmReTest = IsConfirmReTest,
+                Operations = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone()))
             };
-        }
-
-        public WorkStepProfile ToWorkStepProfile()
-        {
-            return new WorkStepProfile
-            {
-                Id = string.IsNullOrWhiteSpace(WorkStepId) ? Guid.NewGuid().ToString("N") : WorkStepId,
-                StepName = SchemeStepName,
-                LastModifiedAt = LastModifiedAt,
-                Steps = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone()))
-            };
-        }
-
-        public static ObservableCollection<SchemeWorkStepParameter> CreateParametersFromWorkStep(
-            WorkStepProfile workStep,
-            IEnumerable<SchemeWorkStepParameter>? existingParameters = null)
-        {
-            return CreateParametersFromOperations(workStep.Steps, existingParameters);
-        }
-
-        public static ObservableCollection<SchemeWorkStepParameter> CreateParametersFromOperations(
-            IEnumerable<WorkStepOperation> operations,
-            IEnumerable<SchemeWorkStepParameter>? existingParameters = null)
-        {
-            List<WorkStepOperation> operationList = operations
-                .Where(operation => operation is not null)
-                .ToList();
-
-            List<string> displayJudgeTypeOptions = operationList
-                .Where(operation => operation.ShowDataToView && !string.IsNullOrWhiteSpace(operation.ViewJudgeType))
-                .Select(operation => operation.ViewJudgeType.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            Dictionary<string, SchemeWorkStepParameter> existingBySource = (existingParameters ?? Enumerable.Empty<SchemeWorkStepParameter>())
-                .Where(parameter => parameter is not null)
-                .GroupBy(parameter => BuildParameterSourceKey(parameter.SourceOperationId, parameter.SourceParameterId), StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-
-            Dictionary<string, SchemeWorkStepParameter> existingByName = (existingParameters ?? Enumerable.Empty<SchemeWorkStepParameter>())
-                .Where(parameter => parameter is not null && !string.IsNullOrWhiteSpace(parameter.ParameterName))
-                .GroupBy(parameter => parameter.ParameterName.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-
-            ObservableCollection<SchemeWorkStepParameter> parameters = new();
-            int parameterIndex = 1;
-            HashSet<string> addedDisplayedTypeKeys = new(StringComparer.OrdinalIgnoreCase);
-
-            foreach (WorkStepOperation operation in operationList)
-            {
-                foreach (WorkStepOperationParameter parameter in operation.Parameters.OrderBy(item => item.Sequence))
-                {
-                    if (!IsSchemeVisibleParameter(parameter))
-                    {
-                        continue;
-                    }
-
-                    string parameterName = ResolveParameterName(parameter, parameterIndex);
-                    string sourceKey = BuildParameterSourceKey(operation.Id, parameter.Id);
-
-                    if (!existingBySource.TryGetValue(sourceKey, out SchemeWorkStepParameter? existingParameter) &&
-                        !string.IsNullOrWhiteSpace(parameterName))
-                    {
-                        existingByName.TryGetValue(parameterName, out existingParameter);
-                    }
-
-                    SchemeWorkStepParameter schemeParameter = existingParameter?.Clone() ?? new SchemeWorkStepParameter();
-                    schemeParameter.SourceOperationId = operation.Id;
-                    schemeParameter.SourceParameterId = parameter.Id;
-                    schemeParameter.ParameterName = parameterName;
-                    schemeParameter.ReplaceJudgeTypeOptions(Array.Empty<string>());
-                    parameters.Add(schemeParameter);
-                    parameterIndex++;
-                }
-
-                if (!IsSchemeVisibleOperation(operation))
-                {
-                    continue;
-                }
-
-                string displayedParameterName = ResolveDisplayedViewDataName(operation, parameterIndex);
-                string displayedTypeKey = ResolveDisplayedViewDataKey(operation, displayedParameterName, parameterIndex);
-                if (!addedDisplayedTypeKeys.Add(displayedTypeKey))
-                {
-                    continue;
-                }
-
-                string displayedSourceKey = BuildParameterSourceKey(DisplayedViewDataSourceId, displayedTypeKey);
-
-                if (!existingBySource.TryGetValue(displayedSourceKey, out SchemeWorkStepParameter? displayedExistingParameter) &&
-                    !string.IsNullOrWhiteSpace(displayedParameterName))
-                {
-                    existingByName.TryGetValue(displayedParameterName, out displayedExistingParameter);
-                }
-
-                bool isNewDisplayedParameter = displayedExistingParameter is null;
-                SchemeWorkStepParameter displayedSchemeParameter = displayedExistingParameter?.Clone() ?? new SchemeWorkStepParameter();
-                displayedSchemeParameter.SourceOperationId = DisplayedViewDataSourceId;
-                displayedSchemeParameter.SourceParameterId = displayedTypeKey;
-                displayedSchemeParameter.ParameterName = displayedParameterName;
-                displayedSchemeParameter.ParameterType = isNewDisplayedParameter ? "≈–∂œ÷µ" : displayedSchemeParameter.ParameterType;
-                displayedSchemeParameter.JudgeType = operation.ViewJudgeType;
-                displayedSchemeParameter.JudgeCondition = operation.ViewJudgeCondition;
-                displayedSchemeParameter.ReplaceJudgeTypeOptions(displayJudgeTypeOptions);
-                parameters.Add(displayedSchemeParameter);
-                parameterIndex++;
-            }
-
-            return parameters;
-        }
-
-        private static bool IsSchemeVisibleOperation(WorkStepOperation operation)
-        {
-            return operation.ShowDataToView;
-        }
-
-        private static bool IsSchemeVisibleParameter(WorkStepOperationParameter parameter)
-        {
-            return string.Equals(parameter.Type, "π§≤Ω÷µ", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string ResolveParameterName(WorkStepOperationParameter parameter, int index)
-        {
-            if (!string.IsNullOrWhiteSpace(parameter.Value))
-            {
-                return parameter.Value.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(parameter.ParameterName))
-            {
-                return parameter.ParameterName.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(parameter.Description))
-            {
-                return parameter.Description.Trim();
-            }
-
-            return $"≤Œ ˝ {index}";
-        }
-
-        private static string ResolveDisplayedViewDataName(WorkStepOperation operation, int index)
-        {
-            if (!string.IsNullOrWhiteSpace(operation.ViewJudgeType))
-            {
-                return operation.ViewJudgeType.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(operation.ViewDataName))
-            {
-                return operation.ViewDataName.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(operation.ReturnValue))
-            {
-                return operation.ReturnValue.Trim();
-            }
-
-            return $"œ‘ æ ˝æ› {index}";
-        }
-
-        private static string ResolveDisplayedViewDataKey(WorkStepOperation operation, string displayedParameterName, int index)
-        {
-            if (!string.IsNullOrWhiteSpace(operation.ViewJudgeType))
-            {
-                return operation.ViewJudgeType.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(displayedParameterName))
-            {
-                return displayedParameterName.Trim();
-            }
-
-            return $"œ‘ æ ˝æ›_{index}";
-        }
-
-        private static string BuildParameterSourceKey(string? operationId, string? parameterId)
-        {
-            return $"{operationId?.Trim() ?? string.Empty}::{parameterId?.Trim() ?? string.Empty}";
-        }
-
-        private static bool HasSameSchemeStepParameters(
-            ObservableCollection<SchemeWorkStepParameter> left,
-            ObservableCollection<SchemeWorkStepParameter> right)
-        {
-            if (ReferenceEquals(left, right))
-            {
-                return true;
-            }
-
-            if (left.Count != right.Count)
-            {
-                return false;
-            }
-
-            for (int index = 0; index < left.Count; index++)
-            {
-                SchemeWorkStepParameter leftParameter = left[index];
-                SchemeWorkStepParameter rightParameter = right[index];
-                if (!string.Equals(leftParameter.SourceOperationId, rightParameter.SourceOperationId, StringComparison.Ordinal) ||
-                    !string.Equals(leftParameter.SourceParameterId, rightParameter.SourceParameterId, StringComparison.Ordinal) ||
-                    !string.Equals(leftParameter.ParameterName, rightParameter.ParameterName, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(leftParameter.ParameterType, rightParameter.ParameterType, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(leftParameter.JudgeType, rightParameter.JudgeType, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(leftParameter.JudgeCondition, rightParameter.JudgeCondition, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
 
         #endregion
     }
+
 }
