@@ -23,6 +23,7 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         private string _schemeName = "方案 1";
         private DateTime _lastModifiedAt = DateTime.Now;
         private ObservableCollection<SchemeWorkStepItem> _steps = new();
+        private bool _isModified;
 
         #endregion
 
@@ -105,6 +106,12 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         [JsonIgnore]
         public string LastModifiedText => $"最后修改：{LastModifiedAt:yyyy-MM-dd HH:mm:ss}";
 
+        /// <summary>
+        /// 当前方案内容是否存在尚未保存的修改；该状态仅用于页面保存流程，不写入配置文件。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsModified => _isModified;
+
         #endregion
 
         #region 集合通知
@@ -178,13 +185,20 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
 
         public SchemeProfile Clone()
         {
-            return new SchemeProfile
+            SchemeProfile clone = new()
             {
                 Id = Id,
                 SchemeName = SchemeName,
                 LastModifiedAt = LastModifiedAt,
                 Steps = new ObservableCollection<SchemeWorkStepItem>(Steps.Select(step => step.Clone()))
             };
+
+            if (!IsModified)
+            {
+                clone.AcceptChanges();
+            }
+
+            return clone;
         }
 
         #endregion
@@ -192,11 +206,40 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         #region 修改时间戳
 
         /// <summary>
-        /// 标记修改时间
+        /// 标记方案存在尚未保存的修改。最后修改时间只在配置成功保存时更新。
         /// </summary>
         public void MarkModified()
         {
-            LastModifiedAt = DateTime.Now;
+            if (_isModified)
+            {
+                return;
+            }
+
+            _isModified = true;
+            OnPropertyChanged(nameof(IsModified));
+        }
+
+        /// <summary>
+        /// 使用本次成功保存的时间提交修改，并清除未保存标记。
+        /// </summary>
+        public void AcceptChanges(DateTime savedAt)
+        {
+            LastModifiedAt = savedAt;
+            AcceptChanges();
+        }
+
+        /// <summary>
+        /// 保留当前最后修改时间，仅清除加载、克隆或保存后的临时修改标记。
+        /// </summary>
+        public void AcceptChanges()
+        {
+            if (!_isModified)
+            {
+                return;
+            }
+
+            _isModified = false;
+            OnPropertyChanged(nameof(IsModified));
         }
 
         #endregion

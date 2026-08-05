@@ -128,15 +128,16 @@ Style="{StaticResource ColumnsDataGridStyle}">
                               CellEditEnding="InvokeParameterDataGrid_CellEditEnding"
                               HorizontalScrollBarVisibility="Disabled"
                               IsReadOnly="False"
-                              ItemsSource="{Binding EditingOperation.Parameters}"
-                              SelectedItem="{Binding SelectedEditingInvokeParameter, Mode=TwoWay}"
+                              ItemsSource="{Binding EditingParameterRows}"
+                              SelectedValuePath="Parameter"
+                              SelectedValue="{Binding SelectedEditingInvokeParameter, Mode=TwoWay}"
                               Style="{StaticResource ColumnsDataGridStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Width="54" IsReadOnly="True"
                                                 Header="{DynamicResource 序号}"
                                                 ElementStyle="{StaticResource CellTextBlockStyle}"
                                                 EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                Binding="{Binding Parameter.Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGridTemplateColumn Width="1.2*"
                                                     Header="{DynamicResource 参数类型}">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -144,7 +145,7 @@ Style="{StaticResource ColumnsDataGridStyle}">
                                         <ComboBox Style="{StaticResource EditableInputComboBoxStyle}"
                                                   ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
                                                   ItemsSource="{Binding DataContext.ParameterTypeOptions, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                  SelectedItem="{Binding ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                  SelectedItem="{Binding Parameter.ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -153,14 +154,14 @@ Style="{StaticResource ColumnsDataGridStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <TextBox Style="{StaticResource CellTextBoxStyle}" ToolTip="{Binding Value}"
-                                                     Visibility="{Binding ParameterType, Converter={StaticResource comp2v}, ConverterParameter=设置值}"
-                                                     Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBox Style="{StaticResource CellTextBoxStyle}" ToolTip="{Binding Parameter.Value}"
+                                                     Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=设置值}"
+                                                     Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <ComboBox ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-                                                      ItemsSource="{Binding ValueOptions}" ToolTip="{Binding Value}"
+                                                      ItemsSource="{Binding ValueOptions}" ToolTip="{Binding Parameter.Value}"
                                                       Style="{StaticResource EditableInputComboBoxStyle}" Padding="0" Height="34"
-                                                      Visibility="{Binding ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|系统值}"
-                                                      Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                      Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|系统值}"
+                                                      Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -168,11 +169,11 @@ Style="{StaticResource ColumnsDataGridStyle}">
                             <DataGridTextColumn Width="1.25*" IsReadOnly="True"
                                                 Header="{DynamicResource 描述}"
                                                 EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                Binding="{Binding Parameter.Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource CellTextBlockStyle}">
                                         <!-- 描述列宽度有限，悬停时通过 ToolTip 展示完整参数说明。 -->
-                                        <Setter Property="ToolTip" Value="{Binding Description}" />
+                                        <Setter Property="ToolTip" Value="{Binding Parameter.Description}" />
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -196,12 +197,12 @@ Style="{StaticResource ColumnsDataGridStyle}">
                     <DataGrid x:Name="ReturnParameterDataGrid" Grid.Row="2"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              HorizontalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
                               IsReadOnly="False"
                               ItemsSource="{Binding EditingOperation.ReturnValues}"
                               Style="{StaticResource ColumnsDataGridStyle}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Width="100"
+                            <DataGridTextColumn Width="*"
                                                 Header="返回值键"
                                                 IsReadOnly="True"
                                                 ElementStyle="{StaticResource CellTextBlockStyle}"
@@ -210,17 +211,17 @@ Style="{StaticResource ColumnsDataGridStyle}">
                             <DataGridCheckBoxColumn Width="Auto"
                                                     Header="显示"
                                                     Binding="{Binding IsShowView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <DataGridTemplateColumn Header="显示名称"
+                            <!--<DataGridTemplateColumn Header="显示名称"
                                                     Visibility="{Binding Data.HasVisibleReturnValueName, Source={StaticResource DataContextProxy}, Converter={StaticResource b2v}}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <!-- DataGridColumn 不继承行数据上下文，可见性必须绑定在单元格内容上。 -->
+                                        --><!-- DataGridColumn 不继承行数据上下文，可见性必须绑定在单元格内容上。 --><!--
                                         <TextBox HorizontalAlignment="Left" Width="250" Visibility="{Binding IsShowView, Converter={StaticResource b2v}}"
                                                  Style="{StaticResource CellTextBoxStyle}"
                                                  Text="{Binding ViewDataName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                            </DataGridTemplateColumn>-->
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

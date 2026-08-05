@@ -55,6 +55,11 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     public ObservableCollection<StationOperationMethodItem> OperationMethods => StationOperationMethodCollection;
 
+    /// <summary>
+    /// 输入参数的界面编辑行；业务数据仍以 EditingOperation.Parameters 为唯一保存来源。
+    /// </summary>
+    public ObservableCollection<InputParameterEditorItem> EditingParameterRows { get; } = new();
+
     public ObservableCollection<string> ParameterTypeOptions { get; } = new()
     {
         "设置值",
@@ -193,6 +198,8 @@ public sealed class OperationEditorViewModel : ViewModelProperties
                 returnValue.PropertyChanged += EditingReturnParameter_PropertyChanged;
             }
         }
+
+        SynchronizeEditingParameterRows();
     }
 
     private void DetachEditingOperation(WorkStepOperation operation)
@@ -819,9 +826,8 @@ public sealed class OperationEditorViewModel : ViewModelProperties
             parameter.Id = Guid.NewGuid().ToString("N");
         }
 
-        // ValueOptions 是仅供弹框使用的 JsonIgnore 编辑态集合，InputParameter.Clone 不会复制该集合。
-        // 保存后编辑器继续保留当前操作时，必须基于原有前置步骤返回值上下文重新生成候选，
-        // 否则参数中已经选择的 Value 虽然仍在，但下拉返回值集合会被显示为空。
+        // ValueOptions 由 InputParameterEditorItem 持有，替换 EditingOperation 后编辑行会随业务参数重建。
+        // 保存后编辑器继续保留当前操作时，仍需基于原有前置步骤返回值上下文重新生成候选。
         RefreshParameterValueOptions();
         SelectedEditingInvokeParameter = EditingOperation.Parameters.FirstOrDefault();
         SelectedEditingReturnParameter = EditingOperation.ReturnValues.FirstOrDefault();
@@ -967,6 +973,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
     {
         UpdateTrackedItems(e, _trackedInvokeParameters, EditingInvokeParameter_PropertyChanged);
         NormalizeInvokeParameterNums();
+        SynchronizeEditingParameterRows();
         RefreshParameterValueOptions();
     }
 
@@ -1072,18 +1079,42 @@ public sealed class OperationEditorViewModel : ViewModelProperties
     /// </summary>
     public void RefreshParameterValueOptions()
     {
-        foreach (InputParameter parameter in EditingOperation.Parameters)
+        foreach (InputParameterEditorItem row in EditingParameterRows)
         {
-            UpdateParameterValueOptions(parameter);
+            UpdateParameterValueOptions(row.Parameter);
         }
     }
 
     private void UpdateParameterValueOptions(InputParameter parameter)
     {
+        InputParameterEditorItem? editingRow = EditingParameterRows.FirstOrDefault(row => ReferenceEquals(row.Parameter, parameter));
+        if (editingRow is null)
+        {
+            return;
+        }
+
         IEnumerable<string> options = string.Equals(parameter.ParameterType?.Trim(), "返回值", StringComparison.Ordinal)
             ? _parameterReturnValueOptions.Concat(_externalReturnValueOptions)
             : Enumerable.Empty<string>();
-        ReplaceStringOptions(parameter.ValueOptions, options);
+        ReplaceStringOptions(editingRow.ValueOptions, options);
+    }
+
+    /// <summary>
+    /// 根据业务参数集合重建编辑行。编辑行只保存界面候选，参数对象保持同一引用，
+    /// 因此 DataGrid 编辑结果会直接进入 EditingOperation.Parameters，并由保存流程统一克隆。
+    /// </summary>
+    private void SynchronizeEditingParameterRows()
+    {
+        Dictionary<InputParameter, InputParameterEditorItem> existingRows = EditingParameterRows
+            .ToDictionary(row => row.Parameter);
+
+        EditingParameterRows.Clear();
+        foreach (InputParameter parameter in EditingOperation.Parameters)
+        {
+            EditingParameterRows.Add(existingRows.TryGetValue(parameter, out InputParameterEditorItem? row)
+                ? row
+                : new InputParameterEditorItem(parameter));
+        }
     }
 
     /// <summary>

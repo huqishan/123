@@ -292,6 +292,8 @@ public static class SchemeConfigurationStore
 
             scheme.Steps = normalizedSteps;
             scheme.LastModifiedAt = normalizedLastModifiedAt;
+            // 加载与规范化过程会经过属性 Setter，但不属于用户修改，完成后恢复为已保存状态。
+            scheme.AcceptChanges();
             index++;
         }
     }

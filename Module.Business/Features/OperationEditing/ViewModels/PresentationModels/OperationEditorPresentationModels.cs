@@ -415,9 +415,6 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
             set => SetField(ref _description, value ?? string.Empty, true);
         }
 
-        [JsonIgnore]
-        public ObservableCollection<string> ValueOptions { get; } = new();
-
         #endregion
 
         #region 克隆
@@ -434,6 +431,32 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
                 Description = Description
             };
         }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// 输入参数编辑行，将持久化业务参数与仅供弹框使用的参数值候选集合组合在一起。
+    /// ValueOptions 不进入 InputParameter，也不会被方案序列化和执行服务依赖。
+    /// </summary>
+    public sealed class InputParameterEditorItem
+    {
+        #region 构造与属性
+
+        public InputParameterEditorItem(InputParameter parameter)
+        {
+            Parameter = parameter ?? throw new ArgumentNullException(nameof(parameter));
+        }
+
+        /// <summary>
+        /// 当前编辑行对应的业务输入参数。
+        /// </summary>
+        public InputParameter Parameter { get; }
+
+        /// <summary>
+        /// 参数值下拉候选，仅在操作编辑器生命周期内使用。
+        /// </summary>
+        public ObservableCollection<string> ValueOptions { get; } = new();
 
         #endregion
     }

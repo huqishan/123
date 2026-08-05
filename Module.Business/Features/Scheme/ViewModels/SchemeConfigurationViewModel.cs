@@ -411,7 +411,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     /// </summary>
     private void SynchronizeSelectedWorkStep()
     {
-        OperationEditor.Close();
+        //OperationEditor.Close();
 
         if (SelectedSchemeStep is null)
         {
@@ -545,7 +545,37 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
-        SchemeConfigurationStore.SaveCatalog(_catalog);
+        List<(SchemeProfile Scheme, DateTime PreviousTime)> modifiedSchemes = Schemes
+            .Where(scheme => scheme.IsModified)
+            .Select(scheme => (scheme, scheme.LastModifiedAt))
+            .ToList();
+        DateTime savedAt = DateTime.Now;
+
+        // 保存文件前写入时间，确保落盘数据与界面一致；保存失败时恢复原时间和未保存状态。
+        foreach ((SchemeProfile scheme, _) in modifiedSchemes)
+        {
+            scheme.LastModifiedAt = savedAt;
+        }
+
+        try
+        {
+            SchemeConfigurationStore.SaveCatalog(_catalog);
+            foreach ((SchemeProfile scheme, _) in modifiedSchemes)
+            {
+                scheme.AcceptChanges(savedAt);
+            }
+        }
+        catch
+        {
+            foreach ((SchemeProfile scheme, DateTime previousTime) in modifiedSchemes)
+            {
+                scheme.LastModifiedAt = previousTime;
+                scheme.MarkModified();
+            }
+
+            throw;
+        }
+
         SetPageStatus($"已保存 {Schemes.Count} 个方案。", SuccessBrush);
     }
 

@@ -338,7 +338,7 @@ CornerRadius="12">
                Text="{Binding CurrentSchemeStepName, TargetNullValue=未选择方案工步}" />
                                     <TextBlock Margin="0,6,0,0"
                Foreground="{DynamicResource AppMutedTextBrush}"
-               Text="双击步骤可打开完整编辑；直接修改操作对象和调用方法会同步参数，拖拽可调整顺序。"
+               Text="双击步骤可打开完整编辑，拖拽可调整顺序。"
                TextWrapping="Wrap" />
                                 </StackPanel>
 
@@ -409,7 +409,12 @@ CornerRadius="12">
                                 ElementStyle="{StaticResource CellTextBlockStyle}"
                                 EditingElementStyle="{StaticResource CellTextBoxStyle}"
                                 Binding="{Binding DelayMilliseconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <DataGridTextColumn Width="*"
+                                            <DataGridTextColumn Width="120"
+Header="返回值"
+ElementStyle="{StaticResource CellTextBlockStyle}"
+EditingElementStyle="{StaticResource CellTextBoxStyle}"
+Binding="{Binding ReturnValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <DataGridTextColumn Width="*"
 Header="描述"
 ElementStyle="{StaticResource CellTextBlockStyle}"
 EditingElementStyle="{StaticResource CellTextBoxStyle}"
