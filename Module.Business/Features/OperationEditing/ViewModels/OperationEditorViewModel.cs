@@ -826,8 +826,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
             parameter.Id = Guid.NewGuid().ToString("N");
         }
 
-        // ValueOptions 由 InputParameterEditorItem 持有，替换 EditingOperation 后编辑行会随业务参数重建。
-        // 保存后编辑器继续保留当前操作时，仍需基于原有前置步骤返回值上下文重新生成候选。
+        // ValueOptions 是仅供弹框使用的 JsonIgnore 编辑态集合，InputParameter.Clone 不会复制该集合。
+        // 保存后编辑器继续保留当前操作时，必须基于原有前置步骤返回值上下文重新生成候选，
+        // 否则参数中已经选择的 Value 虽然仍在，但下拉返回值集合会被显示为空。
         RefreshParameterValueOptions();
         SelectedEditingInvokeParameter = EditingOperation.Parameters.FirstOrDefault();
         SelectedEditingReturnParameter = EditingOperation.ReturnValues.FirstOrDefault();

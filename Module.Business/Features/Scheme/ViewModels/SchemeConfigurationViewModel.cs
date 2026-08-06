@@ -47,6 +47,11 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     /// </summary>
     public OperationEditorViewModel OperationEditor { get; }
 
+    /// <summary>
+    /// 独立的方案判断条件编辑器，由方案页面组合并通过右侧抽屉展示。
+    /// </summary>
+    public SchemeConditionEditorViewModel ConditionEditor { get; }
+
     #region 集合属性
 
     public ObservableCollection<SchemeProfile> Schemes => _catalog.Schemes;
@@ -324,6 +329,11 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     public ICommand SaveSchemesCommand { get; private set; } = null!;
 
     /// <summary>
+    /// 打开命令参数所对应方案的判断条件编辑抽屉。
+    /// </summary>
+    public ICommand OpenConditionEditorCommand { get; private set; } = null!;
+
+    /// <summary>
     /// 向当前方案新增一个工步。
     /// </summary>
     public ICommand AddWorkStepToSchemeCommand { get; private set; } = null!;
@@ -438,6 +448,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     public SchemeConfigurationViewModel()
     {
         OperationEditor = new OperationEditorViewModel();
+        ConditionEditor = new SchemeConditionEditorViewModel();
         OperationEditor.OperationSaved += OperationEditor_OperationSaved;
         Schemes.CollectionChanged += Schemes_CollectionChanged;
         SchemesView = CollectionViewSource.GetDefaultView(Schemes);
@@ -458,6 +469,14 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         DuplicateSchemeCommand = new RelayCommand(_ => DuplicateSelectedScheme(), _ => SelectedScheme is not null);
         DeleteSchemeCommand = new RelayCommand(_ => DeleteSelectedScheme(), _ => SelectedScheme is not null);
         SaveSchemesCommand = new RelayCommand(_ => SaveSchemes());
+        OpenConditionEditorCommand = new RelayCommand(
+            parameter =>
+            {
+                if (parameter is SchemeProfile scheme)
+                {
+                    ConditionEditor.Open(scheme);
+                }
+            });
         AddWorkStepToSchemeCommand = new RelayCommand(_ => AddWorkStepToScheme(), _ => SelectedScheme is not null);
         RemoveWorkStepFromSchemeCommand = new RelayCommand(
             _ => RemoveSelectedSchemeStep(),

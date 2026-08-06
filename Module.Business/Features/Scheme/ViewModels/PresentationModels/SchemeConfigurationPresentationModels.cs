@@ -13,6 +13,65 @@ using System.Threading.Tasks;
 namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
 {
     /// <summary>
+    /// 方案条件编辑行，组合返回值来源信息与可编辑的界面显示配置。
+    /// 编辑过程使用副本，只有点击保存后才回写原返回值实体。
+    /// </summary>
+    public sealed class SchemeConditionEditorItem : ViewModelProperties
+    {
+        #region 私有字段
+
+        private bool _isShowView;
+        private string _viewDataName;
+
+        #endregion
+
+        #region 构造与属性
+
+        public SchemeConditionEditorItem(
+            ReturnValue source,
+            string workStepName,
+            string operationSummary,
+            string returnValueCollectionName)
+        {
+            Source = source ?? throw new ArgumentNullException(nameof(source));
+            WorkStepName = workStepName ?? string.Empty;
+            OperationSummary = operationSummary ?? string.Empty;
+            ReturnValueCollectionName = returnValueCollectionName ?? string.Empty;
+            ReturnValueKey = source.ReturnParameterName;
+            _isShowView = source.IsShowView;
+            _viewDataName = source.ViewDataName;
+        }
+
+        internal ReturnValue Source { get; }
+
+        public string WorkStepName { get; }
+
+        public string OperationSummary { get; }
+
+        public string ReturnValueCollectionName { get; }
+
+        public string ReturnValueKey { get; }
+
+        public string FullReturnValueName => string.IsNullOrWhiteSpace(ReturnValueCollectionName)
+            ? ReturnValueKey
+            : $"{ReturnValueCollectionName}_{ReturnValueKey}";
+
+        public bool IsShowView
+        {
+            get => _isShowView;
+            set => SetField(ref _isShowView, value);
+        }
+
+        public string ViewDataName
+        {
+            get => _viewDataName;
+            set => SetField(ref _viewDataName, value ?? string.Empty, true);
+        }
+
+        #endregion
+    }
+
+    /// <summary>
     /// 业务方案，承载工作流程和执行顺序的顶层容器
     /// </summary>
     public sealed class SchemeProfile : ViewModelProperties

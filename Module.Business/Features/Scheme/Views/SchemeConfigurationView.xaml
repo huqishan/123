@@ -6,6 +6,7 @@
              xmlns:searchBox="clr-namespace:ControlLibrary.Controls.SearchBox.Control;assembly=ControlLibrary"
              xmlns:luaEditor="clr-namespace:ControlLibrary.ControlViews.LuaScrip;assembly=ControlLibrary"
              xmlns:operationEditingViews="clr-namespace:Module.Business.Features.OperationEditing.Views"
+             xmlns:schemeViews="clr-namespace:Module.Business.Features.Scheme.Views"
              mc:Ignorable="d"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
@@ -126,6 +127,8 @@ Text="{Binding SchemeName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                   TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Height="35" Margin="10,0,0,0"
+                                        Command="{Binding DataContext.OpenConditionEditorCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                        CommandParameter="{Binding}"
                                         Style="{StaticResource ActionButtonStyle}"
                                         ToolTip="编辑方案中显示到界面的判断条件">
                                     <StackPanel Orientation="Horizontal">
@@ -442,6 +445,10 @@ Binding="{Binding Summary, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             
         </Grid>
 
+
+        <schemeViews:SchemeConditionEditorDrawerView Grid.ColumnSpan="3"
+                                                       Panel.ZIndex="31"
+                                                       Editor="{Binding ConditionEditor}" />
 
         <operationEditingViews:OperationEditorDrawerView Grid.ColumnSpan="3"
                                                          Panel.ZIndex="30"
