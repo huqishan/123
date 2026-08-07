@@ -27,7 +27,9 @@ namespace WpfApp
 
         private const string SettingsTabKey = "__settings__";
         private const int WmNclButtonDown = 0x00A1;
+        private const int WmGetMinMaxInfo = 0x0024;
         private const int HtCaption = 0x02;
+        private const uint MonitorDefaultToNearest = 0x00000002;
         // The window keeps menu data and tab hosting only.
         private readonly List<ControlInfoDataItem> _navigationInfo = [];
         private readonly IViewFactory? _viewFactory;
@@ -35,12 +37,14 @@ namespace WpfApp
         public MainWindow()
         {
             InitializeComponent();
+            SourceInitialized += MainWindow_SourceInitialized;
         }
 
         public MainWindow(IViewFactory viewFactory)
         {
             _viewFactory = viewFactory ?? throw new ArgumentNullException(nameof(viewFactory));
             InitializeComponent();
+            SourceInitialized += MainWindow_SourceInitialized;
             CommandBindings.Add(new CommandBinding(CloseTabCommand, CloseTabExecuted, CanCloseTabExecuted));
             StateChanged += (_, _) => UpdateMaximizeRestoreButton();
             Loaded += (_, _) =>
@@ -174,6 +178,102 @@ namespace WpfApp
             ReleaseCapture();
             SendMessage(handle, WmNclButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
         }
+
+        #region 无边框窗口最大化边界
+
+        /// <summary>
+        /// 窗口句柄创建后接入原生消息。无边框窗口需要显式处理最大化工作区，
+        /// 否则部分 Windows 环境会使用整块显示器区域并覆盖任务栏。
+        /// </summary>
+        private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+        {
+            IntPtr handle = new WindowInteropHelper(this).Handle;
+            HwndSource.FromHwnd(handle)?.AddHook(MainWindowWindowProc);
+        }
+
+        /// <summary>
+        /// 使用当前窗口所在显示器的 rcWork 计算最大化位置和尺寸。
+        /// rcWork 已扣除任务栏区域，同时可以正确支持任务栏位于顶部、左侧、右侧以及多显示器场景。
+        /// </summary>
+        private static IntPtr MainWindowWindowProc(
+            IntPtr hwnd,
+            int message,
+            IntPtr wParam,
+            IntPtr lParam,
+            ref bool handled)
+        {
+            if (message != WmGetMinMaxInfo || lParam == IntPtr.Zero)
+            {
+                return IntPtr.Zero;
+            }
+
+            IntPtr monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+            if (monitor == IntPtr.Zero)
+            {
+                return IntPtr.Zero;
+            }
+
+            MonitorInfo monitorInfo = new() { Size = Marshal.SizeOf<MonitorInfo>() };
+            if (!GetMonitorInfo(monitor, ref monitorInfo))
+            {
+                return IntPtr.Zero;
+            }
+
+            MinMaxInfo minMaxInfo = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+            minMaxInfo.MaxPosition.X = monitorInfo.WorkArea.Left - monitorInfo.MonitorArea.Left;
+            minMaxInfo.MaxPosition.Y = monitorInfo.WorkArea.Top - monitorInfo.MonitorArea.Top;
+            minMaxInfo.MaxSize.X = monitorInfo.WorkArea.Right - monitorInfo.WorkArea.Left;
+            minMaxInfo.MaxSize.Y = monitorInfo.WorkArea.Bottom - monitorInfo.WorkArea.Top;
+            Marshal.StructureToPtr(minMaxInfo, lParam, false);
+
+            // 只覆盖最大化位置和尺寸，其余字段保留消息中已有值；标记完成可避免默认过程再次改回整屏尺寸。
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativePoint
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MinMaxInfo
+        {
+            public NativePoint Reserved;
+            public NativePoint MaxSize;
+            public NativePoint MaxPosition;
+            public NativePoint MinTrackSize;
+            public NativePoint MaxTrackSize;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorInfo
+        {
+            public int Size;
+            public NativeRect MonitorArea;
+            public NativeRect WorkArea;
+            public uint Flags;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
+
+        #endregion
 
         [DllImport("user32.dll")]
         private static extern bool ReleaseCapture();

@@ -45,6 +45,13 @@ public partial class OperationEditorDrawerView : UserControl
     public static readonly DependencyProperty CloseCommandProperty = DependencyProperty.Register(
         nameof(CloseCommand), typeof(ICommand), typeof(OperationEditorDrawerView));
 
+    /// <summary>
+    /// 是否从宿主区域右侧展开；默认值为 false，以保留方案配置页面原有的左侧抽屉行为。
+    /// </summary>
+    public static readonly DependencyProperty IsRightAlignedProperty = DependencyProperty.Register(
+        nameof(IsRightAligned), typeof(bool), typeof(OperationEditorDrawerView),
+        new PropertyMetadata(false, OnIsRightAlignedChanged));
+
     public bool IsOpen { get => (bool)GetValue(IsOpenProperty); set => SetValue(IsOpenProperty, value); }
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string BtnTitle { get => (string)GetValue(BtnTitleProperty); set => SetValue(BtnTitleProperty, value); }
@@ -52,6 +59,7 @@ public partial class OperationEditorDrawerView : UserControl
     public OperationEditorViewModel? Editor { get => (OperationEditorViewModel?)GetValue(EditorProperty); set => SetValue(EditorProperty, value); }
     public ICommand? SaveCommand { get => (ICommand?)GetValue(SaveCommandProperty); set => SetValue(SaveCommandProperty, value); }
     public ICommand? CloseCommand { get => (ICommand?)GetValue(CloseCommandProperty); set => SetValue(CloseCommandProperty, value); }
+    public bool IsRightAligned { get => (bool)GetValue(IsRightAlignedProperty); set => SetValue(IsRightAlignedProperty, value); }
 
     #endregion
 
@@ -71,6 +79,23 @@ public partial class OperationEditorDrawerView : UserControl
         }
     }
 
+    private static void OnIsRightAlignedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not OperationEditorDrawerView drawer)
+        {
+            return;
+        }
+
+        drawer.DrawerHost.HorizontalAlignment = drawer.IsRightAligned
+            ? HorizontalAlignment.Right
+            : HorizontalAlignment.Left;
+
+        if (drawer.IsLoaded)
+        {
+            drawer.UpdateVisual(animate: false);
+        }
+    }
+
     private void DrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (CloseCommand?.CanExecute(null) == true)
@@ -86,7 +111,7 @@ public partial class OperationEditorDrawerView : UserControl
     private void UpdateVisual(bool animate)
     {
         double targetOpacity = IsOpen ? 1d : 0d;
-        double targetOffset = IsOpen ? 0d : -ClosedOffset;
+        double targetOffset = IsOpen ? 0d : IsRightAligned ? ClosedOffset : -ClosedOffset;
         if (IsOpen)
         {
             DrawerHost.IsHitTestVisible = true;

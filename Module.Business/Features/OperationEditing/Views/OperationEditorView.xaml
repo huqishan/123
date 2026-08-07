@@ -18,8 +18,7 @@
         <local:BindingProxy x:Key="DataContextProxy" Data="{Binding}" />
     </UserControl.Resources>
 
-    <Grid Margin="0,18,0,0"
-          ClipToBounds="True">
+    <Grid ClipToBounds="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -30,7 +29,7 @@
             <ColumnDefinition Width="16" />
             <ColumnDefinition Width="1.35*" />
         </Grid.ColumnDefinitions>
-        <StackPanel Margin="0,0,0,0" Orientation="Horizontal">
+        <StackPanel Orientation="Horizontal">
             <StackPanel>
                 <TextBlock Style="{StaticResource FieldLabelStyle}"
   Text="{DynamicResource 描述}" />
@@ -160,7 +159,7 @@ Style="{StaticResource ColumnsDataGridStyle}">
                                             <ComboBox ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
                                                       ItemsSource="{Binding ValueOptions}" ToolTip="{Binding Parameter.Value}"
                                                       Style="{StaticResource EditableInputComboBoxStyle}" Padding="0" Height="34"
-                                                      Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|系统值}"
+                                                      Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|全局值}"
                                                       Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </Grid>
                                     </DataTemplate>
