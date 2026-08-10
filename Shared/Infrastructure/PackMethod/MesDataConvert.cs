@@ -51,6 +51,7 @@ namespace Shared.Infrastructure.PackMethod
                         XElement root = null;
                         if (@namespace == null) root = new XElement($"{dataLayout.Structure[0].MESCode}");
                         else root = new XElement(@namespace + $"{dataLayout.Structure[0].MESCode}");
+                        ItemsToSOAPString(sourceData, @namespace, dataLayout.Structure[0].Children, ref root);
                         return root.ToString();
                     default:
                         break;

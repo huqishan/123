@@ -67,6 +67,13 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         "全局值"
     };
 
+    /// <summary>
+    /// 条件执行界面与 Judge 操作共同使用的判断条件名称。
+    /// 直接从现有 Judge 方法定义生成，避免条件区域单独维护关系符并造成两套判断能力不一致。
+    /// </summary>
+    public IReadOnlyList<string> JudgmentConditionOptions { get; } =
+        LoadJudgeMethodSelectionItems().Select(method => method.Name).ToArray();
+
     public ObservableCollection<string> ProtocolOptions { get; } = new();
 
     public ObservableCollection<string> CommandOptions { get; } = new();

@@ -334,14 +334,6 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
 
         #endregion
 
-        #region 静态工具
-
-        private static bool IsLuaOperationObject(string? operationObject)
-        {
-            return string.Equals(operationObject?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
-        }
-
-        #endregion
     }
 
     /// <summary>

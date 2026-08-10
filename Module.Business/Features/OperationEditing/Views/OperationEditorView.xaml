@@ -14,6 +14,16 @@
         <BooleanToVisibilityConverter x:Key="b2v" />
         <converts:ComparisonToVisibilityConvert x:Key="comp2v"/>
         <converts:InvertVisibilityConvert x:Key="in2v"/>
+        <!-- 条件执行区需要在较小宽度内保持与步骤编辑器一致的输入控件外观，因此仅覆盖尺寸，不另造一套控件模板。 -->
+        <Style x:Key="ConditionComboBoxStyle"
+               TargetType="ComboBox"
+               BasedOn="{StaticResource InputComboBoxStyle}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource InputComboBoxItemStyle}" />
+        </Style>
         <!-- DataGridColumn 不继承数据上下文，使用 Freezable 代理避免 x:Reference 构造循环。 -->
         <local:BindingProxy x:Key="DataContextProxy" Data="{Binding}" />
     </UserControl.Resources>
@@ -119,6 +129,93 @@ Style="{StaticResource ColumnsDataGridStyle}">
                     <RowDefinition/>
                 </Grid.RowDefinitions>
                 <StackPanel Grid.Row="0">
+                    <!-- #region 条件执行界面：当前仅提供布局和本地交互，后续接入执行模型时再补充业务绑定。 -->
+                    <Border Margin="0,0,0,12"
+                            Background="{DynamicResource TabCardBackgroundBrush}"
+                            BorderBrush="{DynamicResource TabItemBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- 标题栏沿用卡片体系的次级背景色，通过复选框控制下方编辑区是否可操作。 -->
+                            <Border Padding="10,7"
+                                    Background="{DynamicResource TabItemBackgroundBrush}"
+                                    CornerRadius="4,4,0,0">
+                                <CheckBox x:Name="ConditionExecutionCheckBox"
+                                          VerticalAlignment="Center"
+                                          Content="条件执行" />
+                            </Border>
+
+                            <Grid Grid.Row="1"
+                                  Margin="10,8,10,10"
+                                  IsEnabled="{Binding IsChecked, ElementName=ConditionExecutionCheckBox}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Margin="0,0,5,6" VerticalAlignment="Center" Text="左参数  类型:" />
+                                <ComboBox Grid.Column="1"
+                                          Margin="0,0,8,6"
+                                          ItemsSource="{Binding ParameterTypeOptions}"
+                                          SelectedIndex="0"
+                                          Style="{StaticResource ConditionComboBoxStyle}" />
+                                <TextBlock Grid.Column="2" Margin="0,0,5,6" VerticalAlignment="Center" Text="值:" />
+                                <ComboBox Grid.Column="3" Grid.ColumnSpan="2" Margin="0,0,0,6" IsEditable="True" Style="{StaticResource ConditionComboBoxStyle}" />
+
+                                <TextBlock Grid.Row="1" Margin="0,0,5,6" VerticalAlignment="Center" Text="关系符  条件:" />
+                                <ComboBox Grid.Row="1"
+                                          Grid.Column="1"
+                                          Margin="0,0,8,6"
+                                          ItemsSource="{Binding JudgmentConditionOptions}"
+                                          SelectedIndex="0"
+                                          Style="{StaticResource ConditionComboBoxStyle}" />
+                                <CheckBox Grid.Row="1"
+                                          Grid.Column="2"
+                                          Grid.ColumnSpan="3"
+                                          Margin="0,0,0,6"
+                                          VerticalAlignment="Center"
+                                          Content="字符串参数" />
+
+                                <TextBlock Grid.Row="2" Margin="0,0,5,6" VerticalAlignment="Center" Text="右参数  类型:" />
+                                <ComboBox Grid.Row="2"
+                                          Grid.Column="1"
+                                          Margin="0,0,8,6"
+                                          ItemsSource="{Binding ParameterTypeOptions}"
+                                          SelectedIndex="0"
+                                          Style="{StaticResource ConditionComboBoxStyle}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,0,5,6" VerticalAlignment="Center" Text="值:" />
+                                <ComboBox Grid.Row="2" Grid.Column="3" Grid.ColumnSpan="2" Margin="0,0,0,6" IsEditable="True" Style="{StaticResource ConditionComboBoxStyle}" />
+
+                                <CheckBox Grid.Row="3"
+                                          Grid.ColumnSpan="2"
+                                          VerticalAlignment="Center"
+                                          Content="跳转" />
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="2"
+                                           Grid.ColumnSpan="3"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                           Text="区间：~，例如 1~100" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <!-- #endregion -->
+
                     <TextBlock Style="{StaticResource FieldLabelStyle}"
                                Text="{DynamicResource 输入参数}" />
                     <DataGrid x:Name="InvokeParameterDataGrid"
