@@ -16,6 +16,8 @@ using Shared.Infrastructure.PackMethod;
 using System.Text;
 using Module.MES.Configuration;
 using Module.MES.Features.DataStructureConfig.ViewModels.PresentationModels;
+using Module.MES.Features.DataStructureConfig.Services;
+using Microsoft.Win32;
 
 namespace Module.MES.Features.DataStructureConfig.ViewModels;
 
@@ -160,6 +162,10 @@ public sealed class DataStructureConfigViewModel : ViewModelProperties
 
         public ICommand SaveProfilesCommand { get; private set; } = null!;
 
+        public ICommand ExportStructureCommand { get; private set; } = null!;
+
+        public ICommand ImportExcelStructureCommand { get; private set; } = null!;
+
         #endregion
 
         #region 字段命令
@@ -216,6 +222,8 @@ public sealed class DataStructureConfigViewModel : ViewModelProperties
             DuplicateProfileCommand = new RelayCommand(_ => DuplicateProfile(), _ => HasSelectedProfile());
             DeleteProfileCommand = new RelayCommand(_ => DeleteProfile(), _ => HasSelectedProfile());
             SaveProfilesCommand = new RelayCommand(_ => SaveProfiles());
+            ExportStructureCommand = new RelayCommand(_ => ExportStructure(), _ => HasSelectedProfile());
+            ImportExcelStructureCommand = new RelayCommand(_ => ImportExcelStructure());
 
             AddFieldChildCommand = new RelayCommand(_ => AddFieldChild(), _ => HasSelectedProfile());
             CopyFieldCommand = new RelayCommand(_ => CopyField(), _ => HasSelectedField);
@@ -297,6 +305,85 @@ public sealed class DataStructureConfigViewModel : ViewModelProperties
             catch (Exception ex)
             {
                 SetPageStatus($"保存失败：{ex.Message}", WarningBrush);
+            }
+        }
+
+        /// <summary>
+        /// 将当前选中的完整数据结构导出为 Excel。导出内容按树的显示顺序展开，层级和父级路径用于还原节点关系。
+        /// </summary>
+        private void ExportStructure()
+        {
+            if (SelectedProfile is null)
+            {
+                SetPageStatus("请先选择需要导出的数据结构。", WarningBrush);
+                return;
+            }
+
+            SaveFileDialog dialog = new()
+            {
+                Title = "导出数据结构",
+                Filter = "Excel 工作簿 (*.xlsx)|*.xlsx",
+                DefaultExt = ".xlsx",
+                AddExtension = true,
+                FileName = $"{BuildSafeFileName(SelectedProfile.Name)}.xlsx"
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                DataStructureExcelExporter.Export(SelectedProfile, dialog.FileName);
+                SetPageStatus($"已导出数据结构：{SelectedProfile.Name}", SuccessBrush);
+            }
+            catch (Exception ex)
+            {
+                SetPageStatus($"导出数据结构失败：{ex.Message}", WarningBrush);
+            }
+        }
+
+        /// <summary>
+        /// 从当前导出的 Excel 工作簿重建完整结构，并作为新配置加入列表，避免覆盖正在编辑的数据。
+        /// </summary>
+        private void ImportExcelStructure()
+        {
+            OpenFileDialog dialog = new()
+            {
+                Title = "导入数据结构",
+                Filter = "Excel 工作簿 (*.xlsx)|*.xlsx",
+                DefaultExt = ".xlsx",
+                Multiselect = false,
+                CheckFileExists = true
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                DataStructureExcelImportResult imported = DataStructureExcelImporter.Import(dialog.FileName);
+                string importedName = string.IsNullOrWhiteSpace(imported.Name)
+                    ? Path.GetFileNameWithoutExtension(dialog.FileName)
+                    : imported.Name;
+                DataStructureProfile profile = new()
+                {
+                    Name = BuildUniqueLoadedName(importedName),
+                    StructureType = imported.StructureType
+                };
+                foreach (DataStructureLayout field in imported.Structure)
+                {
+                    profile.Structure.Add(field);
+                }
+
+                AddProfile(profile);
+                SelectedProfile = profile;
+                SetPageStatus($"已从 Excel 导入数据结构：{profile.Name}", SuccessBrush);
+            }
+            catch (Exception ex)
+            {
+                SetPageStatus($"导入 Excel 数据结构失败：{ex.Message}", WarningBrush);
             }
         }
 
@@ -893,6 +980,7 @@ public sealed class DataStructureConfigViewModel : ViewModelProperties
         {
             RaiseCommandState(DuplicateProfileCommand);
             RaiseCommandState(DeleteProfileCommand);
+            RaiseCommandState(ExportStructureCommand);
             RaiseCommandState(AddFieldChildCommand);
             RaiseCommandState(CopyFieldCommand);
             RaiseCommandState(PasteFieldCommand);

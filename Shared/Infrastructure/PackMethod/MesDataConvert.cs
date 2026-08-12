@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
+using JsonFormatting = Newtonsoft.Json.Formatting;
 using Shared.Abstractions.ICommunication;
 using Shared.Global;
 using Shared.Infrastructure.Communication;
@@ -33,26 +34,21 @@ namespace Shared.Infrastructure.PackMethod
         public static string Convert(MesDataInfoTree sourceData, DataSruct dataLayout)
         {
             if (dataLayout == null || dataLayout.Structure == null || dataLayout.Structure.Count == 0) return null;
-            JObject jsonObj = null;
             try
             {
                 switch (dataLayout.StructureType)
                 {
                     case "JSON":
-                        jsonObj = new JObject();
-                        return ItemsToJsonString(sourceData, dataLayout.Structure, ref jsonObj).Compress();
+                        return BuildJsonToken(dataLayout.Structure, CreateJsonBuildContext(sourceData))
+                            .ToString(JsonFormatting.None);
                     case "JSONREMOVEQUE"://json的key没有引号
-                        jsonObj = new JObject();
-                        return ItemsToJsonString(sourceData, dataLayout.Structure, ref jsonObj).JsonRemoveQuo();
+                        return BuildJsonToken(dataLayout.Structure, CreateJsonBuildContext(sourceData))
+                            .ToString(JsonFormatting.None)
+                            .JsonRemoveQuo();
                     case "JOINT":
                         return ItemsToString(sourceData, dataLayout.Structure);
                     case "SOAP":
-                        XNamespace @namespace = dataLayout.Structure[0].XMLNameSpace;
-                        XElement root = null;
-                        if (@namespace == null) root = new XElement($"{dataLayout.Structure[0].MESCode}");
-                        else root = new XElement(@namespace + $"{dataLayout.Structure[0].MESCode}");
-                        ItemsToSOAPString(sourceData, @namespace, dataLayout.Structure[0].Children, ref root);
-                        return root.ToString();
+                        return BuildSoapDocument(dataLayout.Structure[0], CreateSoapBuildContext(sourceData)).ToString();
                     default:
                         break;
                 }
@@ -373,335 +369,355 @@ namespace Shared.Infrastructure.PackMethod
             Global_Event.WriteLog(obj.Message, null);
         }
         #region JSON
-        private static string ItemsToJsonString(MesDataInfoTree sourceData, IEnumerable<TreeModel> mesDataInfoItems, ref JObject jsonObj)
+        /// <summary>
+        /// 为单次 JSON 转换建立源字段索引。索引属于本次调用，避免静态状态导致并发请求互相读取数据。
+        /// 同名字段保持旧实现 FirstOrDefault 的行为，只记录首次出现的值。
+        /// </summary>
+        private sealed class JsonBuildContext
         {
-            foreach (TreeModel item in mesDataInfoItems)
+            public JsonBuildContext(MesDataInfoTree sourceData, IReadOnlyDictionary<string, object> sourceValues, int? whileIndex = null,
+                Dictionary<string, TreeModel> referencedLayouts = null, HashSet<string> activeReferencedLayouts = null)
             {
-                var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == item.ClientCode)?.Value;
-                if (string.IsNullOrEmpty(v?.ToString())) v = item.DefectValue;
-                if (item.Children != null && item.Children.Count > 0)
+                SourceData = sourceData;
+                SourceValues = sourceValues;
+                WhileIndex = whileIndex;
+                ReferencedLayouts = referencedLayouts ?? new Dictionary<string, TreeModel>(StringComparer.OrdinalIgnoreCase);
+                ActiveReferencedLayouts = activeReferencedLayouts ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            public MesDataInfoTree SourceData { get; }
+            public IReadOnlyDictionary<string, object> SourceValues { get; }
+            public int? WhileIndex { get; }
+            public Dictionary<string, TreeModel> ReferencedLayouts { get; }
+            public HashSet<string> ActiveReferencedLayouts { get; }
+
+            public JsonBuildContext WithWhileIndex(int whileIndex)
+            {
+                return new JsonBuildContext(SourceData, SourceValues, whileIndex, ReferencedLayouts, ActiveReferencedLayouts);
+            }
+        }
+
+        private static JsonBuildContext CreateJsonBuildContext(MesDataInfoTree sourceData)
+        {
+            Dictionary<string, object> sourceValues = new(StringComparer.Ordinal);
+            foreach (MesDataInfoItem sourceItem in sourceData?.MesDataInfoItems ?? Enumerable.Empty<MesDataInfoItem>())
+            {
+                if (!sourceValues.ContainsKey(sourceItem.Code))
                 {
-                    if (item.DataType.ToUpper().Equals("LIST") && mesDataInfoItems.Count() == 1 && string.IsNullOrEmpty(item.MESCode))
-                    {
-                        return AddList(sourceData, item.Children.ToList(), item.MESCode, ref jsonObj).ToString();
-                    }
-                    else if (item.DataType.ToUpper().Equals("LIST"))
-                    {
-                        AddList(sourceData, item.Children.ToList(), item.MESCode, ref jsonObj);
-                    }
-                    else if (item.DataType.ToUpper().Equals("ARRAY"))
-                    {
-                        jsonObj.Add(item.MESCode, AddJarray(sourceData, item.Children.ToList(), item.MESCode, ref jsonObj));
-                    }
-                    else if (item.DataType.ToUpper().Equals("MODEL"))
-                    {
-                        AddModel(sourceData, item.Children.ToList(), item.MESCode, ref jsonObj);
-                    }
-                    else if (item.DataType.ToUpper().Equals("STRING"))
-                    {
-                        JObject jsonObj1 = new JObject();
-                        ItemsToJsonString(sourceData, item.Children, ref jsonObj1);
-                        jsonObj.Add(item.MESCode, jsonObj1.ToString());
-                    }
-                    else
-                    {
-                        JObject jsonObj1 = new JObject();
-                        ItemsToJsonString(sourceData, item.Children, ref jsonObj1);
-                        jsonObj.Add(item.MESCode, jsonObj1);
-                    }
-                }
-                else if (item.DataType.ToUpper().Equals("JSON"))
-                {
-                    TreeModel dataLayout = JsonHelper.ReadJson<TreeModel>($"{_LayoutFile}\\MESConvertConfig\\{item.ClientCode}.json");
-                    JObject jsonObject = new JObject();
-                    jsonObj.Add(item.MESCode, ItemsToJsonString(sourceData, dataLayout.Children, ref jsonObject).Compress().ToString());
-                }
-                else if (item.IsWhile)
-                {
-                    string mesCode = item.MESCode;
-                    for (int i = 1; i <= item.WhileCount; i++)
-                    {
-                        string clientName = GetWhileName(i, item.ClientCode);
-                        v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == $"{clientName}")?.Value;
-                        if (string.IsNullOrEmpty(v?.ToString()))
-                        {
-                            v = !string.IsNullOrEmpty(item.DefectValue) ? item.DefectValue.Contains("[") ? GetWhileName(i, item.DefectValue) : $"{item.DefectValue}" : item.DefectValue;
-                        }
-                        if (!item.IsNull && string.IsNullOrEmpty(v?.ToString())) continue;
-                        item.MESCode = $"{GetWhileName(i, mesCode)}";
-                        ValueTypeConvert(v, item, ref jsonObj);
-                    }
-                }
-                else
-                {
-                    ValueTypeConvert(v, item, ref jsonObj);
+                    sourceValues.Add(sourceItem.Code, sourceItem.Value);
                 }
             }
-            return jsonObj.ToString();
+            return new JsonBuildContext(sourceData, sourceValues);
         }
-        private static JArray AddJarray(MesDataInfoTree sourceData, List<TreeModel> layout, string rootName, ref JObject root)
+
+        /// <summary>
+        /// 将布局树构建为 JSON 节点。内部始终传递 JToken，只有 Convert 入口负责最终序列化。
+        /// </summary>
+        private static JToken BuildJsonToken(IEnumerable<TreeModel> layout, JsonBuildContext context)
         {
-            JArray jArray = new JArray();
-            foreach (var item in layout)
+            IReadOnlyList<TreeModel> items = layout as IReadOnlyList<TreeModel> ?? layout.ToList();
+            if (items.Count == 1 && string.IsNullOrEmpty(items[0].MESCode))
             {
-                if (item.DataType.ToUpper().Equals("ARRAY"))
-                {
-                    if (item.IsWhile)
-                    {
-                        for (int i = 1; i <= item.WhileCount; i++)
-                        {
-                            JArray jArray1 = new JArray();
-                            foreach (var m in item.Children)
-                            {
-                                var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == GetWhileName(i, m.ClientCode))?.Value;
-                                if (string.IsNullOrEmpty(v?.ToString()))
-                                {
-                                    v = !string.IsNullOrEmpty(m.DefectValue) ? m.DefectValue.Contains("[") ? GetWhileName(i, m.DefectValue) : $"{m.DefectValue}" : m.DefectValue;
-                                }
-                                jArray1.Add(v);
-                            }
-                            jArray.Add(jArray1);
-                        }
-                    }
-                    else
-                    {
-                        jArray.Add(AddJarray(sourceData, item.Children.ToList(), rootName, ref root));
-                    }
-                }
-                else
-                {
-                    if (item.IsWhile)
-                    {
-                        for (int i = 1; i <= item.WhileCount; i++)
-                        {
-                            var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == GetWhileName(i, item.ClientCode))?.Value;
-                            if (string.IsNullOrEmpty(v?.ToString()))
-                            {
-                                v = !string.IsNullOrEmpty(item.DefectValue) ? item.DefectValue.Contains("[") ? GetWhileName(i, item.DefectValue) : $"{item.DefectValue}" : item.DefectValue;
-                            }
-                            object value = VTypeConvert(v, item);
-                            if (!item.IsNull && (value == null || System.Convert.ToInt32(value) == -1)) break;
-                            jArray.Add(VTypeConvert(v, item));
-                        }
-                    }
-                    else
-                    {
-                        int startIndex = item.ClientCode.IndexOf('[') + 1;
-                        int length = item.ClientCode.IndexOf("]") - startIndex;
-                        var v = item.ClientCode.Contains("[") ? sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == item.ClientCode.Remove(startIndex - 1, length + 2))?.Value : sourceData?.MesDataInfoItems.FirstOrDefault(r => r.Code == item.ClientCode)?.Value;
-                        if (string.IsNullOrEmpty(v?.ToString()))
-                        {
-                            v = item.DefectValue;
-                        }
-                        if (item.ClientCode.Contains("["))
-                        {
-                            char separator = System.Convert.ToChar(item.ClientCode.Substring(startIndex, 1));
-                            if (!string.IsNullOrEmpty(v.ToString()))
-                            {
-                                if (v.ToString().Contains(separator))
-                                {
-                                    string[] arr = v.ToString().Split(separator);
-                                    foreach (var a in arr)
-                                    {
-                                        jArray.Add(a);
-                                    }
-                                }
-                                else
-                                {
-                                    jArray.Add(v);
-                                }
-                            }
-                            else
-                            {
-                                jArray.Add("");
-                            }
-                        }
-                        else
-                        {
-                            jArray.Add(v);
-                        }
-                    }
-                }
+                JToken anonymousRoot = BuildJsonNode(items[0], context);
+                if (anonymousRoot is JArray) return anonymousRoot;
             }
-            return jArray;
+
+            JObject result = new();
+            foreach (TreeModel item in items)
+            {
+                AppendJsonNode(result, item, context);
+            }
+            return result;
         }
-        private static object VTypeConvert(object value, TreeModel model)
+
+        /// <summary>
+        /// 将一个布局节点挂载到父对象。普通节点只产生一个属性；普通字段循环会产生多个动态属性，统一在此处分流。
+        /// </summary>
+        private static void AppendJsonNode(JObject parent, TreeModel node, JsonBuildContext context)
         {
-            switch (model.DataType.ToUpper())
+            JToken token = BuildJsonNode(node, context);
+            if (token == null) return;
+
+            // 普通循环字段一次生成多个动态属性，直接合并到当前父对象；其他节点仍以 MESCode 挂载。
+            if (node.IsWhile && context.WhileIndex == null && token is JObject whileFields)
+            {
+                foreach (JProperty property in whileFields.Properties().ToList())
+                {
+                    property.Remove();
+                    parent.Add(property);
+                }
+                return;
+            }
+            parent.Add(node.MESCode, token);
+        }
+
+        /// <summary>
+        /// 根据当前节点自身类型构建 JSON 内容，所有结构类型的判断集中在一个分派点中。
+        /// </summary>
+        private static JToken BuildJsonNode(TreeModel node, JsonBuildContext context)
+        {
+            string dataType = node.DataType?.ToUpperInvariant() ?? string.Empty;
+            return dataType switch
+            {
+                "MODEL" when node.IsWhile && context.WhileIndex == null => BuildWhileModels(node, context),
+                "MODEL" => BuildJsonModel(node.Children, context),
+                "LIST" => BuildJsonList(node.Children, context),
+                "ARRAY" => BuildJsonArray(node.Children, context),
+                "JSON" => BuildReferencedJson(node, context),
+                "STEPMODEL" => BuildStepModels(node, context),
+                "STRING" when node.Children != null && node.Children.Count > 0 =>
+                    new JValue(BuildJsonToken(node.Children, context).ToString(JsonFormatting.None)),
+                _ when node.Children != null && node.Children.Count > 0 =>
+                    BuildJsonToken(node.Children, context),
+                _ when node.IsWhile && context.WhileIndex == null => BuildWhileFields(node, context),
+                _ => BuildScalarJsonValue(node, context)
+            };
+        }
+
+        private static JToken BuildScalarJsonValue(TreeModel node, JsonBuildContext context)
+        {
+            object value = ResolveSourceValue(context, node);
+            if (!node.IsNull && string.IsNullOrEmpty(value?.ToString())) return null;
+            return BuildJsonValue(value, node);
+        }
+
+        /// <summary>
+        /// 构建外部 JSON 布局，并保持原有“作为 JSON 字符串写入当前字段”的配置语义。
+        /// </summary>
+        private static JToken BuildReferencedJson(TreeModel node, JsonBuildContext context)
+        {
+            if (!context.ActiveReferencedLayouts.Add(node.ClientCode))
+            {
+                throw new InvalidOperationException($"JSON 布局存在循环引用：{node.ClientCode}");
+            }
+            try
+            {
+                if (!context.ReferencedLayouts.TryGetValue(node.ClientCode, out TreeModel referencedLayout))
+                {
+                    referencedLayout = JsonHelper.ReadJson<TreeModel>($"{_LayoutFile}\\MESConvertConfig\\{node.ClientCode}.json");
+                    context.ReferencedLayouts.Add(node.ClientCode, referencedLayout);
+                }
+                return new JValue(BuildJsonToken(referencedLayout.Children, context).ToString(JsonFormatting.None));
+            }
+            finally
+            {
+                context.ActiveReferencedLayouts.Remove(node.ClientCode);
+            }
+        }
+
+        /// <summary>
+        /// 展开普通字段循环。字段名在每轮继续递进，并将最后生成的名称保留到布局节点中。
+        /// </summary>
+        private static JObject BuildWhileFields(TreeModel node, JsonBuildContext context)
+        {
+            JObject fields = new();
+            string mesCode = node.MESCode;
+            for (int i = 1; i <= node.WhileCount; i++)
+            {
+                JsonBuildContext whileContext = context.WithWhileIndex(i);
+                object value = ResolveSourceValue(whileContext, node);
+                if (!node.IsNull && string.IsNullOrEmpty(value?.ToString())) continue;
+
+                node.MESCode = GetWhileName(i, mesCode);
+                fields.Add(node.MESCode, BuildJsonValue(value, node));
+            }
+            return fields;
+        }
+
+        /// <summary>
+        /// 将普通字段转换为 JSON 值节点。该方法不再感知父对象，也不负责属性挂载。
+        /// </summary>
+        private static JToken BuildJsonValue(object value, TreeModel layout)
+        {
+            _ErrorCode = $"ClientName:{layout.ClientCode} MesName:{layout.MESCode} Value:{value}";
+            if (!string.IsNullOrEmpty(layout.JudgeValue))
+            {
+                value = layout.JudgeValue.Equals(value) ? layout.OKText : layout.NGText;
+            }
+
+            switch (layout.DataType?.ToUpperInvariant())
             {
                 case "STRING":
-                    return value?.ToString();
+                    return new JValue(value?.ToString() ?? string.Empty);
+                case "BOOL":
+                    bool boolValue;
+                    if (!bool.TryParse(value?.ToString(), out boolValue))
+                    {
+                        boolValue = string.Equals(value?.ToString(), layout.JudgeValue, StringComparison.OrdinalIgnoreCase);
+                    }
+                    return new JValue(boolValue);
+                case "DATETIME":
+                    if (!DateTime.TryParse(value?.ToString(), out _)) value = DateTime.Now.ToString();
+                    return new JValue(System.Convert.ToDateTime(value).ToString(layout.DefectValue));
+                case "TIMETICKS13":
+                    if (string.IsNullOrEmpty(value?.ToString())) value = DateTime.Now.ToString();
+                    DateTime time = System.Convert.ToDateTime(value);
+                    DateTime startTime = TimeZone.CurrentTimeZone.ToLocalTime(new DateTime(1970, 1, 1, 0, 0, 0, 0));
+                    return new JValue((time.Ticks - startTime.Ticks) / 10000);
                 case "INT":
-                    int result = 0;
-                    return int.TryParse(value?.ToString(), out result) ? result : -1;
-                case "DOUBLUE":
-                    double resultd = 0;
-                    return double.TryParse(value?.ToString(), out resultd) ? Math.Round(resultd, System.Convert.ToInt32(model.KeepDecimalLength)) : -1;
+                    return new JValue(System.Convert.ToInt32(value));
+                case "DOUBLE":
+                    return new JValue(Math.Round(System.Convert.ToDouble(value), System.Convert.ToInt32(layout.KeepDecimalLength)));
                 default:
+                    return JValue.CreateNull();
+            }
+        }
+
+        private static JArray BuildJsonArray(List<TreeModel> layout, JsonBuildContext context)
+        {
+            JArray result = new();
+            foreach (TreeModel item in layout)
+            {
+                // 非循环字段允许通过 ClientCode 中的 [分隔符] 将一个源值展开成多个数组元素。
+                if (!item.IsWhile && TryAppendDelimitedArrayValues(result, item, context))
+                {
+                    continue;
+                }
+
+                if (item.IsWhile && context.WhileIndex == null)
+                {
+                    for (int i = 1; i <= item.WhileCount; i++)
+                    {
+                        JToken token = BuildJsonNode(item, context.WithWhileIndex(i));
+                        if (token == null) break;
+                        result.Add(token);
+                    }
+                    continue;
+                }
+
+                JToken itemToken = BuildJsonNode(item, context);
+                if (itemToken != null) result.Add(itemToken);
+            }
+            return result;
+        }
+
+        private static bool TryAppendDelimitedArrayValues(JArray result, TreeModel item, JsonBuildContext context)
+        {
+            if (item.Children.Count > 0 || string.IsNullOrEmpty(item.ClientCode)) return false;
+            int openIndex = item.ClientCode.IndexOf('[');
+            int closeIndex = item.ClientCode.IndexOf(']', openIndex + 1);
+            if (openIndex < 0 || closeIndex != openIndex + 2) return false;
+
+            char separator = item.ClientCode[openIndex + 1];
+            string sourceCode = item.ClientCode.Remove(openIndex, closeIndex - openIndex + 1);
+            object value = ResolveSourceValue(context, item, sourceCode);
+            string text = value?.ToString() ?? string.Empty;
+            if (!text.Contains(separator))
+            {
+                result.Add(BuildJsonValue(value, item));
+                return true;
+            }
+
+            foreach (string part in text.Split(separator)) result.Add(part);
+            return true;
+        }
+
+        private static JArray BuildJsonList(List<TreeModel> layout, JsonBuildContext context)
+        {
+            JArray result = new();
+            foreach (TreeModel item in layout)
+            {
+                JToken token = BuildJsonNode(item, context);
+                if (token == null) continue;
+
+                // 循环 Model 和匿名数组节点代表多个列表元素，需要平铺到当前列表。
+                if (token is JArray multipleItems && (item.IsWhile || string.IsNullOrEmpty(item.MESCode)))
+                {
+                    foreach (JToken child in multipleItems.Children().ToList())
+                    {
+                        child.Remove();
+                        result.Add(child);
+                    }
+                    continue;
+                }
+
+                // LIST 中的普通值保持原格式，以 MESCode 包装成单属性对象。
+                if (token is JValue || token is JArray)
+                {
+                    result.Add(new JObject { [item.MESCode ?? string.Empty] = token });
+                    continue;
+                }
+                result.Add(token);
+            }
+            return result;
+        }
+        /// <summary>
+        /// 按 WhileCount 指定的数量构建循环 Model。
+        /// 每一组先完成全部字段取值和必填校验，通过后再整体写入，避免输出只有部分字段的 Model。
+        /// </summary>
+        private static JArray BuildWhileModels(TreeModel layout, JsonBuildContext context)
+        {
+            JArray models = new();
+            for (int i = 1; i <= layout.WhileCount; i++)
+            {
+                JsonBuildContext whileContext = context.WithWhileIndex(i);
+                JObject model = BuildJsonModel(layout.Children, whileContext);
+                bool missingRequiredField = layout.Children.Any(field =>
+                    field.Children.Count == 0 &&
+                    !field.IsNull &&
+                    !model.ContainsKey(field.MESCode));
+                if (missingRequiredField)
+                {
                     break;
+                }
+                models.Add(model);
             }
-            return value;
+            return models;
         }
-        private static JArray AddList(MesDataInfoTree sourceData, List<TreeModel> layout, string rootName, ref JObject root)
+
+        private static JObject BuildJsonModel(List<TreeModel> layout, JsonBuildContext context)
         {
-            JArray jArray = new JArray();
-            foreach (var item in layout)
+            JObject result = new();
+            foreach (TreeModel item in layout)
             {
-                JObject jsonObjArr = new JObject();
-                if (item.DataType.ToUpper().Equals("LIST"))
-                {
-                    AddList(sourceData, item.Children.ToList(), item.MESCode, ref jsonObjArr);
-                    jArray.Add(jsonObjArr);
-                }
-                else if (item.DataType.ToUpper().Equals("MODEL"))
-                {
-                    if (item.IsWhile)
-                    {
-                        AddWhileModel(sourceData, item, ref jsonObjArr);
-                    }
-                    else
-                    {
-                        bool nullIsWhile = false;
-                        object v = null;
-                        foreach (var c in item.Children)
-                        {
-                            if (c.DataType.ToUpper().Equals("LIST"))
-                            {
-                                AddList(sourceData, c.Children.ToList(), c.MESCode, ref jsonObjArr);
-                            }
-                            else if (c.DataType.ToUpper().Equals("MODEL"))
-                            {
-                                AddModel(sourceData, c.Children.ToList(), c.MESCode, ref jsonObjArr);
-                            }
-                            else if (c.IsWhile)
-                            {
-                                string mesCode = c.MESCode;
-                                for (int i = 1; i <= c.WhileCount; i++)
-                                {
-                                    string clientName = GetWhileName(i, c.ClientCode);
-                                    v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == $"{clientName}")?.Value;
-                                    if (string.IsNullOrEmpty(v?.ToString()))
-                                    {
-                                        v = !string.IsNullOrEmpty(c.DefectValue) ? c.DefectValue.Contains("[") ? GetWhileName(i, c.DefectValue) : $"{c.DefectValue}" : $"{c.DefectValue}";
-                                    }
-                                    if (!c.IsNull && string.IsNullOrEmpty(v?.ToString())) continue;
-                                    c.MESCode = $"{GetWhileName(i, mesCode)}";
-                                    ValueTypeConvert(v, c, ref jsonObjArr);
-                                }
-                            }
-                            else
-                            {
-                                v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == c.ClientCode)?.Value;
-                                if (string.IsNullOrEmpty(v?.ToString())) v = c.DefectValue;
-                                if (!c.IsNull && string.IsNullOrEmpty(v?.ToString())) nullIsWhile = true;
-                                if (!nullIsWhile) ValueTypeConvert(v, c, ref jsonObjArr);
-                            }
-                        }
-                        if (!nullIsWhile) jArray.Add(jsonObjArr);
-                    }
-                }
-                else if (item.DataType.ToUpper().Equals("STEPMODEL"))
-                {
-                    var stepNames = sourceData?.MesDataInfoItems?.Where(r => r.Code.ToUpper().Contains("_StepName"));
-                    foreach (var stepName in stepNames)
-                    {
-                        jsonObjArr = new JObject();
-                        foreach (var c in item.Children)
-                        {
-                            var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == $"{stepName.Code.Replace("_StepName", $"_{c.ClientCode}")}")?.Value;
-                            if (string.IsNullOrEmpty(v?.ToString()))
-                            {
-                                v = c.DefectValue;
-                            }
-                            ValueTypeConvert(v, c, ref jsonObjArr);
-                        }
-                        jArray.Add(jsonObjArr);
-                    }
-                }
-                else
-                {
-                    var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == item.ClientCode)?.Value;
-                    if (string.IsNullOrEmpty(v?.ToString())) v = item.DefectValue;
-                    ValueTypeConvert(v, item, ref jsonObjArr);
-                    jArray.Add(jsonObjArr);
-                }
+                AppendJsonNode(result, item, context);
             }
-            root.Add(rootName ?? "", jArray);
-            return jArray;
+            return result;
         }
-        private static void AddWhileModel(MesDataInfoTree sourceData, TreeModel layout, ref JObject root)
+
+        /// <summary>
+        /// 根据步骤名称数据构建步骤 Model 列表。特殊的步骤字段定位规则留在该结构方法内，不参与类型分派。
+        /// </summary>
+        private static JArray BuildStepModels(TreeModel layout, JsonBuildContext context)
         {
-            for (int i = 1; i < layout.WhileCount; i++)
+            JArray models = new();
+            IEnumerable<MesDataInfoItem> stepNames = context.SourceData?.MesDataInfoItems?
+                .Where(item => item.Code.Contains("_StepName", StringComparison.OrdinalIgnoreCase))
+                ?? Enumerable.Empty<MesDataInfoItem>();
+            foreach (MesDataInfoItem stepName in stepNames)
             {
-                JObject jsonObjArr = new JObject();
-                int nullCount = 0;
-                bool nullIsWhile = false;
-                foreach (var c in layout.Children)
+                JObject model = new();
+                foreach (TreeModel field in layout.Children)
                 {
-                    string clientName = GetWhileName(i, c.ClientCode);
-                    var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == $"{clientName}")?.Value;
-                    if (string.IsNullOrEmpty(v?.ToString()))
-                    {
-                        nullCount++;
-                        v = !string.IsNullOrEmpty(c.DefectValue) ? c.DefectValue.Contains("[") ? GetWhileName(i, c.DefectValue) : $"{c.DefectValue}" : $"{c.DefectValue}";
-                    }
-                    if (!c.IsNull && string.IsNullOrEmpty(v?.ToString())) nullIsWhile = true;
-                    ValueTypeConvert(v, c, ref jsonObjArr);
+                    string clientCode = stepName.Code.Replace("_StepName", $"_{field.ClientCode}");
+                    object value = ResolveSourceValue(context, field, clientCode);
+                    if (!field.IsNull && string.IsNullOrEmpty(value?.ToString())) continue;
+                    model.Add(field.MESCode, BuildJsonValue(value, field));
                 }
-                if (nullIsWhile) break;
-                root.Add(jsonObjArr);
+                models.Add(model);
             }
+            return models;
         }
-        private static void AddModel(MesDataInfoTree sourceData, List<TreeModel> layout, string rootName, ref JObject root)
+
+        /// <summary>
+        /// 按 ClientCode 从单次转换索引取值，并保持原有的空值回退和循环默认值规则。
+        /// </summary>
+        private static object ResolveSourceValue(JsonBuildContext context, TreeModel node, string clientCode = null)
         {
-            JObject rootObj1 = new JObject();
-            bool isAdd = false;
-            foreach (var item in layout)
+            string resolvedClientCode = clientCode ?? node.ClientCode ?? string.Empty;
+            if (clientCode == null && context.WhileIndex.HasValue)
             {
-                if (item.DataType.ToUpper().Equals("LIST"))
-                {
-                    AddList(sourceData, item.Children.ToList(), item.MESCode, ref rootObj1);
-                }
-                else if (item.DataType.ToUpper().Equals("MODEL"))
-                {
-                    AddModel(sourceData, item.Children.ToList(), item.MESCode, ref rootObj1);
-                }
-                else
-                {
-                    if (item.IsWhile)
-                    {
-                        string mesCode = item.MESCode;
-                        for (int i = 1; i <= item.WhileCount; i++)
-                        {
-                            string clientName = GetWhileName(i, item.ClientCode);
-                            var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == $"{clientName}")?.Value;
-                            if (string.IsNullOrEmpty(v?.ToString()))
-                            {
-                                v = item.DefectValue;
-                            }
-                            if (!item.IsNull && string.IsNullOrEmpty(v?.ToString())) continue;
-                            item.MESCode = $"{GetWhileName(i, mesCode)}";
-                            ValueTypeConvert(v, item, ref rootObj1);
-                        }
-                    }
-                    else if (item.DataType.ToUpper().Equals("JSON"))
-                    {
-                        TreeModel dataLayout = JsonHelper.ReadJson<TreeModel>($"{_LayoutFile}\\MESConvertConfig\\{item.ClientCode}.json");
-                        JObject jsonObject = new JObject();
-                        rootObj1.Add(item.MESCode, ItemsToJsonString(sourceData, dataLayout.Children, ref jsonObject).Compress().ToString());
-                    }
-                    else
-                    {
-                        var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == item.ClientCode)?.Value;
-                        if (string.IsNullOrEmpty(v?.ToString())) v = item.DefectValue;
-                        bool nullIsWhile = false;
-                        if (!item.IsNull && string.IsNullOrEmpty(v?.ToString())) nullIsWhile = true;
-                        if (!nullIsWhile) ValueTypeConvert(v, item, ref rootObj1);
-                    }
-                }
+                resolvedClientCode = GetWhileName(context.WhileIndex.Value, resolvedClientCode);
             }
-            root.Add(rootName, rootObj1);
+            context.SourceValues.TryGetValue(resolvedClientCode, out object value);
+            if (!string.IsNullOrEmpty(value?.ToString())) return value;
+            if (context.WhileIndex.HasValue && !string.IsNullOrEmpty(node.DefectValue) && node.DefectValue.Contains("["))
+            {
+                return GetWhileName(context.WhileIndex.Value, node.DefectValue);
+            }
+            return node.DefectValue;
         }
+
         private static string GetWhileName(int index, string name)
         {
             index--;
@@ -827,118 +843,195 @@ namespace Shared.Infrastructure.PackMethod
         }
         #endregion
         #region SOAP
-        private static XElement ItemsToSOAPString(MesDataInfoTree sourceData, XNamespace soapNamespace, IEnumerable<TreeModel> mesDataInfoItems, ref XElement root)
+        private sealed class SoapBuildContext
         {
-            foreach (var item in mesDataInfoItems)
+            public SoapBuildContext(MesDataInfoTree sourceData, IReadOnlyDictionary<string, object> sourceValues, XNamespace defaultNamespace,
+                int? whileIndex = null, Dictionary<string, TreeModel> referencedLayouts = null, HashSet<string> activeReferencedLayouts = null)
             {
-                XNamespace @namespace = item.XMLNameSpace ?? "";
-                var v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == item.ClientCode)?.Value;
-                if (string.IsNullOrEmpty(v?.ToString())) v = item.DefectValue;
-                if (item.Children != null && item.Children.Count > 0)
-                {
-                    XElement element = new XElement(@namespace + item.MESCode);
-                    if (item.DataType.ToUpper().Equals("LIST"))
-                    {
-                        AddList(sourceData, item.Children.ToList(), soapNamespace, ref element);
-                    }
-                    else
-                    {
-                        ItemsToSOAPString(sourceData, soapNamespace, item.Children, ref element);
-                    }
-                }
-                else if (item.DataType.ToUpper().Equals("JSON"))
-                {
-                    XElement element = new XElement(@namespace + item.MESCode);
-                    TreeModel dataLayout = JsonHelper.ReadJson<TreeModel>($"{_LayoutFile}\\MESConvertConfig\\{item.ClientCode}.json");
-                }
-                else
-                {
-                    ValueTypeConvert(@namespace, v, item, ref root);
-                }
+                SourceData = sourceData;
+                SourceValues = sourceValues;
+                DefaultNamespace = defaultNamespace;
+                WhileIndex = whileIndex;
+                ReferencedLayouts = referencedLayouts ?? new Dictionary<string, TreeModel>(StringComparer.OrdinalIgnoreCase);
+                ActiveReferencedLayouts = activeReferencedLayouts ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            public MesDataInfoTree SourceData { get; }
+            public IReadOnlyDictionary<string, object> SourceValues { get; }
+            public XNamespace DefaultNamespace { get; }
+            public int? WhileIndex { get; }
+            public Dictionary<string, TreeModel> ReferencedLayouts { get; }
+            public HashSet<string> ActiveReferencedLayouts { get; }
+
+            public SoapBuildContext WithDefaultNamespace(XNamespace defaultNamespace)
+            {
+                return new SoapBuildContext(SourceData, SourceValues, defaultNamespace, WhileIndex, ReferencedLayouts, ActiveReferencedLayouts);
+            }
+
+            public SoapBuildContext WithWhileIndex(int whileIndex)
+            {
+                return new SoapBuildContext(SourceData, SourceValues, DefaultNamespace, whileIndex, ReferencedLayouts, ActiveReferencedLayouts);
+            }
+        }
+
+        private static SoapBuildContext CreateSoapBuildContext(MesDataInfoTree sourceData)
+        {
+            Dictionary<string, object> sourceValues = new(StringComparer.Ordinal);
+            foreach (MesDataInfoItem sourceItem in sourceData?.MesDataInfoItems ?? Enumerable.Empty<MesDataInfoItem>())
+            {
+                if (!sourceValues.ContainsKey(sourceItem.Code)) sourceValues.Add(sourceItem.Code, sourceItem.Value);
+            }
+            return new SoapBuildContext(sourceData, sourceValues, XNamespace.None);
+        }
+
+        /// <summary>
+        /// 构建 SOAP/XML 根节点，后续所有子节点都通过 AppendSoapNode 进入同一结构分派流程。
+        /// </summary>
+        private static XElement BuildSoapDocument(TreeModel rootLayout, SoapBuildContext context)
+        {
+            XNamespace rootNamespace = ResolveSoapNamespace(rootLayout, context);
+            XElement root = new(rootNamespace + rootLayout.MESCode);
+            SoapBuildContext childContext = context.WithDefaultNamespace(rootNamespace);
+            foreach (TreeModel child in rootLayout.Children)
+            {
+                AppendSoapNode(root, child, childContext);
             }
             return root;
         }
-        private static void AddList(MesDataInfoTree sourceData, List<TreeModel> layout, XNamespace soapNamespace, ref XElement rootXml)
+
+        /// <summary>
+        /// SOAP 结构的唯一分派点。结构方法只负责自己的 XML 语义，不再重复判断全部 DataType。
+        /// </summary>
+        private static void AppendSoapNode(XElement parent, TreeModel node, SoapBuildContext context)
         {
-            foreach (var item in layout)
+            string dataType = node.DataType?.ToUpperInvariant() ?? string.Empty;
+            switch (dataType)
             {
-                XNamespace @namespace = string.IsNullOrEmpty(item.XMLNameSpace) ? soapNamespace : item.XMLNameSpace;
-                XElement element = new XElement(@namespace + item.MESCode);
-                object v;
-                if (item.DataType.ToUpper().Equals("LIST"))
-                {
-                    AddList(sourceData, item.Children.ToList(), soapNamespace, ref rootXml);
-                }
-                else if (item.DataType.ToUpper().Equals("MODEL"))
-                {
-                    if (item.IsWhile)
-                    {
-                        for (int i = 1; i <= item.WhileCount; i++)
-                        {
-                            element = new XElement(@namespace + item.MESCode);
-                            bool isAdd = true;
-                            foreach (var c in item.Children)
-                            {
-                                string clientName = GetWhileName(i, c.ClientCode);
-                                v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == clientName)?.Value;
-                                if (string.IsNullOrEmpty(v?.ToString())) v = !string.IsNullOrEmpty(c.DefectValue) ? c.DefectValue.Contains("[") ? GetWhileName(i, c.DefectValue) : $"{c.DefectValue}" : c.DefectValue;
-                                if (string.IsNullOrEmpty(v?.ToString()) && !c.IsNull) isAdd = false;
-                                ValueTypeConvert(@namespace, v, c, ref element);
-                            }
-                            if (isAdd) rootXml.Add(element);
-                        }
-                    }
-                    else
-                    {
-                        foreach (var c in item.Children)
-                        {
-                            v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == c.ClientCode)?.Value;
-                            if (string.IsNullOrEmpty(v?.ToString())) v = c.DefectValue;
-                            ValueTypeConvert(@namespace, v, c, ref element);
-                        }
-                        rootXml.Add(element);
-                    }
-                }
-                else
-                {
-                    v = sourceData?.MesDataInfoItems?.FirstOrDefault(r => r.Code == item.ClientCode)?.Value;
-                    if (string.IsNullOrEmpty(v?.ToString())) v = item.DefectValue;
-                    ValueTypeConvert(@namespace, v, item, ref element);
-                    rootXml.Add(element);
-                }
+                case "MODEL" when node.IsWhile && context.WhileIndex == null:
+                    foreach (XElement model in BuildWhileSoapModels(node, context)) parent.Add(model);
+                    return;
+                case "MODEL":
+                    parent.Add(BuildSoapModel(node, context));
+                    return;
+                case "LIST":
+                    parent.Add(BuildSoapList(node, context));
+                    return;
+                case "XMLNAMESPACE":
+                    AddSoapNamespaceDeclaration(parent, node);
+                    return;
+                case "JSON":
+                    parent.Add(BuildReferencedSoap(node, context));
+                    return;
+                default:
+                    XElement valueElement = BuildSoapValueElement(node, context);
+                    if (valueElement != null) parent.Add(valueElement);
+                    return;
             }
         }
-        private static void ValueTypeConvert(XNamespace @namespace, object value, TreeModel model, ref XElement rootXml)
+
+        private static XElement BuildSoapModel(TreeModel model, SoapBuildContext context)
         {
-            _ErrorCode = $"ClientName:{model.ClientCode} MESName:{model.MESCode} Value:{value}";
-            XElement element = new XElement(@namespace + model.MESCode);
-            if (!string.IsNullOrEmpty(model.JudgeValue))
+            XNamespace nodeNamespace = ResolveSoapNamespace(model, context);
+            XElement element = new(nodeNamespace + model.MESCode);
+            SoapBuildContext childContext = context.WithDefaultNamespace(nodeNamespace);
+            foreach (TreeModel child in model.Children) AppendSoapNode(element, child, childContext);
+            return element;
+        }
+
+        private static XElement BuildSoapList(TreeModel list, SoapBuildContext context)
+        {
+            XNamespace nodeNamespace = ResolveSoapNamespace(list, context);
+            XElement element = new(nodeNamespace + list.MESCode);
+            SoapBuildContext childContext = context.WithDefaultNamespace(nodeNamespace);
+            foreach (TreeModel child in list.Children) AppendSoapNode(element, child, childContext);
+            return element;
+        }
+
+        private static IEnumerable<XElement> BuildWhileSoapModels(TreeModel model, SoapBuildContext context)
+        {
+            for (int i = 1; i <= model.WhileCount; i++)
             {
-                value = model.JudgeValue.ToUpper().Equals(value.ToString().ToUpper()) ? model.OKText : model.NGText;
+                SoapBuildContext whileContext = context.WithWhileIndex(i);
+                bool missingRequiredField = model.Children.Any(child =>
+                    child.Children.Count == 0 &&
+                    !child.IsNull &&
+                    string.IsNullOrEmpty(ResolveSoapValue(child, whileContext)?.ToString()));
+                if (missingRequiredField) yield break;
+                yield return BuildSoapModel(model, whileContext);
             }
-            switch (model.DataType.ToUpper())
+        }
+
+        private static XElement BuildSoapValueElement(TreeModel node, SoapBuildContext context)
+        {
+            object value = ResolveSoapValue(node, context);
+            if (!node.IsNull && string.IsNullOrEmpty(value?.ToString())) return null;
+            XNamespace nodeNamespace = ResolveSoapNamespace(node, context);
+            return new XElement(nodeNamespace + node.MESCode, ConvertSoapValue(value, node));
+        }
+
+        private static object ConvertSoapValue(object value, TreeModel node)
+        {
+            _ErrorCode = $"ClientName:{node.ClientCode} MESName:{node.MESCode} Value:{value}";
+            if (!string.IsNullOrEmpty(node.JudgeValue))
             {
-                case "STRING":
-                    element.Add((value ?? "").ToString());
-                    break;
-                case "INT":
-                    element.Add(System.Convert.ToInt32(value));
-                    break;
-                case "DOUBULE":
-                    element.Add(Math.Round(System.Convert.ToDouble(value), System.Convert.ToInt32(model.KeepDecimalLength)));
-                    break;
-                case "XMLNAMESPACE":
-                    XAttribute xAttribute = new XAttribute(XNamespace.Xmlns + $"{model.MESCode}", model.XMLNameSpace);
-                    rootXml.Add(xAttribute);
-                    break;
-                case "DATETIME":
-                    element.Add(System.Convert.ToInt32(value));
-                    if (string.IsNullOrEmpty(value?.ToString())) value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ffff");
-                    element.Add(System.Convert.ToDateTime(value).ToString(model.DefectValue));
-                    break;
-                default:
-                    break;
+                value = string.Equals(node.JudgeValue, value?.ToString(), StringComparison.OrdinalIgnoreCase)
+                    ? node.OKText
+                    : node.NGText;
             }
+            return node.DataType?.ToUpperInvariant() switch
+            {
+                "STRING" => value?.ToString() ?? string.Empty,
+                "INT" => System.Convert.ToInt32(value),
+                "DOUBLE" or "DOUBULE" => Math.Round(System.Convert.ToDouble(value), System.Convert.ToInt32(node.KeepDecimalLength)),
+                "DATETIME" => System.Convert.ToDateTime(string.IsNullOrEmpty(value?.ToString()) ? DateTime.Now : value).ToString(node.DefectValue),
+                _ => value?.ToString() ?? string.Empty
+            };
+        }
+
+        private static XElement BuildReferencedSoap(TreeModel node, SoapBuildContext context)
+        {
+            if (!context.ActiveReferencedLayouts.Add(node.ClientCode))
+            {
+                throw new InvalidOperationException($"SOAP 引用布局存在循环引用：{node.ClientCode}");
+            }
+            try
+            {
+                if (!context.ReferencedLayouts.TryGetValue(node.ClientCode, out TreeModel referencedLayout))
+                {
+                    referencedLayout = JsonHelper.ReadJson<TreeModel>($"{_LayoutFile}\\MESConvertConfig\\{node.ClientCode}.json");
+                    context.ReferencedLayouts.Add(node.ClientCode, referencedLayout);
+                }
+                JToken json = BuildJsonToken(referencedLayout.Children, CreateJsonBuildContext(context.SourceData));
+                return new XElement(ResolveSoapNamespace(node, context) + node.MESCode, json.ToString(JsonFormatting.None));
+            }
+            finally
+            {
+                context.ActiveReferencedLayouts.Remove(node.ClientCode);
+            }
+        }
+
+        private static object ResolveSoapValue(TreeModel node, SoapBuildContext context)
+        {
+            string clientCode = node.ClientCode ?? string.Empty;
+            if (context.WhileIndex.HasValue) clientCode = GetWhileName(context.WhileIndex.Value, clientCode);
+            context.SourceValues.TryGetValue(clientCode, out object value);
+            if (!string.IsNullOrEmpty(value?.ToString())) return value;
+            if (context.WhileIndex.HasValue && !string.IsNullOrEmpty(node.DefectValue) && node.DefectValue.Contains("["))
+            {
+                return GetWhileName(context.WhileIndex.Value, node.DefectValue);
+            }
+            return node.DefectValue;
+        }
+
+        private static XNamespace ResolveSoapNamespace(TreeModel node, SoapBuildContext context)
+        {
+            return string.IsNullOrWhiteSpace(node.XMLNameSpace) ? context.DefaultNamespace : node.XMLNameSpace;
+        }
+
+        private static void AddSoapNamespaceDeclaration(XElement parent, TreeModel node)
+        {
+            if (string.IsNullOrWhiteSpace(node.MESCode) || string.IsNullOrWhiteSpace(node.XMLNameSpace)) return;
+            parent.Add(new XAttribute(XNamespace.Xmlns + node.MESCode, node.XMLNameSpace));
         }
         #endregion
         #region JOINT
