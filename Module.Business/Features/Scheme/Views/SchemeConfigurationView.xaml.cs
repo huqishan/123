@@ -3,12 +3,15 @@ using Module.Business.Features.Scheme.ViewModels.PresentationModels;
 using Module.Business.Models;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 
 namespace Module.Business.Features.Scheme.Views
 {
@@ -21,6 +24,7 @@ namespace Module.Business.Features.Scheme.Views
         private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
         private Point _schemeStepDragStartPoint;
         private SchemeWorkStepItem? _pendingDraggedSchemeStep;
+        private static readonly Duration WorkStepDrawerAnimationDuration = new(TimeSpan.FromMilliseconds(220));
 
         #endregion
 
@@ -32,6 +36,7 @@ namespace Module.Business.Features.Scheme.Views
         public SchemeConfigurationView()
         {
             InitializeComponent();
+            InitializeWorkStepParameterDrawer();
         }
 
         /// <summary>
@@ -42,9 +47,115 @@ namespace Module.Business.Features.Scheme.Views
         {
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            InitializeWorkStepParameterDrawer();
         }
 
         private SchemeConfigurationViewModel? ViewModel => DataContext as SchemeConfigurationViewModel;
+
+        /// <summary>
+        /// 初始化工步参数抽屉的视图模型监听与初始位置。
+        /// </summary>
+        private void InitializeWorkStepParameterDrawer()
+        {
+            DataContextChanged += SchemeConfigurationView_DataContextChanged;
+            Loaded += (_, _) => UpdateWorkStepParameterDrawerVisual(false);
+            if (ViewModel is not null)
+            {
+                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            }
+        }
+
+        /// <summary>
+        /// 数据上下文切换时重新监听抽屉状态，避免旧视图模型继续持有视图。
+        /// </summary>
+        private void SchemeConfigurationView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.OldValue is SchemeConfigurationViewModel oldViewModel)
+            {
+                oldViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            }
+
+            if (e.NewValue is SchemeConfigurationViewModel newViewModel)
+            {
+                newViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            }
+
+            UpdateWorkStepParameterDrawerVisual(false);
+        }
+
+        /// <summary>
+        /// 工步参数抽屉状态变化时播放底部侧滑动画。
+        /// </summary>
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SchemeConfigurationViewModel.IsWorkStepParameterDrawerOpen))
+            {
+                UpdateWorkStepParameterDrawerVisual(true);
+            }
+        }
+
+        /// <summary>
+        /// 点击遮罩时关闭工步参数抽屉。
+        /// </summary>
+        private void WorkStepParameterDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            ViewModel?.CloseWorkStepParameterDrawerCommand.Execute(null);
+        }
+
+        /// <summary>
+        /// 用户改变内置工步时，将所选工步名称同步到当前编辑副本一次。
+        /// 初始化绑定产生的选择变化不处理，避免打开已有工步时覆盖原名称。
+        /// </summary>
+        private void WorkStepTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is not ComboBox comboBox ||
+                !comboBox.IsKeyboardFocusWithin ||
+                comboBox.SelectedItem is not string workStepName ||
+                ViewModel?.EditingSchemeWorkStep is null)
+            {
+                return;
+            }
+
+            ViewModel.EditingSchemeWorkStep.StepName = workStepName;
+        }
+
+        /// <summary>
+        /// 根据视图模型状态更新抽屉透明度、纵向偏移和鼠标命中状态。
+        /// </summary>
+        private void UpdateWorkStepParameterDrawerVisual(bool animate)
+        {
+            if (WorkStepParameterDrawerHost is null || WorkStepParameterDrawerTranslateTransform is null)
+            {
+                return;
+            }
+
+            bool isOpen = ViewModel?.IsWorkStepParameterDrawerOpen == true;
+            double targetOpacity = isOpen ? 1d : 0d;
+            double targetOffset = isOpen ? 0d : 56d;
+            if (isOpen)
+            {
+                WorkStepParameterDrawerHost.IsHitTestVisible = true;
+            }
+
+            if (!animate)
+            {
+                WorkStepParameterDrawerHost.Opacity = targetOpacity;
+                WorkStepParameterDrawerTranslateTransform.Y = targetOffset;
+                WorkStepParameterDrawerHost.IsHitTestVisible = isOpen;
+                return;
+            }
+
+            DoubleAnimation opacityAnimation = new(targetOpacity, WorkStepDrawerAnimationDuration);
+            if (!isOpen)
+            {
+                opacityAnimation.Completed += (_, _) => WorkStepParameterDrawerHost.IsHitTestVisible = false;
+            }
+
+            WorkStepParameterDrawerHost.BeginAnimation(OpacityProperty, opacityAnimation);
+            WorkStepParameterDrawerTranslateTransform.BeginAnimation(
+                TranslateTransform.YProperty,
+                new DoubleAnimation(targetOffset, WorkStepDrawerAnimationDuration));
+        }
 
         /// <summary>
         /// 处理视图加载后的初始化逻辑。
@@ -270,6 +381,46 @@ namespace Module.Business.Features.Scheme.Views
         }
 
         #endregion
+
+        /// <summary>
+        /// 双击方案工步行时打开底部参数编辑抽屉；编辑控件自身的双击仍保留原行为。
+        /// </summary>
+        private void SchemeStepsDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (IsInlineEditableSchemeStepElement(e.OriginalSource as DependencyObject) ||
+                FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject)?.Item is not SchemeWorkStepItem workStep)
+            {
+                return;
+            }
+
+            SchemeStepsDataGrid.SelectedItem = workStep;
+            ViewModel?.OpenWorkStepParameterDrawerCommand.Execute(workStep);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 序号单元格提交后按照输入值移动工步，并重新生成连续序号。
+        /// 延迟到 DataGrid 完成编辑事务后再移动集合，避免提交过程中修改 ItemsSource。
+        /// </summary>
+        private void SchemeStepsDataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction != DataGridEditAction.Commit ||
+                e.Column.SortMemberPath != nameof(SchemeWorkStepItem.Num) ||
+                e.Row.Item is not SchemeWorkStepItem workStep)
+            {
+                return;
+            }
+
+            if (e.EditingElement is TextBox textBox)
+            {
+                textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            }
+
+            int targetNumber = workStep.Num;
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Background,
+                new Action(() => ViewModel?.MoveSchemeStepToNumber(workStep, targetNumber)));
+        }
 
         #if false
         /// <summary>

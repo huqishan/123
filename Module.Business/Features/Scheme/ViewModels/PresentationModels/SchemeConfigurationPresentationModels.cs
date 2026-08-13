@@ -314,6 +314,8 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         private string _id = Guid.NewGuid().ToString("N");
         private int _num = 1;
         private string _stepName = string.Empty;
+        private string _stepType = "初始化";
+        private bool _isChecked;
         private bool _isStartupEnabled = true;
         private bool _isReTestEnabled;
         private int _reTestCount = 1;
@@ -359,6 +361,25 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         {
             get => _stepName;
             set => SetField(ref _stepName, value ?? string.Empty, true);
+        }
+
+        /// <summary>
+        /// 工步类型。
+        /// </summary>
+        public string StepType
+        {
+            get => _stepType;
+            set => SetField(ref _stepType, value ?? string.Empty, true);
+        }
+
+        /// <summary>
+        /// 界面批量操作勾选状态，不参与配置序列化。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set => SetField(ref _isChecked, value);
         }
 
         /// <summary>
@@ -533,6 +554,7 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
                 Id = Id,
                 Num = Num,
                 StepName = StepName,
+                StepType = StepType,
                 IsStartupEnabled = IsStartupEnabled,
                 IsReTestEnabled = IsReTestEnabled,
                 ReTestCount = ReTestCount,

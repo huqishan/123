@@ -145,7 +145,7 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Width="56" Header="{DynamicResource 选择}">
+                            <DataGridTemplateColumn Header="{DynamicResource 选择}">
                                 <DataGridTemplateColumn.HeaderTemplate>
                                     <DataTemplate>
                                         <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"

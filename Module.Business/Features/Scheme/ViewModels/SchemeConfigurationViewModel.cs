@@ -5,6 +5,7 @@ using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using Module.Business.Features.OperationEditing.Models;
 using Module.Business.Features.OperationEditing.Services;
 using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.WorkStep.Services;
 using Module.Business.Services;
 using Module.Business.Services.BusinessOperations;
 using System;
@@ -39,6 +40,10 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     private SchemeWorkStepItem? _stepEditorHostWorkStep;
     private DateTime _lastCreateOrCopyCommandAt = DateTime.MinValue;
     private readonly List<WorkStepOperation> _copiedOperations = new();
+    private bool _isWorkStepParameterDrawerOpen;
+    private SchemeWorkStepItem? _editingSchemeWorkStep;
+    private SchemeWorkStepItem? _originalSchemeWorkStep;
+    private bool _isNewSchemeWorkStep;
 
     #endregion
 
@@ -55,6 +60,16 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     #region 集合属性
 
     public ObservableCollection<SchemeProfile> Schemes => _catalog.Schemes;
+
+    /// <summary>
+    /// 工步配置中已有的工步名称集合，供方案工步类型下拉选择。
+    /// </summary>
+    public ObservableCollection<string> WorkStepTypes { get; } = new(
+        WorkStepConfigurationStore.Load()
+            .Select(workStep => workStep.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name));
 
     public ICollectionView SchemesView { get; private set; } = null!;
 
@@ -117,6 +132,24 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     }
 
     public string CurrentSchemeStepName => SelectedSchemeStep?.StepName ?? string.Empty;
+
+    /// <summary>
+    /// 是否显示方案工步参数配置抽屉。
+    /// </summary>
+    public bool IsWorkStepParameterDrawerOpen
+    {
+        get => _isWorkStepParameterDrawerOpen;
+        private set => SetField(ref _isWorkStepParameterDrawerOpen, value);
+    }
+
+    /// <summary>
+    /// 抽屉中正在编辑的工步副本；保存前不会修改方案集合。
+    /// </summary>
+    public SchemeWorkStepItem? EditingSchemeWorkStep
+    {
+        get => _editingSchemeWorkStep;
+        private set => SetField(ref _editingSchemeWorkStep, value);
+    }
 
     #endregion
 
@@ -343,6 +376,21 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     /// </summary>
     public ICommand RemoveWorkStepFromSchemeCommand { get; private set; } = null!;
 
+    /// <summary>
+    /// 打开当前方案工步的参数配置抽屉。
+    /// </summary>
+    public ICommand OpenWorkStepParameterDrawerCommand { get; private set; } = null!;
+
+    /// <summary>
+    /// 关闭方案工步参数配置抽屉。
+    /// </summary>
+    public ICommand CloseWorkStepParameterDrawerCommand { get; private set; } = null!;
+
+    /// <summary>
+    /// 保存工步编辑副本，并在新建时插入方案集合。
+    /// </summary>
+    public ICommand SaveWorkStepParameterDrawerCommand { get; private set; } = null!;
+
     #endregion
 
     #region 属性联动
@@ -480,7 +528,25 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         AddWorkStepToSchemeCommand = new RelayCommand(_ => AddWorkStepToScheme(), _ => SelectedScheme is not null);
         RemoveWorkStepFromSchemeCommand = new RelayCommand(
             _ => RemoveSelectedSchemeStep(),
-            _ => SelectedScheme is not null && SelectedSchemeStep is not null);
+            _ => SelectedScheme is not null && (SelectedSchemeStep is not null || SelectedScheme.Steps.Any(step => step.IsChecked)));
+        OpenWorkStepParameterDrawerCommand = new RelayCommand(
+            parameter =>
+            {
+                if (parameter is SchemeWorkStepItem workStep)
+                {
+                    SelectedSchemeStep = workStep;
+                    _originalSchemeWorkStep = workStep;
+                    _isNewSchemeWorkStep = false;
+                    EditingSchemeWorkStep = workStep.Clone();
+                }
+
+                if (EditingSchemeWorkStep is not null)
+                {
+                    IsWorkStepParameterDrawerOpen = true;
+                }
+            });
+        CloseWorkStepParameterDrawerCommand = new RelayCommand(_ => CloseWorkStepParameterDrawer());
+        SaveWorkStepParameterDrawerCommand = new RelayCommand(_ => SaveWorkStepParameterDrawer());
         AddStepCommand = new RelayCommand(_ => OpenOperationEditorForNew(), _ => SelectedWorkStep is not null);
         CopyStepCommand = new RelayCommand(
             _ => CopySelectedOperations(),
@@ -612,18 +678,75 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
-        SchemeWorkStepItem schemeStep = new()
+        EditingSchemeWorkStep = new SchemeWorkStepItem
         {
             StepName = GenerateUniqueSchemeStepName("工步"),
             IsStartupEnabled = true
         };
-        int insertIndex = SelectedSchemeStep is null
-            ? SelectedScheme.Steps.Count
-            : Math.Clamp(SelectedScheme.Steps.IndexOf(SelectedSchemeStep) + 1, 0, SelectedScheme.Steps.Count);
+        _originalSchemeWorkStep = null;
+        _isNewSchemeWorkStep = true;
+        IsWorkStepParameterDrawerOpen = true;
+    }
 
-        SelectedScheme.Steps.Insert(insertIndex, schemeStep);
-        SelectedSchemeStep = schemeStep;
-        SetPageStatus($"已新增方案工步：{schemeStep.StepName}。", SuccessBrush);
+    /// <summary>当前方案中的工步是否全部被勾选。</summary>
+    public bool AreAllSchemeStepsChecked
+    {
+        get => SelectedScheme is not null && SelectedScheme.Steps.Count > 0 && SelectedScheme.Steps.All(step => step.IsChecked);
+        set
+        {
+            if (SelectedScheme is null) return;
+            foreach (SchemeWorkStepItem step in SelectedScheme.Steps) step.IsChecked = value;
+            OnPropertyChanged();
+            RaiseCommandStatesChanged();
+        }
+    }
+
+    /// <summary>
+    /// 保存工步抽屉中的编辑副本；新增工步只在此处写入方案集合。
+    /// </summary>
+    private void SaveWorkStepParameterDrawer()
+    {
+        if (SelectedScheme is null || EditingSchemeWorkStep is null ||
+            string.IsNullOrWhiteSpace(EditingSchemeWorkStep.StepName))
+        {
+            SetPageStatus("工步名称不能为空。", WarningBrush);
+            return;
+        }
+
+        if (_isNewSchemeWorkStep)
+        {
+            SchemeWorkStepItem newWorkStep = EditingSchemeWorkStep.Clone();
+            SelectedScheme.Steps.Add(newWorkStep);
+            RefreshSchemeStepNumbers();
+            SelectedSchemeStep = newWorkStep;
+        }
+        else if (_originalSchemeWorkStep is not null)
+        {
+            int targetNumber = EditingSchemeWorkStep.Num;
+            _originalSchemeWorkStep.StepName = EditingSchemeWorkStep.StepName;
+            _originalSchemeWorkStep.StepType = EditingSchemeWorkStep.StepType;
+            _originalSchemeWorkStep.IsStartupEnabled = EditingSchemeWorkStep.IsStartupEnabled;
+            _originalSchemeWorkStep.IsReTestEnabled = EditingSchemeWorkStep.IsReTestEnabled;
+            _originalSchemeWorkStep.ReTestCount = EditingSchemeWorkStep.ReTestCount;
+            _originalSchemeWorkStep.IsConfirmReTest = EditingSchemeWorkStep.IsConfirmReTest;
+            _originalSchemeWorkStep.Operations = new ObservableCollection<WorkStepOperation>(
+                EditingSchemeWorkStep.Operations.Select(operation => operation.Clone()));
+            MoveSchemeStepToNumber(_originalSchemeWorkStep, targetNumber);
+        }
+
+        SetPageStatus($"已保存工步：{EditingSchemeWorkStep.StepName}。", SuccessBrush);
+        CloseWorkStepParameterDrawer();
+    }
+
+    /// <summary>
+    /// 关闭抽屉并丢弃尚未保存的编辑副本。
+    /// </summary>
+    private void CloseWorkStepParameterDrawer()
+    {
+        IsWorkStepParameterDrawerOpen = false;
+        EditingSchemeWorkStep = null;
+        _originalSchemeWorkStep = null;
+        _isNewSchemeWorkStep = false;
     }
 
     /// <summary>
@@ -631,18 +754,22 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     /// </summary>
     private void RemoveSelectedSchemeStep()
     {
-        if (SelectedScheme is null || SelectedSchemeStep is null)
+        if (SelectedScheme is null)
         {
             return;
         }
 
-        int index = SelectedScheme.Steps.IndexOf(SelectedSchemeStep);
-        SelectedScheme.Steps.Remove(SelectedSchemeStep);
+        List<SchemeWorkStepItem> stepsToRemove = SelectedScheme.Steps.Where(step => step.IsChecked).ToList();
+        if (stepsToRemove.Count == 0 && SelectedSchemeStep is not null) stepsToRemove.Add(SelectedSchemeStep);
+        if (stepsToRemove.Count == 0) return;
+        int index = stepsToRemove.Select(SelectedScheme.Steps.IndexOf).Where(item => item >= 0).DefaultIfEmpty(0).Min();
+        foreach (SchemeWorkStepItem step in stepsToRemove) SelectedScheme.Steps.Remove(step);
         SelectedSchemeStep = SelectedScheme.Steps.Count == 0
             ? null
             : SelectedScheme.Steps[Math.Clamp(index, 0, SelectedScheme.Steps.Count - 1)];
 
-        SetPageStatus("已删除方案工步。", WarningBrush);
+        RefreshSchemeStepNumbers();
+        SetPageStatus($"已删除 {stepsToRemove.Count} 个方案工步。", WarningBrush);
     }
 
     /// <summary>
@@ -676,9 +803,44 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         }
 
         steps.Move(oldIndex, newIndex);
+        RefreshSchemeStepNumbers();
         SelectedSchemeStep = draggedSchemeStep;
         SetPageStatus("已调整工步顺序。", SuccessBrush);
         RaiseCommandStatesChanged();
+    }
+
+    /// <summary>
+    /// 将编辑工步输入的序号解释为目标位置，并在移动后统一生成连续序号。
+    /// 处理方式与工步配置页面的步骤序号排序保持一致。
+    /// </summary>
+    public void MoveSchemeStepToNumber(SchemeWorkStepItem workStep, int targetNumber)
+    {
+        if (SelectedScheme is null || !SelectedScheme.Steps.Contains(workStep))
+        {
+            return;
+        }
+
+        ObservableCollection<SchemeWorkStepItem> steps = SelectedScheme.Steps;
+        int oldIndex = steps.IndexOf(workStep);
+        int targetIndex = Math.Clamp(targetNumber - 1, 0, steps.Count - 1);
+        if (oldIndex != targetIndex)
+        {
+            steps.Move(oldIndex, targetIndex);
+        }
+
+        // 即使目标位置未变化，也重新编号，以修复输入的重复、零值或越界序号。
+        RefreshSchemeStepNumbers();
+        SelectedSchemeStep = workStep;
+    }
+
+    /// <summary>按照当前集合顺序连续刷新方案工步序号。</summary>
+    private void RefreshSchemeStepNumbers()
+    {
+        if (SelectedScheme is null) return;
+        for (int index = 0; index < SelectedScheme.Steps.Count; index++)
+        {
+            SelectedScheme.Steps[index].Num = index + 1;
+        }
     }
 
     /// <summary>
