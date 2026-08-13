@@ -1,4 +1,5 @@
 using ControlLibrary;
+using ControlLibrary.Controls.MessageDialog;
 using Module.Business.Features.OperationEditing.Models;
 using Module.Business.Features.OperationEditing.Services;
 using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
@@ -21,7 +22,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 {
     #region 私有字段
 
-    private readonly HashSet<InputParameter> _trackedInvokeParameters = new();
+    // 记录已订阅属性变化的返回参数，编辑对象切换时用于完整解除事件，避免旧对象继续影响当前弹框。
     private readonly HashSet<ReturnValue> _trackedReturnParameters = new();
     private InputParameter? _selectedEditingInvokeParameter;
     private ReturnValue? _selectedEditingReturnParameter;
@@ -29,15 +30,21 @@ public sealed class OperationEditorViewModel : ViewModelProperties
     private WorkStepOperation _editingOperation = new();
     private bool _isNewOperation;
     private bool _isOpen;
+    // 返回值候选按来源分别保存，刷新界面时再统一去重，避免方案上下文与外部上下文互相覆盖。
     private readonly List<string> _parameterReturnValueOptions = new();
+    private readonly List<string> _workStepValueOptions = new();
     private readonly List<string> _externalReturnValueOptions = new();
     private bool _isRefreshingMetadata;
-    private bool _decisionMode;
+    // 保留当前宿主步骤集合引用，连续新增或修改后可基于最新集合重新计算返回值名称候选。
+    private IEnumerable<WorkStepOperation>? _operationContext;
 
     #endregion
 
     #region 构造与集合
 
+    /// <summary>
+    /// 初始化步骤编辑器命令、编辑副本监听及固定候选数据。
+    /// </summary>
     public OperationEditorViewModel()
     {
         AttachEditingOperation(_editingOperation);
@@ -53,26 +60,48 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     public ObservableCollection<StationOperationMethodItem> StationOperationMethodCollection { get; } = new();
 
-    public ObservableCollection<StationOperationMethodItem> OperationMethods => StationOperationMethodCollection;
-
     /// <summary>
     /// 输入参数的界面编辑行；业务数据仍以 EditingOperation.Parameters 为唯一保存来源。
     /// </summary>
     public ObservableCollection<InputParameterEditorItem> EditingParameterRows { get; } = new();
 
+    /// <summary>
+    /// 返回值类型的统一候选集合，输入参数和条件执行左右参数共用同一实例。
+    /// </summary>
+    public ObservableCollection<string> ParameterReturnValueOptions { get; } = new();
+
+    /// <summary>
+    /// 工步值类型的统一候选集合，输入参数和条件执行左右参数共用同一实例。
+    /// </summary>
+    public ObservableCollection<string> WorkStepValueOptions { get; } = new();
+
     public ObservableCollection<string> ParameterTypeOptions { get; } = new()
     {
         "设置值",
         "返回值",
-        "全局值"
+        "工步值",
+        "全局值",
     };
 
     /// <summary>
-    /// 条件执行界面与 Judge 操作共同使用的判断条件名称。
-    /// 直接从现有 Judge 方法定义生成，避免条件区域单独维护关系符并造成两套判断能力不一致。
+    /// 条件执行界面与判断操作共同使用的固定关系符。
     /// </summary>
-    public IReadOnlyList<string> JudgmentConditionOptions { get; } =
-        LoadJudgeMethodSelectionItems().Select(method => method.Name).ToArray();
+    public ObservableCollection<string> JudgmentConditionOptions { get; } = new()
+    {
+        "NA",
+        "=",
+        "≠",
+        ">",
+        "≥",
+        "<",
+        "≤",
+        "＜{0}＜",
+        "≤{0}≤",
+        "()",
+        "!()",
+        "黑名单",
+        "白名单",
+    };
 
     public ObservableCollection<string> ProtocolOptions { get; } = new();
 
@@ -125,10 +154,6 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     public bool IsSystemOperationSelected => IsSystemOperationObject(EditingOperation.OperationObjectName);
 
-    public bool IsJudgeOperationSelected => IsJudgeOperationObject(EditingOperation.OperationObjectName);
-
-    public bool IsSystemOrJudgeOperationSelected => IsSystemOperationSelected || IsJudgeOperationSelected;
-
     public bool IsOpen
     {
         get => _isOpen;
@@ -163,11 +188,6 @@ public sealed class OperationEditorViewModel : ViewModelProperties
     /// </summary>
     public event EventHandler<OperationEditorSavedEventArgs>? OperationSaved;
 
-    internal void PublishSaved(WorkStepOperation operation, bool isNewOperation)
-    {
-        OperationSaved?.Invoke(this, new OperationEditorSavedEventArgs(operation, isNewOperation));
-    }
-
     private void SetEditorField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (!SetField(ref field, value, propertyName))
@@ -188,16 +208,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         operation.Parameters.CollectionChanged += EditingInvokeParameters_CollectionChanged;
         operation.ReturnValues.CollectionChanged += EditingReturnParameters_CollectionChanged;
 
-        // 克隆后的编辑实体通常已经包含参数。仅监听 CollectionChanged 无法订阅这些现有项，
-        // 会导致用户切换参数类型时收不到 PropertyChanged，返回值候选集合也就不会刷新。
-        foreach (InputParameter parameter in operation.Parameters)
-        {
-            if (_trackedInvokeParameters.Add(parameter))
-            {
-                parameter.PropertyChanged += EditingInvokeParameter_PropertyChanged;
-            }
-        }
-
+        // 返回参数的显示状态影响界面列展示，已有项需要在编辑副本接入时同步订阅。
         foreach (ReturnValue returnValue in operation.ReturnValues)
         {
             if (_trackedReturnParameters.Add(returnValue))
@@ -209,27 +220,27 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         SynchronizeEditingParameterRows();
     }
 
+    /// <summary>
+    /// 解除旧编辑副本及其参数项的事件订阅，避免对象切换后残留联动。
+    /// </summary>
     private void DetachEditingOperation(WorkStepOperation operation)
     {
         operation.PropertyChanged -= EditingOperation_PropertyChanged;
         operation.Parameters.CollectionChanged -= EditingInvokeParameters_CollectionChanged;
         operation.ReturnValues.CollectionChanged -= EditingReturnParameters_CollectionChanged;
 
-        // 编辑对象切换时同步解除子项订阅，避免旧步骤参数继续影响当前编辑器。
-        foreach (InputParameter parameter in _trackedInvokeParameters)
-        {
-            parameter.PropertyChanged -= EditingInvokeParameter_PropertyChanged;
-        }
-
+        // 编辑对象切换时同步解除返回参数订阅，避免旧步骤继续影响当前编辑器。
         foreach (ReturnValue returnValue in _trackedReturnParameters)
         {
             returnValue.PropertyChanged -= EditingReturnParameter_PropertyChanged;
         }
 
-        _trackedInvokeParameters.Clear();
         _trackedReturnParameters.Clear();
     }
 
+    /// <summary>
+    /// 响应编辑步骤属性变化，并刷新相关选择状态和方法元数据。
+    /// </summary>
     private void EditingOperation_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(WorkStepOperation.Parameters))
@@ -258,8 +269,6 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         {
             OnPropertyChanged(nameof(IsLuaOperationSelected));
             OnPropertyChanged(nameof(IsSystemOperationSelected));
-            OnPropertyChanged(nameof(IsJudgeOperationSelected));
-            OnPropertyChanged(nameof(IsSystemOrJudgeOperationSelected));
         }
 
         EditorStateChanged?.Invoke(this, new PropertyChangedEventArgs(e.PropertyName));
@@ -272,73 +281,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     #region 操作元数据与默认参数
 
-    public IEnumerable<string> LoadDeviceOperationObjectNames()
-    {
-        return OperationConfigurationStore.LoadDeviceNames();
-    }
-
-    public IEnumerable<string> LoadInvokeMethodOptionsForOperationObject(string? operationObject)
-    {
-        string normalizedOperationObject = operationObject?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(normalizedOperationObject))
-        {
-            return Enumerable.Empty<string>();
-        }
-
-        if (IsLuaOperationObject(normalizedOperationObject))
-        {
-            return new[] { "Lua" };
-        }
-
-        if (IsJudgeOperationObject(normalizedOperationObject))
-        {
-            return LoadJudgeMethodSelectionItems().Select(method => method.Name);
-        }
-
-        if (IsSystemOperationObject(normalizedOperationObject))
-        {
-            return LoadSystemMethodSelectionItems().Select(method => method.Name);
-        }
-
-        return LoadDeviceInvokeMethodOptions(normalizedOperationObject);
-    }
-
-    private static IEnumerable<string> LoadDeviceInvokeMethodOptions(string operationObject)
-    {
-        IEnumerable<string> businessOperations = BusinessOperationBindingResolver
-            .GetOperationsForOperationObject(operationObject)
-            .Select(operation => operation.OperationId);
-        HashSet<string> allowedProtocols = new(
-            OperationConfigurationStore.LoadDeviceSupportedProtocolNames(operationObject),
-            StringComparer.OrdinalIgnoreCase);
-        return businessOperations.Concat(OperationConfigurationStore.LoadProtocolSelectionItems()
-            .Where(protocol => allowedProtocols.Contains(protocol.Name))
-            .SelectMany(protocol => protocol.Commands.Select(command => command.Name)));
-    }
-
-    public void SynchronizeOperationMetadata(WorkStepOperation operation, IReadOnlyList<string> invokeMethodOptions)
-    {
-        ArgumentNullException.ThrowIfNull(operation);
-        string operationObject = operation.OperationObjectName?.Trim() ?? string.Empty;
-        if (IsLuaOperationObject(operationObject))
-        {
-            operation.OperationObjectName = "Lua";
-            operation.PCommandName = "Lua";
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(operation.PCommandName) &&
-            !invokeMethodOptions.Any(option => string.Equals(option?.Trim(), operation.PCommandName?.Trim(), StringComparison.OrdinalIgnoreCase)))
-        {
-            operation.PCommandName = string.Empty;
-        }
-
-        if (IsSystemOperationObject(operationObject))
-        {
-            operation.OperationObjectName = "System";
-        }
-    }
-
+    /// <summary>
+    /// 在设备支持的协议范围内查找指定指令及其所属协议。
+    /// </summary>
     private static bool TryFindDeviceCommand(string operationObject, string invokeMethod, out string protocolName, out string commandName)
     {
         protocolName = string.Empty;
@@ -364,6 +309,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         return false;
     }
 
+    /// <summary>
+    /// 根据步骤操作类型和调用方法创建默认输入参数集合。
+    /// </summary>
     public ObservableCollection<InputParameter> CreateDefaultOperationParameters(WorkStepOperation operation)
     {
         if (operation is null || IsLuaOperationObject(operation.OperationObjectName))
@@ -373,14 +321,22 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
         string operationObject = operation.OperationObjectName?.Trim() ?? string.Empty;
         string invokeMethod = operation.PCommandName?.Trim() ?? string.Empty;
-        if (IsJudgeOperationObject(operationObject))
-        {
-            return CreateOperationParametersFromSystemMethod(FindJudgeMethodByName(invokeMethod));
-        }
-
         if (IsSystemOperationObject(operationObject))
         {
-            return CreateOperationParametersFromSystemMethod(FindSystemMethodByName(invokeMethod));
+            BusinessOperationDescriptor? systemOperation = BusinessOperationCatalog.GetOperations("System")
+                .FirstOrDefault(method => string.Equals(method.OperationId, invokeMethod, StringComparison.OrdinalIgnoreCase));
+            return systemOperation is null
+                ? new ObservableCollection<InputParameter>()
+                : new ObservableCollection<InputParameter>(systemOperation.Parameters
+                    .OrderBy(parameter => parameter.Sequence)
+                    .Select(parameter => new InputParameter
+                    {
+                        Num = parameter.Sequence,
+                        ParameterType = ParameterTypeOptions.First(),
+                        ParameterName = parameter.Name,
+                        Value = parameter.DefaultValue,
+                        Description = string.IsNullOrWhiteSpace(parameter.Description) ? parameter.DisplayName : parameter.Description
+                    }));
         }
 
         BusinessOperationDescriptor? businessOperation = BusinessOperationBindingResolver.FindOperationForOperationObject(operationObject, null, invokeMethod);
@@ -393,7 +349,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         {
             ObservableCollection<InputParameter> parameters = new();
             int num = 1;
-            foreach (ProtocolPlaceholderSelectionItem placeholder in LoadProtocolCommandPlaceholders(protocolName, commandName))
+            foreach (ProtocolPlaceholderDefinition placeholder in OperationConfigurationStore.LoadProtocolCommandPlaceholders(protocolName, commandName))
             {
                 parameters.Add(new InputParameter
                 {
@@ -411,20 +367,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         return new ObservableCollection<InputParameter>();
     }
 
-    private ObservableCollection<InputParameter> CreateOperationParametersFromSystemMethod(SystemMethodSelectionItem? method)
-    {
-        return method is null
-            ? new ObservableCollection<InputParameter>()
-            : new ObservableCollection<InputParameter>(method.Parameters.Select((parameter, index) => new InputParameter
-            {
-                Num = index + 1,
-                ParameterType = ParameterTypeOptions.First(),
-                ParameterName = parameter.Name,
-                Value = parameter.DefaultValue,
-                Description = parameter.Description
-            }));
-    }
-
+    /// <summary>
+    /// 将业务方法参数定义转换为步骤编辑器使用的输入参数集合。
+    /// </summary>
     private ObservableCollection<InputParameter> CreateOperationParametersFromBusinessOperation(BusinessOperationDescriptor operation)
     {
         return new ObservableCollection<InputParameter>(operation.Parameters.OrderBy(parameter => parameter.Sequence).Select(parameter => new InputParameter
@@ -437,77 +382,18 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }));
     }
 
-    private static SystemMethodSelectionItem? FindSystemMethodByName(string methodName)
-    {
-        return LoadSystemMethodSelectionItems().FirstOrDefault(method =>
-            string.Equals(method.Name, methodName?.Trim(), StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static SystemMethodSelectionItem? FindJudgeMethodByName(string methodName)
-    {
-        return LoadJudgeMethodSelectionItems().FirstOrDefault(method =>
-            string.Equals(method.Name, methodName?.Trim(), StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static IReadOnlyList<SystemMethodSelectionItem> LoadJudgeMethodSelectionItems()
-    {
-        return new[]
-        {
-            CreateJudgeMethod("等于判断", "判断两个值是否相等", ("左值", "左侧待比较的值"), ("右值", "右侧待比较的值")),
-            CreateJudgeMethod("不等判断", "判断两个值是否不相等", ("左值", "左侧待比较的值"), ("右值", "右侧待比较的值")),
-            CreateJudgeMethod("大于判断", "判断左值是否大于右值", ("左值", "左侧待比较的值"), ("右值", "右侧待比较的值")),
-            CreateJudgeMethod("大于等于判断", "判断左值是否大于等于右值", ("左值", "左侧待比较的值"), ("右值", "右侧待比较的值")),
-            CreateJudgeMethod("小于判断", "判断左值是否小于右值", ("左值", "左侧待比较的值"), ("右值", "右侧待比较的值")),
-            CreateJudgeMethod("小于等于判断", "判断左值是否小于等于右值", ("左值", "左侧待比较的值"), ("右值", "右侧待比较的值")),
-            CreateJudgeMethod("包含判断", "判断文本是否包含指定关键字", ("待判断值", "待检查的文本"), ("关键字", "用于匹配的关键字")),
-            CreateJudgeMethod("不包含判断", "判断文本是否不包含指定关键字", ("待判断值", "待检查的文本"), ("关键字", "用于匹配的关键字")),
-            CreateJudgeMethod("为空判断", "判断指定值是否为空", ("待判断值", "待检查的值")),
-            CreateJudgeMethod("不为空判断", "判断指定值是否不为空", ("待判断值", "待检查的值"))
-        };
-    }
-
-    private static SystemMethodSelectionItem CreateJudgeMethod(string name, string summary, params (string Name, string Description)[] parameters)
-    {
-        return new SystemMethodSelectionItem(name, summary, parameters.Select(parameter =>
-            new SystemMethodParameterSelectionItem(parameter.Name, string.Empty, parameter.Description)));
-    }
-
-    private static IReadOnlyList<SystemMethodSelectionItem> LoadSystemMethodSelectionItems()
-    {
-        return LoadBusinessMethodSelectionItems("System");
-    }
-
-    private static IReadOnlyList<SystemMethodSelectionItem> LoadBusinessMethodSelectionItems(string deviceId)
-    {
-        return BusinessOperationCatalog.GetOperations(deviceId).Select(operation => new SystemMethodSelectionItem(
-            operation.OperationId,
-            string.IsNullOrWhiteSpace(operation.Description) ? operation.DisplayName : operation.Description,
-            operation.Parameters.Select(parameter => new SystemMethodParameterSelectionItem(
-                parameter.Name,
-                parameter.TypeName,
-                string.IsNullOrWhiteSpace(parameter.Description) ? parameter.DisplayName : parameter.Description,
-                parameter.DefaultValue)))).ToArray();
-    }
-
-    private static IReadOnlyList<ProtocolPlaceholderSelectionItem> LoadProtocolCommandPlaceholders(string protocolName, string commandName)
-    {
-        return OperationConfigurationStore.LoadProtocolCommandPlaceholders(protocolName, commandName)
-            .Select(item => new ProtocolPlaceholderSelectionItem(item.Name, item.Value))
-            .ToArray();
-    }
-
+    /// <summary>
+    /// 判断操作对象是否表示系统方法。
+    /// </summary>
     public static bool IsSystemOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), "System", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(operationObject?.Trim(), "系统", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static bool IsJudgeOperationObject(string? operationObject)
-    {
-        return string.Equals(operationObject?.Trim(), "判断", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(operationObject?.Trim(), "Judge", StringComparison.OrdinalIgnoreCase);
-    }
-
+    /// <summary>
+    /// 判断操作对象是否表示 Lua 脚本。
+    /// </summary>
     public static bool IsLuaOperationObject(string? operationObject)
     {
         return string.Equals(operationObject?.Trim(), "Lua", StringComparison.OrdinalIgnoreCase);
@@ -515,12 +401,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     #endregion
 
-    public void SetDecisionMode(bool isDecisionMode)
-    {
-        _decisionMode = isDecisionMode;
-        RefreshOperationObjectOptions();
-    }
-
+    /// <summary>
+    /// 设置宿主提供的外部返回值候选，并刷新参数可选值。
+    /// </summary>
     public void SetExternalReturnValueOptions(IEnumerable<string>? values)
     {
         _externalReturnValueOptions.Clear();
@@ -531,7 +414,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         ReplaceStringOptions(ReturnValueOptions, _parameterReturnValueOptions
             .Concat(_externalReturnValueOptions)
             .Concat(new[] { EditingOperation.ReturnValue }));
-        RefreshParameterValueOptions();
+        ReplaceStringOptions(ParameterReturnValueOptions, _parameterReturnValueOptions.Concat(_externalReturnValueOptions));
     }
 
     /// <summary>
@@ -553,7 +436,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
             }
             else if (propertyName == nameof(EditingOperation.PCommandName))
             {
-                if (!IsSystemOrJudgeOperationSelected && !IsLuaOperationSelected)
+                if (!IsSystemOperationSelected && !IsLuaOperationSelected)
                 {
                     RefreshProtocolCommandParameters();
                 }
@@ -569,11 +452,13 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }
     }
 
+    /// <summary>
+    /// 根据当前编辑模式刷新可选操作对象。
+    /// </summary>
     private void RefreshOperationObjectOptions()
     {
-        IEnumerable<string> options = _decisionMode
-            ? new[] { "判断" }
-            : new[] { "System", "Lua" }.Concat(OperationConfigurationStore.LoadDeviceNames());
+        IEnumerable<string> options = new[] { "System", "Lua" }
+            .Concat(OperationConfigurationStore.LoadDeviceNames());
         ReplaceStringOptions(OperationObjectOptions, options);
         if (string.IsNullOrWhiteSpace(EditingOperation.OperationObjectName) || !OperationObjectOptions.Contains(EditingOperation.OperationObjectName))
         {
@@ -581,6 +466,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }
     }
 
+    /// <summary>
+    /// 根据当前操作对象刷新协议、指令和业务方法列表。
+    /// </summary>
     private void RefreshProtocolAndMethodOptions()
     {
         ProtocolOptions.Clear();
@@ -594,28 +482,11 @@ public sealed class OperationEditorViewModel : ViewModelProperties
             EditingOperation.PCommandName = "Lua";
             EditingOperation.Parameters.Clear();
             EditingOperation.ReturnValues.Clear();
-            OnPropertyChanged(nameof(OperationMethods));
+            OnPropertyChanged(nameof(StationOperationMethodCollection));
             return;
         }
 
-        if (IsJudgeOperationSelected)
-        {
-            string[] judgeMethods = { "等于判断", "不等判断", "大于判断", "大于等于判断", "小于判断", "小于等于判断", "包含判断", "不包含判断", "为空判断", "不为空判断" };
-            foreach (string method in judgeMethods)
-            {
-                InvokeMethodOptions.Add(method);
-                StationOperationMethodCollection.Add(new StationOperationMethodItem
-                {
-                    Kind = "方法",
-                    OperationType = "判断",
-                    OperationObject = "判断",
-                    InvokeMethod = method,
-                    Summary = method,
-                    ParameterCount = method.Contains("为空", StringComparison.Ordinal) ? 1 : 2
-                });
-            }
-        }
-        else if (IsSystemOperationSelected)
+        if (IsSystemOperationSelected)
         {
             foreach (BusinessOperationDescriptor operation in BusinessOperationCatalog.GetOperations("System"))
             {
@@ -677,10 +548,13 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }
 
         // 方法集合填充完成后通知视图恢复当前步骤对应的选中行。
-        // OperationMethods 始终返回同一个集合实例，集合变更只能刷新行，无法表达当前方法的选中状态。
-        OnPropertyChanged(nameof(OperationMethods));
+        // 方法集合始终返回同一个实例，额外通知宿主刷新当前方法的选中状态。
+        OnPropertyChanged(nameof(StationOperationMethodCollection));
     }
 
+    /// <summary>
+    /// 根据当前设备指令刷新占位参数及返回值键。
+    /// </summary>
     private void RefreshProtocolCommandParameters()
     {
         if (!TryFindDeviceCommand(
@@ -732,45 +606,31 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         SelectedEditingInvokeParameter = EditingOperation.Parameters.FirstOrDefault();
     }
 
+    /// <summary>
+    /// 根据当前系统方法重新生成输入参数。
+    /// </summary>
     private void RefreshSelectedMethodParameters()
     {
-        if (!IsSystemOperationSelected && !IsJudgeOperationSelected)
+        if (!IsSystemOperationSelected)
         {
             return;
         }
 
         EditingOperation.Parameters.Clear();
-        if (IsJudgeOperationSelected)
+        BusinessOperationDescriptor? operation = BusinessOperationCatalog.GetOperations("System")
+            .FirstOrDefault(item => string.Equals(item.OperationId, EditingOperation.PCommandName, StringComparison.OrdinalIgnoreCase));
+        if (operation is not null)
         {
-            int count = EditingOperation.PCommandName.Contains("为空", StringComparison.Ordinal) ? 1 : 2;
-            for (int index = 0; index < count; index++)
+            foreach (BusinessParameterDescriptor parameter in operation.Parameters.OrderBy(item => item.Sequence))
             {
                 EditingOperation.Parameters.Add(new InputParameter
                 {
-                    Num = index + 1,
+                    Num = parameter.Sequence,
                     ParameterType = ParameterTypeOptions.First(),
-                    ParameterName = index == 0 ? "左值" : "右值",
-                    Description = index == 0 ? "左侧待比较的值" : "右侧待比较的值"
+                    ParameterName = parameter.Name,
+                    Value = parameter.DefaultValue,
+                    Description = string.IsNullOrWhiteSpace(parameter.Description) ? parameter.DisplayName : parameter.Description
                 });
-            }
-        }
-        else
-        {
-            BusinessOperationDescriptor? operation = BusinessOperationCatalog.GetOperations("System")
-                .FirstOrDefault(item => string.Equals(item.OperationId, EditingOperation.PCommandName, StringComparison.OrdinalIgnoreCase));
-            if (operation is not null)
-            {
-                foreach (BusinessParameterDescriptor parameter in operation.Parameters.OrderBy(item => item.Sequence))
-                {
-                    EditingOperation.Parameters.Add(new InputParameter
-                    {
-                        Num = parameter.Sequence,
-                        ParameterType = ParameterTypeOptions.First(),
-                        ParameterName = parameter.Name,
-                        Value = parameter.DefaultValue,
-                        Description = string.IsNullOrWhiteSpace(parameter.Description) ? parameter.DisplayName : parameter.Description
-                    });
-                }
             }
         }
 
@@ -790,6 +650,7 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         IsInitializingOperationDrawer = true;
         try
         {
+            _operationContext = operations;
             EditingOperation = operation.Clone();
             _isNewOperation = isNewOperation;
             RefreshOperationContext(operation, operations);
@@ -812,6 +673,20 @@ public sealed class OperationEditorViewModel : ViewModelProperties
     /// </summary>
     public void Save()
     {
+        // 返回值键只有在指定返回值集合名后才能形成可供后续步骤引用的完整名称。
+        // 在最终保存入口统一校验，避免界面刷新时已经生成返回参数，但步骤保存后无法被引用。
+        bool hasReturnValueKey = !IsLuaOperationSelected && EditingOperation.ReturnValues
+            .Any(returnValue => !string.IsNullOrWhiteSpace(returnValue.ReturnParameterName));
+        if (hasReturnValueKey && string.IsNullOrWhiteSpace(EditingOperation.ReturnValue))
+        {
+            MessageDialog.Show(
+                "当前步骤存在返回值键，请先填写返回值。",
+                "保存步骤",
+                MessageDialogButtons.Ok,
+                MessageDialogIcon.Warning);
+            return;
+        }
+
         WorkStepOperation result = EditingOperation.Clone();
         result.OperationObjectName = result.OperationObjectName.Trim();
         result.PCommandName = IsLuaOperationSelected ? string.Empty : result.PCommandName.Trim();
@@ -825,46 +700,57 @@ public sealed class OperationEditorViewModel : ViewModelProperties
             ? new ObservableCollection<ReturnValue>()
             : new ObservableCollection<ReturnValue>(EditingOperation.ReturnValues.OrderBy(parameter => parameter.Num).Select(parameter => parameter.Clone()));
 
-        PublishSaved(result, _isNewOperation);
+        OperationSaved?.Invoke(this, new OperationEditorSavedEventArgs(result, _isNewOperation));
         EditingOperation = result.Clone();
-        EditingOperation.Id = Guid.NewGuid().ToString("N");
+        if (_isNewOperation)
+        {
+            // 连续新增时当前保存结果已经成为前置步骤，新草稿使用新编号，使上下文包含刚保存的返回值。
+            EditingOperation.Id = Guid.NewGuid().ToString("N");
+        }
         foreach (InputParameter parameter in EditingOperation.Parameters)
         {
             parameter.Id = Guid.NewGuid().ToString("N");
         }
 
-        // ValueOptions 是仅供弹框使用的 JsonIgnore 编辑态集合，InputParameter.Clone 不会复制该集合。
-        // 保存后编辑器继续保留当前操作时，必须基于原有前置步骤返回值上下文重新生成候选，
-        // 否则参数中已经选择的 Value 虽然仍在，但下拉返回值集合会被显示为空。
-        RefreshParameterValueOptions();
+        // 保存事件会先由宿主把新增或修改结果写回步骤集合，此时重新读取上下文即可取得最新返回值名称。
+        // 修改步骤时保留原步骤编号用于定位，只读取当前步骤之前的数据；连续新增则读取全部已保存步骤。
+        // 可编辑 ComboBox 在候选集合刷新期间可能暂时失去选中项，并通过 Text 双向绑定回写空值。
+        // 保存前后明确保护条件左右值，候选刷新不得改变用户已编辑的业务数据。
+        string conditionLeftValue = EditingOperation.ConditionExecution.LeftValue;
+        string conditionRightValue = EditingOperation.ConditionExecution.RightValue;
+        RefreshOperationContext(EditingOperation, _operationContext);
+        EditingOperation.ConditionExecution.LeftValue = conditionLeftValue;
+        EditingOperation.ConditionExecution.RightValue = conditionRightValue;
         SelectedEditingInvokeParameter = EditingOperation.Parameters.FirstOrDefault();
         SelectedEditingReturnParameter = EditingOperation.ReturnValues.FirstOrDefault();
-        //if (_isNewOperation)
-        //{
-            
-        //}
-        //else
-        //{
-        //    Close();
-        //}
     }
 
+    /// <summary>
+    /// 关闭编辑器并清理当前编辑副本和选中状态。
+    /// </summary>
     public void Close()
     {
         IsOpen = false;
         EditingOperation = new WorkStepOperation();
         _isNewOperation = false;
+        _operationContext = null;
         EditingOperation.Parameters.Clear();
         EditingOperation.ReturnValues.Clear();
         SelectedEditingInvokeParameter = null;
         SelectedEditingReturnParameter = null;
     }
 
+    /// <summary>
+    /// 从配置存储重新加载 Lua 脚本模板名称。
+    /// </summary>
     public void RefreshLuaScriptTemplateOptions()
     {
         ReplaceStringOptions(LuaScriptTemplateOptions, OperationConfigurationStore.LoadLuaScriptTemplateNames());
     }
 
+    /// <summary>
+    /// 将指定 Lua 模板内容应用到当前编辑步骤。
+    /// </summary>
     public void ApplyLuaScriptTemplate(string? templateName)
     {
         if (string.IsNullOrWhiteSpace(templateName))
@@ -879,6 +765,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }
     }
 
+    /// <summary>
+    /// 根据方法列表项创建带默认输入参数和返回参数的新步骤。
+    /// </summary>
     public WorkStepOperation? CreateOperationFromMethodItem(StationOperationMethodItem? item)
     {
         if (item is null)
@@ -946,6 +835,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     #region 返回参数
 
+    /// <summary>
+    /// 使用指定步骤的有效返回值键替换编辑器返回参数行，并统一排序去重。
+    /// </summary>
     public void ReplaceStepEditorReturnParameterRows(WorkStepOperation? operation)
     {
         // 先生成独立快照再清空界面集合，既避免传入当前 EditingOperation 时枚举源被清空，
@@ -967,6 +859,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         SelectedEditingReturnParameter = EditingOperation.ReturnValues.FirstOrDefault();
     }
 
+    /// <summary>
+    /// 清空当前步骤的返回参数行及选中项。
+    /// </summary>
     public void ClearStepEditorReturnParameterRows()
     {
         EditingOperation.ReturnValues.Clear();
@@ -977,14 +872,18 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 
     #region 参数集合监听
 
+    /// <summary>
+    /// 响应输入参数集合变化，维护序号和界面编辑行。
+    /// </summary>
     private void EditingInvokeParameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        UpdateTrackedItems(e, _trackedInvokeParameters, EditingInvokeParameter_PropertyChanged);
         NormalizeInvokeParameterNums();
         SynchronizeEditingParameterRows();
-        RefreshParameterValueOptions();
     }
 
+    /// <summary>
+    /// 响应返回参数集合变化，并刷新返回值显示状态。
+    /// </summary>
     private void EditingReturnParameters_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         UpdateTrackedItems(e, _trackedReturnParameters, EditingReturnParameter_PropertyChanged);
@@ -1030,29 +929,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }
     }
 
-    private void EditingInvokeParameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (sender is InputParameter parameter &&
-            e.PropertyName == nameof(InputParameter.ParameterType))
-        {
-            // 仅类型变化时重建候选项。参数值选择过程中清空 ItemsSource 会中断 ComboBox 的选中提交。
-            UpdateParameterValueOptions(parameter);
-        }
-
-        if (e.PropertyName == nameof(InputParameter.Num))
-        {
-            List<InputParameter> ordered = EditingOperation.Parameters.OrderBy(item => item.Num).ToList();
-            for (int index = 0; index < ordered.Count; index++)
-            {
-                int oldIndex = EditingOperation.Parameters.IndexOf(ordered[index]);
-                if (oldIndex != index)
-                {
-                    EditingOperation.Parameters.Move(oldIndex, index);
-                }
-            }
-        }
-    }
-
+    /// <summary>
+    /// 响应返回参数显示配置变化。
+    /// </summary>
     private void EditingReturnParameter_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ReturnValue.IsShowView))
@@ -1061,6 +940,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         }
     }
 
+    /// <summary>
+    /// 修正输入参数中的无效或重复序号，同时保留已有有效序号。
+    /// </summary>
     private void NormalizeInvokeParameterNums()
     {
         HashSet<int> used = new();
@@ -1083,31 +965,6 @@ public sealed class OperationEditorViewModel : ViewModelProperties
     }
 
     /// <summary>
-    /// 刷新输入参数可引用的前置步骤返回值。
-    /// </summary>
-    public void RefreshParameterValueOptions()
-    {
-        foreach (InputParameterEditorItem row in EditingParameterRows)
-        {
-            UpdateParameterValueOptions(row.Parameter);
-        }
-    }
-
-    private void UpdateParameterValueOptions(InputParameter parameter)
-    {
-        InputParameterEditorItem? editingRow = EditingParameterRows.FirstOrDefault(row => ReferenceEquals(row.Parameter, parameter));
-        if (editingRow is null)
-        {
-            return;
-        }
-
-        IEnumerable<string> options = string.Equals(parameter.ParameterType?.Trim(), "返回值", StringComparison.Ordinal)
-            ? _parameterReturnValueOptions.Concat(_externalReturnValueOptions)
-            : Enumerable.Empty<string>();
-        ReplaceStringOptions(editingRow.ValueOptions, options);
-    }
-
-    /// <summary>
     /// 根据业务参数集合重建编辑行。编辑行只保存界面候选，参数对象保持同一引用，
     /// 因此 DataGrid 编辑结果会直接进入 EditingOperation.Parameters，并由保存流程统一克隆。
     /// </summary>
@@ -1119,10 +976,21 @@ public sealed class OperationEditorViewModel : ViewModelProperties
         EditingParameterRows.Clear();
         foreach (InputParameter parameter in EditingOperation.Parameters)
         {
-            EditingParameterRows.Add(existingRows.TryGetValue(parameter, out InputParameterEditorItem? row)
+            InputParameterEditorItem editingRow = existingRows.TryGetValue(parameter, out InputParameterEditorItem? row)
                 ? row
-                : new InputParameterEditorItem(parameter));
+                : new InputParameterEditorItem(parameter);
+            EditingParameterRows.Add(editingRow);
+
         }
+    }
+
+    /// <summary>
+    /// 使用当前尚未保存的编辑副本刷新工步值共享候选集合。
+    /// 编辑已有步骤时按原位置替换宿主数据，新增步骤时追加到当前工步末尾，保持候选的步骤顺序。
+    /// </summary>
+    public void RefreshWorkStepValueOptionsFromEditingOperation()
+    {
+        RefreshOperationContext(EditingOperation, _operationContext);
     }
 
     /// <summary>
@@ -1138,25 +1006,78 @@ public sealed class OperationEditorViewModel : ViewModelProperties
             editingIndex = operationList.Count;
         }
 
+        List<WorkStepOperation> previousOperations = operationList.Take(editingIndex).ToList();
+
+        // 工步值需要实时反映当前弹框中尚未保存的输入。已有步骤按原位置替换，新增步骤则作为当前工步的最后一步。
+        List<WorkStepOperation> workStepValueOperations = operationList.ToList();
+        if (editingIndex < workStepValueOperations.Count)
+        {
+            workStepValueOperations[editingIndex] = EditingOperation;
+        }
+        else
+        {
+            workStepValueOperations.Add(EditingOperation);
+        }
+
+        // 工步值候选来自当前工步所有已有步骤的输入参数，不受当前编辑步骤位置限制。
+        // 保持步骤顺序及步骤内参数顺序，重复值只保留首次出现的位置，不再按名称排序。
+        _workStepValueOptions.Clear();
+        _workStepValueOptions.AddRange(workStepValueOperations
+            .SelectMany(item => item.Parameters)
+            .Where(parameter => string.Equals(parameter.ParameterType?.Trim(), "工步值", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(parameter.Value))
+            .Select(parameter => parameter.Value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        // 条件执行左右参数也可以定义工步值名称，当前弹框中尚未保存的值需立即追加到共享候选。
+        // 左参数优先于右参数，与界面编辑顺序保持一致；已在输入参数中出现的名称不重复添加。
+        ConditionExecution condition = EditingOperation.ConditionExecution;
+        IEnumerable<string> conditionWorkStepValues = new[]
+        {
+            string.Equals(condition.LeftParameterType?.Trim(), "工步值", StringComparison.Ordinal)
+                ? condition.LeftValue
+                : string.Empty,
+            string.Equals(condition.RightParameterType?.Trim(), "工步值", StringComparison.Ordinal)
+                ? condition.RightValue
+                : string.Empty
+        };
+        _workStepValueOptions.AddRange(conditionWorkStepValues
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Where(value => !_workStepValueOptions.Contains(value, StringComparer.OrdinalIgnoreCase)));
+
         _parameterReturnValueOptions.Clear();
-        _parameterReturnValueOptions.AddRange(operationList
-            .Take(editingIndex)
+        // 返回值候选保持前置步骤顺序及步骤内返回值键顺序，重复项仅保留首次出现的位置。
+        _parameterReturnValueOptions.AddRange(previousOperations
             .Where(item => !string.IsNullOrWhiteSpace(item.ReturnValue))
             .SelectMany(item => item.ReturnValues
                 .Where(returnValue => !string.IsNullOrWhiteSpace(returnValue.ReturnParameterName))
                 .Select(returnValue => $"{item.ReturnValue.Trim()}_{returnValue.ReturnParameterName.Trim()}"))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+        ReplaceStringOptions(ParameterReturnValueOptions, _parameterReturnValueOptions.Concat(_externalReturnValueOptions));
+        ReplaceStringOptions(WorkStepValueOptions, _workStepValueOptions);
         ReplaceStringOptions(ReturnValueOptions, _parameterReturnValueOptions
             .Concat(_externalReturnValueOptions)
             .Concat(new[] { EditingOperation.ReturnValue }));
-        RefreshParameterValueOptions();
     }
 
+    /// <summary>
+    /// 使用经过清理和去重的字符串替换目标候选集合。
+    /// </summary>
     private static void ReplaceStringOptions(ObservableCollection<string> target, IEnumerable<string> values)
     {
+        List<string> normalizedValues = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (target.SequenceEqual(normalizedValues, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         target.Clear();
-        foreach (string value in values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (string value in normalizedValues)
         {
             target.Add(value);
         }
@@ -1170,6 +1091,9 @@ public sealed class OperationEditorViewModel : ViewModelProperties
 /// </summary>
 public sealed class OperationEditorSavedEventArgs : EventArgs
 {
+    /// <summary>
+    /// 创建操作编辑器保存结果。
+    /// </summary>
     public OperationEditorSavedEventArgs(WorkStepOperation operation, bool isNewOperation)
     {
         Operation = operation ?? throw new ArgumentNullException(nameof(operation));

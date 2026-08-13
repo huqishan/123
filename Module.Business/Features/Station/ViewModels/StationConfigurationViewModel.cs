@@ -592,15 +592,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
         OperationEditorViewModel operationEditor = new();
         operationEditor.OperationSaved += NodeOperationEditor_OperationSaved;
         operationEditor.SetExternalReturnValueOptions(GetFlowchartReturnValueOptions(document, operationEditor));
-        operationEditor.SetDecisionMode(e.NodeKind == FlowchartNodeKind.Decision);
-
         WorkStepOperation editingOperation = operation.Clone();
-        if (e.NodeKind == FlowchartNodeKind.Decision &&
-            string.IsNullOrWhiteSpace(editingOperation.OperationObjectName))
-        {
-            editingOperation.OperationObjectName = "判断";
-        }
-
         _savedNodeOperation = null;
         operationEditor.Open(editingOperation, isNewOperation: false, new[] { editingOperation });
 
@@ -697,14 +689,7 @@ public sealed class StationConfigurationViewModel : ViewModelProperties
 
     private static bool CanEditNode(FlowchartNodeKind nodeKind)
     {
-        return nodeKind == FlowchartNodeKind.Process || nodeKind == FlowchartNodeKind.Decision;
-    }
-
-    private static string GetNodeEditorTitle(FlowchartNodeKind nodeKind)
-    {
-        return nodeKind == FlowchartNodeKind.Decision
-            ? "流程图判断块"
-            : "流程图处理块";
+        return nodeKind == FlowchartNodeKind.Process;
     }
 
     private static string BuildNodeText(FlowchartNodeKind nodeKind, WorkStepOperation operation)

@@ -1,0 +1,397 @@
+﻿using Module.Business.Features.OperationEditing.Converters;
+using Module.Business.Features.OperationEditing.ViewModels;
+using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
+using System.Collections.ObjectModel;
+
+namespace TestProject;
+
+/// <summary>
+/// 步骤编辑器连续操作相关回归测试。
+/// </summary>
+[TestFixture]
+public sealed class OperationEditorViewModelTests
+{
+    /// <summary>
+    /// 验证连续新增时，第一次保存产生的返回值名称会立即进入后续参数下拉候选。
+    /// </summary>
+    [Test]
+    public void Save_NewOperationTwice_RefreshesReturnValueParameterOptionsFromLatestHostCollection()
+    {
+        ObservableCollection<WorkStepOperation> operations = new();
+        OperationEditorViewModel viewModel = new();
+        viewModel.OperationSaved += (_, e) => operations.Add(e.Operation);
+
+        WorkStepOperation operation = new()
+        {
+            OperationObjectName = "System",
+            ReturnValue = "第一次",
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { Num = 1, ParameterType = "返回值", ParameterName = "输入" }
+            },
+            ReturnValues = new ObservableCollection<ReturnValue>
+            {
+                new() { Num = 1, ReturnParameterName = "结果" }
+            }
+        };
+
+        viewModel.Open(operation, isNewOperation: true, operations);
+        viewModel.Save();
+
+        Assert.That(viewModel.ParameterReturnValueOptions, Does.Contain("第一次_结果"));
+    }
+
+    /// <summary>
+    /// 验证连续新增过程中重建参数集合时，新出现的返回值参数行会装载已有步骤的最新返回值名称。
+    /// </summary>
+    [Test]
+    public void Open_NewOperationAfterPreviousSave_RebuiltReturnValueRowUsesLatestOptions()
+    {
+        ObservableCollection<WorkStepOperation> operations = new()
+        {
+            new()
+            {
+                ReturnValue = "上一步",
+                ReturnValues = new ObservableCollection<ReturnValue>
+                {
+                    new() { Num = 1, ReturnParameterName = "结果" }
+                }
+            }
+        };
+        OperationEditorViewModel viewModel = new();
+        WorkStepOperation operation = new()
+        {
+            OperationObjectName = "System",
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { Num = 1, ParameterType = "返回值", ParameterName = "输入" }
+            }
+        };
+
+        viewModel.Open(operation, isNewOperation: true, operations);
+
+        Assert.That(viewModel.ParameterReturnValueOptions, Does.Contain("上一步_结果"));
+    }
+
+    /// <summary>
+    /// 验证修改中间步骤后，返回值参数候选只包含该步骤之前的数据。
+    /// </summary>
+    [Test]
+    public void Save_ExistingOperation_ReturnValueOptionsContainOnlyPreviousOperations()
+    {
+        WorkStepOperation first = new()
+        {
+            ReturnValue = "第一步",
+            ReturnValues = new ObservableCollection<ReturnValue> { new() { ReturnParameterName = "结果" } }
+        };
+        WorkStepOperation current = new()
+        {
+            OperationObjectName = "System",
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "返回值", ParameterName = "输入" }
+            }
+        };
+        WorkStepOperation later = new()
+        {
+            ReturnValue = "后续步骤",
+            ReturnValues = new ObservableCollection<ReturnValue> { new() { ReturnParameterName = "结果" } }
+        };
+        ObservableCollection<WorkStepOperation> operations = new() { first, current, later };
+        OperationEditorViewModel viewModel = new();
+        viewModel.OperationSaved += (_, e) => operations[1] = e.Operation;
+
+        viewModel.Open(current, isNewOperation: false, operations);
+        viewModel.Save();
+
+        IEnumerable<string> options = viewModel.ParameterReturnValueOptions;
+        Assert.Multiple(() =>
+        {
+            Assert.That(options, Does.Contain("第一步_结果"));
+            Assert.That(options, Does.Not.Contain("后续步骤_结果"));
+        });
+    }
+
+    /// <summary>
+    /// 验证工步值参数显示当前工步所有步骤中工步值类型的参数值。
+    /// </summary>
+    [Test]
+    public void Open_OperationWithWorkStepValueParameter_ShowsPreviousWorkStepValuesOnly()
+    {
+        WorkStepOperation first = new()
+        {
+            ReturnValue = "不应显示的返回值集合名",
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "工步值", ParameterName = "不应显示的参数名", Value = "前置工步参数值" },
+                new() { ParameterType = "设置值", ParameterName = "普通参数名", Value = "普通参数值" }
+            }
+        };
+        WorkStepOperation current = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "工步值", ParameterName = "输入" }
+            }
+        };
+        WorkStepOperation later = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "工步值", ParameterName = "后续参数名", Value = "后续工步参数值" }
+            }
+        };
+        ObservableCollection<WorkStepOperation> operations = new() { first, current, later };
+        OperationEditorViewModel viewModel = new();
+
+        viewModel.Open(current, isNewOperation: false, operations);
+
+        IEnumerable<string> options = viewModel.WorkStepValueOptions;
+        Assert.Multiple(() =>
+        {
+            Assert.That(options, Does.Contain("前置工步参数值"));
+            Assert.That(options, Does.Not.Contain("不应显示的返回值集合名"));
+            Assert.That(options, Does.Not.Contain("不应显示的参数名"));
+            Assert.That(options, Does.Not.Contain("普通参数值"));
+            Assert.That(options, Does.Contain("后续工步参数值"));
+        });
+    }
+
+    /// <summary>
+    /// 验证连续新增时，上一步骤中工步值类型输入的参数值会立即进入下拉候选。
+    /// </summary>
+    [Test]
+    public void Save_NewOperation_RefreshesWorkStepValueOptionsFromSavedInputParameterValues()
+    {
+        ObservableCollection<WorkStepOperation> operations = new();
+        OperationEditorViewModel viewModel = new();
+        viewModel.OperationSaved += (_, e) => operations.Add(e.Operation);
+        WorkStepOperation operation = new()
+        {
+            OperationObjectName = "System",
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new()
+                {
+                    ParameterType = "工步值",
+                    ParameterName = "测试参数",
+                    Value = "用户输入的工步值"
+                }
+            }
+        };
+
+        viewModel.Open(operation, isNewOperation: true, operations);
+        viewModel.Save();
+
+        Assert.That(viewModel.WorkStepValueOptions, Does.Contain("用户输入的工步值"));
+    }
+
+    /// <summary>
+    /// 验证工步值候选按当前工步内所有步骤及其输入参数的顺序显示，不按名称排序。
+    /// </summary>
+    [Test]
+    public void Open_WorkStepValueOptions_PreservePreviousStepAndParameterOrder()
+    {
+        WorkStepOperation first = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { Num = 1, ParameterType = "工步值", Value = "Z-第一步第一个" },
+                new() { Num = 2, ParameterType = "工步值", Value = "A-第一步第二个" }
+            }
+        };
+        WorkStepOperation second = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { Num = 1, ParameterType = "工步值", Value = "M-第二步" },
+                new() { Num = 2, ParameterType = "工步值", Value = "Z-第一步第一个" }
+            }
+        };
+        WorkStepOperation current = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "工步值" }
+            }
+        };
+        OperationEditorViewModel viewModel = new();
+
+        viewModel.Open(current, isNewOperation: false, new[] { first, second, current });
+
+        Assert.That(viewModel.WorkStepValueOptions,
+            Is.EqualTo(new[] { "Z-第一步第一个", "A-第一步第二个", "M-第二步" }));
+    }
+
+    /// <summary>
+    /// 验证返回值候选按前面步骤及其返回值键的顺序显示，不按名称排序。
+    /// </summary>
+    [Test]
+    public void Open_ReturnValueOptions_PreservePreviousStepAndReturnValueOrder()
+    {
+        WorkStepOperation first = new()
+        {
+            ReturnValue = "Z-第一步",
+            ReturnValues = new ObservableCollection<ReturnValue>
+            {
+                new() { Num = 1, ReturnParameterName = "第一个" },
+                new() { Num = 2, ReturnParameterName = "第二个" }
+            }
+        };
+        WorkStepOperation second = new()
+        {
+            ReturnValue = "A-第二步",
+            ReturnValues = new ObservableCollection<ReturnValue>
+            {
+                new() { Num = 1, ReturnParameterName = "结果" }
+            }
+        };
+        WorkStepOperation current = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "返回值" }
+            }
+        };
+        OperationEditorViewModel viewModel = new();
+
+        viewModel.Open(current, isNewOperation: false, new[] { first, second, current });
+
+        Assert.That(viewModel.ParameterReturnValueOptions,
+            Is.EqualTo(new[] { "Z-第一步_第一个", "Z-第一步_第二个", "A-第二步_结果" }));
+    }
+
+    /// <summary>
+    /// 验证条件执行左右参数按类型装载与输入参数相同的返回值和工步值候选。
+    /// </summary>
+    [Test]
+    public void Open_ConditionParameterTypes_LoadMatchingValueOptions()
+    {
+        WorkStepOperation previous = new()
+        {
+            ReturnValue = "前步骤",
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "工步值", Value = "工步参数值" }
+            },
+            ReturnValues = new ObservableCollection<ReturnValue>
+            {
+                new() { ReturnParameterName = "结果" }
+            }
+        };
+        WorkStepOperation current = new()
+        {
+            ConditionExecution = new ConditionExecution
+            {
+                LeftParameterType = "返回值",
+                RightParameterType = "工步值"
+            }
+        };
+        OperationEditorViewModel viewModel = new();
+
+        viewModel.Open(current, isNewOperation: false, new[] { previous, current });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.ParameterReturnValueOptions, Is.EqualTo(new[] { "前步骤_结果" }));
+            Assert.That(viewModel.WorkStepValueOptions, Is.EqualTo(new[] { "工步参数值" }));
+        });
+    }
+
+    /// <summary>
+    /// 验证保存后刷新共享候选集合时，条件执行左右参数值保持不变。
+    /// </summary>
+    [Test]
+    public void Save_ConditionExecution_PreservesLeftAndRightValuesAfterOptionRefresh()
+    {
+        ObservableCollection<WorkStepOperation> operations = new();
+        OperationEditorViewModel viewModel = new();
+        viewModel.OperationSaved += (_, e) => operations.Add(e.Operation);
+        WorkStepOperation operation = new()
+        {
+            OperationObjectName = "System",
+            ConditionExecution = new ConditionExecution
+            {
+                IsEnabled = true,
+                LeftParameterType = "工步值",
+                LeftValue = "左参数值",
+                RightParameterType = "设置值",
+                RightValue = "右参数值"
+            }
+        };
+
+        viewModel.Open(operation, isNewOperation: true, operations);
+        viewModel.Save();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.EditingOperation.ConditionExecution.LeftValue, Is.EqualTo("左参数值"));
+            Assert.That(viewModel.EditingOperation.ConditionExecution.RightValue, Is.EqualTo("右参数值"));
+            Assert.That(operations.Single().ConditionExecution.LeftValue, Is.EqualTo("左参数值"));
+            Assert.That(operations.Single().ConditionExecution.RightValue, Is.EqualTo("右参数值"));
+        });
+    }
+
+    /// <summary>
+    /// 验证当前编辑步骤新增工步值后，无需保存即可刷新共享候选集合。
+    /// </summary>
+    [Test]
+    public void RefreshWorkStepValueOptions_UsesUnsavedEditingParameterValue()
+    {
+        WorkStepOperation operation = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "设置值", Value = "原参数值" }
+            }
+        };
+        ObservableCollection<WorkStepOperation> operations = new() { operation };
+        OperationEditorViewModel viewModel = new();
+        viewModel.Open(operation, isNewOperation: false, operations);
+        viewModel.EditingOperation.Parameters[0].ParameterType = "工步值";
+        viewModel.EditingOperation.Parameters[0].Value = "未保存的新工步值";
+
+        viewModel.RefreshWorkStepValueOptionsFromEditingOperation();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.WorkStepValueOptions, Does.Contain("未保存的新工步值"));
+            Assert.That(viewModel.WorkStepValueOptions, Does.Not.Contain("原参数值"));
+        });
+    }
+
+    /// <summary>
+    /// 验证条件执行左右参数新增的工步值名称无需保存即可进入共享候选集合。
+    /// </summary>
+    [Test]
+    public void RefreshWorkStepValueOptions_IncludesUnsavedConditionValues()
+    {
+        WorkStepOperation operation = new()
+        {
+            Parameters = new ObservableCollection<InputParameter>
+            {
+                new() { ParameterType = "工步值", Value = "输入参数工步值" }
+            },
+            ConditionExecution = new ConditionExecution
+            {
+                LeftParameterType = "工步值",
+                LeftValue = "左参数新工步值",
+                RightParameterType = "工步值",
+                RightValue = "右参数新工步值"
+            }
+        };
+        OperationEditorViewModel viewModel = new();
+        viewModel.Open(operation, isNewOperation: true, Array.Empty<WorkStepOperation>());
+
+        viewModel.RefreshWorkStepValueOptionsFromEditingOperation();
+
+        Assert.That(viewModel.WorkStepValueOptions, Is.EqualTo(new[]
+        {
+            "输入参数工步值",
+            "左参数新工步值",
+            "右参数新工步值"
+        }));
+    }
+}
+
+

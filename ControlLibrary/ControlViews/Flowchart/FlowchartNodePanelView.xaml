@@ -143,7 +143,7 @@
                            TextWrapping="Wrap" />
                 <TextBlock Margin="0,6,0,0"
                            Foreground="{DynamicResource AppMutedTextBrush}"
-                           Text="双击处理块或判断块可打开同一套步骤编辑弹框。"
+                           Text="双击处理块可打开步骤编辑弹框。"
                            TextWrapping="Wrap" />
             </StackPanel>
         </ScrollViewer>

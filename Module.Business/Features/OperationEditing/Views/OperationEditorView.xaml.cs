@@ -135,6 +135,17 @@ public partial class OperationEditorView : UserControl
     private void InvokeParameterDataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
     {
         EnableParameterEditing();
+
+        // CellEditEnding 发生时编辑控件尚未将最新参数类型和参数值回写到实体，延后到本次提交完成后刷新共享工步值集合。
+        Dispatcher.BeginInvoke(() => ViewModel?.RefreshWorkStepValueOptionsFromEditingOperation());
+    }
+
+    /// <summary>
+    /// 在任一参数值下拉框展开前刷新共享工步值集合，确保当前弹框中刚输入且尚未保存的新工步值立即可选。
+    /// </summary>
+    private void ParameterValueComboBox_DropDownOpened(object sender, EventArgs e)
+    {
+        ViewModel?.RefreshWorkStepValueOptionsFromEditingOperation();
     }
 
     #endregion
@@ -171,7 +182,7 @@ public partial class OperationEditorView : UserControl
         }
 
         ViewModel.EditingOperation.OperationObjectName = operation.OperationObjectName;
-        if (ViewModel.IsSystemOrJudgeOperationSelected || ViewModel.IsLuaOperationSelected)
+        if (ViewModel.IsSystemOperationSelected || ViewModel.IsLuaOperationSelected)
         {
             ViewModel.EditingOperation.PCommandName = string.Empty;
         }
@@ -223,7 +234,7 @@ public partial class OperationEditorView : UserControl
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(OperationEditorViewModel.EditingOperation)
-            or nameof(OperationEditorViewModel.OperationMethods)
+            or nameof(OperationEditorViewModel.StationOperationMethodCollection)
             or nameof(WorkStepOperation.OperationObjectName)
             or nameof(WorkStepOperation.PCommandName))
         {
@@ -253,7 +264,7 @@ public partial class OperationEditorView : UserControl
             return;
         }
 
-        StationOperationMethodItem? selectedMethod = ViewModel.OperationMethods.FirstOrDefault(item =>
+        StationOperationMethodItem? selectedMethod = ViewModel.StationOperationMethodCollection.FirstOrDefault(item =>
             string.Equals(item.OperationObject, ViewModel.EditingOperation.OperationObjectName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(item.InvokeMethod, ViewModel.EditingOperation.PCommandName, StringComparison.OrdinalIgnoreCase));
 

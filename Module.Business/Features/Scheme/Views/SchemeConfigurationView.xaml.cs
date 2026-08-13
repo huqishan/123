@@ -1,6 +1,5 @@
 using Module.Business.Features.Scheme.ViewModels;
 using Module.Business.Features.Scheme.ViewModels.PresentationModels;
-using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using Module.Business.Models;
 using System;
 using System.Collections.Generic;
@@ -14,17 +13,14 @@ using System.Windows.Media;
 namespace Module.Business.Features.Scheme.Views
 {
     /// <summary>
-    /// 方案配置视图，负责方案工步拖拽和操作编辑抽屉。
+    /// 方案配置视图，负责方案与方案工步的维护及拖拽排序。
     /// </summary>
     public partial class SchemeConfigurationView : UserControl
     {
         #region 拖拽数据格式
         private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
-        private const string OperationDragDataFormat = "Module.Business.WorkStepOperation";
         private Point _schemeStepDragStartPoint;
         private SchemeWorkStepItem? _pendingDraggedSchemeStep;
-        private Point _operationDragStartPoint;
-        private WorkStepOperation? _pendingDraggedOperation;
 
         #endregion
 
@@ -88,8 +84,6 @@ namespace Module.Business.Features.Scheme.Views
         {
             SchemeStepsDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
             SchemeStepsDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
-            OperationsDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
-            OperationsDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
         }
 
         /// <summary>
@@ -277,7 +271,7 @@ namespace Module.Business.Features.Scheme.Views
 
         #endregion
 
-        #region 工步步骤拖拽与操作编辑抽屉
+        #if false
         /// <summary>
         /// 记录步骤拖拽起点；复选框及可编辑单元格继续保留原有点击、编辑行为。
         /// </summary>
@@ -429,7 +423,7 @@ namespace Module.Business.Features.Scheme.Views
             e.Handled = true;
         }
 
-        #endregion
+        #endif
 
         #region 抽屉动画
 
@@ -456,6 +450,7 @@ namespace Module.Business.Features.Scheme.Views
         /// <summary>
         /// 判断是否满足指定业务条件。
         /// </summary>
+        #if false
         private static bool IsInlineEditableOperationCell(DependencyObject? source)
         {
             if (FindAncestor<ComboBox>(source) is not null ||
@@ -490,6 +485,7 @@ namespace Module.Business.Features.Scheme.Views
             return FindAncestor<CheckBox>(source) is not null;
         }
 
+        #endif
         private static T? FindAncestor<T>(DependencyObject? current)
             where T : DependencyObject
         {

@@ -186,7 +186,8 @@ public static class SchemeConfigurationStore
             DelayMilliseconds = Math.Max(0, operation.DelayMilliseconds),
             IsEditParameter = operation.IsEditParameter,
             Parameters = parameters,
-            ReturnValues = returnValues
+            ReturnValues = returnValues,
+            ConditionExecution = operation.ConditionExecution?.Clone() ?? new ConditionExecution()
         };
     }
 
@@ -200,11 +201,6 @@ public static class SchemeConfigurationStore
         if (IsLuaOperationObject(operation.OperationObjectName))
         {
             return "Lua";
-        }
-
-        if (IsJudgeOperationObject(operation.OperationObjectName))
-        {
-            return "判断";
         }
 
         if (IsNormalizedSystemOperationObject(operation.OperationObjectName))
@@ -321,16 +317,6 @@ public static class SchemeConfigurationStore
     private static bool IsNormalizedSystemOperationObject(string? operationObject)
     {
         return IsSystemOperationObject(operationObject);
-    }
-
-    /// <summary>
-    /// 判断操作对象是否为判断操作。
-    /// </summary>
-    /// <param name="operationObject">操作对象文本。</param>
-    /// <returns>是判断操作时返回 true。</returns>
-    private static bool IsJudgeOperationObject(string? operationObject)
-    {
-        return string.Equals(operationObject?.Trim(), "判断", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

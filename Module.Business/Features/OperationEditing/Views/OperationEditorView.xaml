@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:luaEditor="clr-namespace:ControlLibrary.ControlViews.LuaScrip;assembly=ControlLibrary"
              xmlns:converts="clr-namespace:ControlLibrary.Converts;assembly=ControlLibrary"
+             xmlns:operationConverters="clr-namespace:Module.Business.Features.OperationEditing.Converters"
              xmlns:local="clr-namespace:Module.Business.Features.OperationEditing.Views"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
@@ -14,6 +15,7 @@
         <BooleanToVisibilityConverter x:Key="b2v" />
         <converts:ComparisonToVisibilityConvert x:Key="comp2v"/>
         <converts:InvertVisibilityConvert x:Key="in2v"/>
+        <operationConverters:ParameterValueOptionsConverter x:Key="ParameterValueOptionsConverter" />
         <!-- 条件执行区需要在较小宽度内保持与步骤编辑器一致的输入控件外观，因此仅覆盖尺寸，不另造一套控件模板。 -->
         <Style x:Key="ConditionComboBoxStyle"
                TargetType="ComboBox"
@@ -76,7 +78,7 @@ Text="{Binding EditingOperation.ReturnValue, Mode=TwoWay, UpdateSourceTrigger=Pr
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Grid.Column="2" Margin="16,6,0,0">
+        <StackPanel Grid.Row="1" Grid.Column="2" Margin="16,6,6,0">
             <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Lua脚本模版" />
             <ComboBox x:Name="LuaScriptTemplateComboBox"
 Style="{StaticResource EditableInputComboBoxStyle}"
@@ -127,11 +129,11 @@ Style="{StaticResource ColumnsDataGridStyle}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition/>
+                    <RowDefinition/>
                 </Grid.RowDefinitions>
                 <StackPanel Grid.Row="0">
-                    <!-- #region 条件执行界面：当前仅提供布局和本地交互，后续接入执行模型时再补充业务绑定。 -->
-                    <Border Margin="0,0,0,12"
-                            Background="{DynamicResource TabCardBackgroundBrush}"
+                    <!-- #region 条件执行界面：直接绑定步骤内的条件执行实体，随步骤保存和克隆。 -->
+                    <Border Background="{DynamicResource TabCardBackgroundBrush}"
                             BorderBrush="{DynamicResource TabItemBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="4">
@@ -147,6 +149,7 @@ Style="{StaticResource ColumnsDataGridStyle}">
                                     CornerRadius="4,4,0,0">
                                 <CheckBox x:Name="ConditionExecutionCheckBox"
                                           VerticalAlignment="Center"
+                                          IsChecked="{Binding EditingOperation.ConditionExecution.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           Content="条件执行" />
                             </Border>
 
@@ -171,39 +174,69 @@ Style="{StaticResource ColumnsDataGridStyle}">
                                 <ComboBox Grid.Column="1"
                                           Margin="0,0,8,6"
                                           ItemsSource="{Binding ParameterTypeOptions}"
-                                          SelectedIndex="0"
+                                          SelectedItem="{Binding EditingOperation.ConditionExecution.LeftParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           Style="{StaticResource ConditionComboBoxStyle}" />
                                 <TextBlock Grid.Column="2" Margin="0,0,5,6" VerticalAlignment="Center" Text="值:" />
-                                <ComboBox Grid.Column="3" Grid.ColumnSpan="2" Margin="0,0,0,6" IsEditable="True" Style="{StaticResource ConditionComboBoxStyle}" />
+                                <ComboBox Grid.Column="3" Grid.ColumnSpan="2" Margin="0,0,0,6"
+                                          IsEditable="True"
+                                          DropDownOpened="ParameterValueComboBox_DropDownOpened"
+                                          Text="{Binding EditingOperation.ConditionExecution.LeftValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Style="{StaticResource ConditionComboBoxStyle}">
+                                    <ComboBox.ItemsSource>
+                                        <MultiBinding Converter="{StaticResource ParameterValueOptionsConverter}">
+                                            <Binding Path="EditingOperation.ConditionExecution.LeftParameterType" />
+                                            <Binding Path="ParameterReturnValueOptions" />
+                                            <Binding Path="WorkStepValueOptions" />
+                                        </MultiBinding>
+                                    </ComboBox.ItemsSource>
+                                </ComboBox>
 
                                 <TextBlock Grid.Row="1" Margin="0,0,5,6" VerticalAlignment="Center" Text="关系符  条件:" />
                                 <ComboBox Grid.Row="1"
                                           Grid.Column="1"
                                           Margin="0,0,8,6"
                                           ItemsSource="{Binding JudgmentConditionOptions}"
-                                          SelectedIndex="0"
+                                          SelectedItem="{Binding EditingOperation.ConditionExecution.RelationOperator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           Style="{StaticResource ConditionComboBoxStyle}" />
-                                <CheckBox Grid.Row="1"
+                                <!--<CheckBox Grid.Row="1"
                                           Grid.Column="2"
                                           Grid.ColumnSpan="3"
                                           Margin="0,0,0,6"
                                           VerticalAlignment="Center"
-                                          Content="字符串参数" />
+                                          Content="字符串参数" />-->
 
                                 <TextBlock Grid.Row="2" Margin="0,0,5,6" VerticalAlignment="Center" Text="右参数  类型:" />
                                 <ComboBox Grid.Row="2"
                                           Grid.Column="1"
                                           Margin="0,0,8,6"
                                           ItemsSource="{Binding ParameterTypeOptions}"
-                                          SelectedIndex="0"
+                                          SelectedItem="{Binding EditingOperation.ConditionExecution.RightParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           Style="{StaticResource ConditionComboBoxStyle}" />
                                 <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,0,5,6" VerticalAlignment="Center" Text="值:" />
-                                <ComboBox Grid.Row="2" Grid.Column="3" Grid.ColumnSpan="2" Margin="0,0,0,6" IsEditable="True" Style="{StaticResource ConditionComboBoxStyle}" />
+                                <ComboBox Grid.Row="2" Grid.Column="3" Grid.ColumnSpan="2" Margin="0,0,0,6"
+                                          IsEditable="True"
+                                          DropDownOpened="ParameterValueComboBox_DropDownOpened"
+                                          Text="{Binding EditingOperation.ConditionExecution.RightValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Style="{StaticResource ConditionComboBoxStyle}">
+                                    <ComboBox.ItemsSource>
+                                        <MultiBinding Converter="{StaticResource ParameterValueOptionsConverter}">
+                                            <Binding Path="EditingOperation.ConditionExecution.RightParameterType" />
+                                            <Binding Path="ParameterReturnValueOptions" />
+                                            <Binding Path="WorkStepValueOptions" />
+                                        </MultiBinding>
+                                    </ComboBox.ItemsSource>
+                                </ComboBox>
+                                <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal">
+                                    <CheckBox VerticalAlignment="Center"
+                                              IsChecked="{Binding EditingOperation.ConditionExecution.IsNgJumpEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              Content="判断NG跳转到步骤ID：" />
+                                    <TextBox Margin="0,0,5,0" Padding="8,6" Height="30"
+                                             IsEnabled="{Binding EditingOperation.ConditionExecution.IsNgJumpEnabled}"
+                                             Text="{Binding EditingOperation.ConditionExecution.NgJumpStepId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource InputTextBoxStyle}" Width="85"/>
+                                </StackPanel>
 
-                                <CheckBox Grid.Row="3"
-                                          Grid.ColumnSpan="2"
-                                          VerticalAlignment="Center"
-                                          Content="跳转" />
+
                                 <TextBlock Grid.Row="3"
                                            Grid.Column="2"
                                            Grid.ColumnSpan="3"
@@ -215,57 +248,69 @@ Style="{StaticResource ColumnsDataGridStyle}">
                         </Grid>
                     </Border>
                     <!-- #endregion -->
-
+                </StackPanel>
+                <Grid Margin="0,6,0,0" Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
                     <TextBlock Style="{StaticResource FieldLabelStyle}"
-                               Text="{DynamicResource 输入参数}" />
-                    <DataGrid x:Name="InvokeParameterDataGrid"
-                              Height="300"
-                              AutoGenerateColumns="False"
-                              CellEditEnding="InvokeParameterDataGrid_CellEditEnding"
-                              HorizontalScrollBarVisibility="Disabled"
-                              IsReadOnly="False"
-                              ItemsSource="{Binding EditingParameterRows}"
-                              SelectedValuePath="Parameter"
-                              SelectedValue="{Binding SelectedEditingInvokeParameter, Mode=TwoWay}"
-                              Style="{StaticResource ColumnsDataGridStyle}">
+           Text="{DynamicResource 输入参数}" />
+                    <DataGrid x:Name="InvokeParameterDataGrid" Grid.Row="1"
+          AutoGenerateColumns="False"
+          CellEditEnding="InvokeParameterDataGrid_CellEditEnding"
+          HorizontalScrollBarVisibility="Disabled"
+          IsReadOnly="False"
+          ItemsSource="{Binding EditingParameterRows}"
+          SelectedValuePath="Parameter"
+          SelectedValue="{Binding SelectedEditingInvokeParameter, Mode=TwoWay}"
+          Style="{StaticResource ColumnsDataGridStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Width="54" IsReadOnly="True"
-                                                Header="{DynamicResource 序号}"
-                                                ElementStyle="{StaticResource CellTextBlockStyle}"
-                                                EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Parameter.Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            Header="{DynamicResource 序号}"
+                            ElementStyle="{StaticResource CellTextBlockStyle}"
+                            EditingElementStyle="{StaticResource CellTextBoxStyle}"
+                            Binding="{Binding Parameter.Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <DataGridTemplateColumn Width="1.2*"
-                                                    Header="{DynamicResource 参数类型}">
+                                Header="{DynamicResource 参数类型}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox Style="{StaticResource EditableInputComboBoxStyle}"
-                                                  ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-                                                  ItemsSource="{Binding DataContext.ParameterTypeOptions, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                  SelectedItem="{Binding Parameter.ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                              ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+                              ItemsSource="{Binding DataContext.ParameterTypeOptions, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                              SelectedItem="{Binding Parameter.ParameterType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="1.35*"
-                                                    Header="{DynamicResource 参数值}">
+                                Header="{DynamicResource 参数值}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
                                             <TextBox Style="{StaticResource CellTextBoxStyle}" ToolTip="{Binding Parameter.Value}"
-                                                     Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=设置值}"
-                                                     Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <ComboBox ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
-                                                      ItemsSource="{Binding ValueOptions}" ToolTip="{Binding Parameter.Value}"
-                                                      Style="{StaticResource EditableInputComboBoxStyle}" Padding="0" Height="34"
-                                                      Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|全局值}"
-                                                      Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                 Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=设置值}"
+                                 Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ComboBox ItemContainerStyle="{StaticResource InputComboBoxItemStyle}" ToolTip="{Binding Parameter.Value}"
+                                  Style="{StaticResource EditableInputComboBoxStyle}" Padding="0" Height="34"
+                                  DropDownOpened="ParameterValueComboBox_DropDownOpened"
+                                  Visibility="{Binding Parameter.ParameterType, Converter={StaticResource comp2v}, ConverterParameter=返回值|工步值|全局值}"
+                                  Text="{Binding Parameter.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <ComboBox.ItemsSource>
+                                                    <MultiBinding Converter="{StaticResource ParameterValueOptionsConverter}">
+                                                        <Binding Path="Parameter.ParameterType" />
+                                                        <Binding Path="DataContext.ParameterReturnValueOptions" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
+                                                        <Binding Path="DataContext.WorkStepValueOptions" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
+                                                    </MultiBinding>
+                                                </ComboBox.ItemsSource>
+                                            </ComboBox>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Width="1.25*" IsReadOnly="True"
-                                                Header="{DynamicResource 描述}"
-                                                EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                                                Binding="{Binding Parameter.Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            Header="{DynamicResource 描述}"
+                            EditingElementStyle="{StaticResource CellTextBoxStyle}"
+                            Binding="{Binding Parameter.Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource CellTextBlockStyle}">
                                         <!-- 描述列宽度有限，悬停时通过 ToolTip 展示完整参数说明。 -->
@@ -275,9 +320,8 @@ Style="{StaticResource ColumnsDataGridStyle}">
                             </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                </StackPanel>
-
-                <Grid Margin="0,6,0,0" Grid.Row="1">
+                </Grid>
+                <Grid Margin="0,6,0,0" Grid.Row="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>

@@ -1,4 +1,5 @@
 using Autofac;
+using ControlLibrary.Controls.MessageDialog;
 using ControlLibrary.Controls.TestDataTable.Models;
 using ControlLibrary.Models.EventsModels.Test;
 using Module.MES.Features.ApiConfig.ViewModels;
@@ -39,6 +40,7 @@ public sealed class DependencyInjectionRegressionTests
         using IContainer container = BuildApplicationContainer();
 
         LoginWindow loginWindow = container.Resolve<LoginWindow>();
+        MessageDialog messageDialog = container.Resolve<MessageDialog>();
         LoginWindowViewModel loginWindowViewModel = container.Resolve<LoginWindowViewModel>();
         ApiConfigViewModel apiConfigViewModel = container.Resolve<ApiConfigViewModel>();
         using TestViewModel testViewModel = container.Resolve<TestViewModel>();
@@ -47,6 +49,7 @@ public sealed class DependencyInjectionRegressionTests
         Assert.Multiple(() =>
         {
             Assert.That(loginWindow, Is.Not.Null);
+            Assert.That(messageDialog, Is.Not.Null);
             Assert.That(loginWindowViewModel, Is.Not.Null);
             Assert.That(apiConfigViewModel, Is.Not.Null);
             Assert.That(testViewModel, Is.Not.Null);
@@ -54,6 +57,7 @@ public sealed class DependencyInjectionRegressionTests
         });
 
         loginWindow.Close();
+        messageDialog.Close();
     }
 
     [Test]

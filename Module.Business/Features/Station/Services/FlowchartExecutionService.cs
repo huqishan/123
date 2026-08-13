@@ -477,16 +477,18 @@ public static class FlowchartExecutionService
         string methodName = operation.PCommandName?.Trim() ?? string.Empty;
         result = methodName switch
         {
-            "等于判断" => TextEquals(GetValue(values, 0), GetValue(values, 1)),
-            "不等判断" => !TextEquals(GetValue(values, 0), GetValue(values, 1)),
-            "大于判断" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) > 0,
-            "大于等于判断" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) >= 0,
-            "小于判断" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) < 0,
-            "小于等于判断" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) <= 0,
-            "包含判断" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) >= 0,
-            "不包含判断" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) < 0,
-            "为空判断" => string.IsNullOrWhiteSpace(GetValue(values, 0)),
-            "不为空判断" => !string.IsNullOrWhiteSpace(GetValue(values, 0)),
+            "=" => TextEquals(GetValue(values, 0), GetValue(values, 1)),
+            "≠" => !TextEquals(GetValue(values, 0), GetValue(values, 1)),
+            ">" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) > 0,
+            "≥" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) >= 0,
+            "<" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) < 0,
+            "≤" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) <= 0,
+            "∈" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) >= 0 && CompareNumbers(GetValue(values, 0), GetValue(values, 2)) <= 0,
+            "∉" => CompareNumbers(GetValue(values, 0), GetValue(values, 1)) < 0 || CompareNumbers(GetValue(values, 0), GetValue(values, 2)) > 0,
+            "∋" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) >= 0,
+            "∌" => GetValue(values, 0).IndexOf(GetValue(values, 1), StringComparison.OrdinalIgnoreCase) < 0,
+            "= ∅" => string.IsNullOrWhiteSpace(GetValue(values, 0)),
+            "≠ ∅" => !string.IsNullOrWhiteSpace(GetValue(values, 0)),
             _ => false
         };
 
@@ -591,16 +593,18 @@ public static class FlowchartExecutionService
     {
         return methodName.Trim() switch
         {
-            "等于判断" => true,
-            "不等判断" => true,
-            "大于判断" => true,
-            "大于等于判断" => true,
-            "小于判断" => true,
-            "小于等于判断" => true,
-            "包含判断" => true,
-            "不包含判断" => true,
-            "为空判断" => true,
-            "不为空判断" => true,
+            "=" => true,
+            "≠" => true,
+            ">" => true,
+            "≥" => true,
+            "<" => true,
+            "≤" => true,
+            "∈" => true,
+            "∉" => true,
+            "∋" => true,
+            "∌" => true,
+            "= ∅" => true,
+            "≠ ∅" => true,
             _ => false
         };
     }

@@ -24,7 +24,11 @@ public partial class StationConfigurationView : UserControl
 
     private void Editor_NodeDoubleClick(object sender, FlowchartNodeInteractionEventArgs e)
     {
-        ViewModel?.OpenNodeOperationEditor(e, FlowchartPanel.CreateDocumentSnapshot());
+        // 判断块不再使用普通步骤编辑器；双击入口只处理流程图处理块。
+        if (e.NodeKind == FlowchartNodeKind.Process)
+        {
+            ViewModel?.OpenNodeOperationEditor(e, FlowchartPanel.CreateDocumentSnapshot());
+        }
     }
 
     private void NodeOperationEditorSaveButton_Click(object sender, RoutedEventArgs e)

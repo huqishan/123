@@ -8,46 +8,6 @@ using System.Linq;
 
 namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModels
 {
-    #region 操作方法元数据
-
-    /// <summary>
-    /// 系统或判断方法的参数元数据。
-    /// </summary>
-    internal sealed record SystemMethodParameterSelectionItem(
-        string Name,
-        string TypeName,
-        string Description,
-        string DefaultValue = "");
-
-    /// <summary>
-    /// 系统或判断方法的选择项元数据。
-    /// </summary>
-    internal sealed class SystemMethodSelectionItem
-    {
-        public SystemMethodSelectionItem(
-            string name,
-            string summary,
-            IEnumerable<SystemMethodParameterSelectionItem> parameters)
-        {
-            Name = name;
-            Summary = summary;
-            Parameters = parameters.ToArray();
-        }
-
-        public string Name { get; }
-
-        public string Summary { get; }
-
-        public IReadOnlyList<SystemMethodParameterSelectionItem> Parameters { get; }
-    }
-
-    /// <summary>
-    /// 协议指令占位符选择项。
-    /// </summary>
-    internal sealed record ProtocolPlaceholderSelectionItem(string Name, string Value);
-
-    #endregion
-
     /// <summary>
     /// 业务方案工步操作
     /// </summary>
@@ -67,6 +27,7 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
         private bool _isChecked;
         private ObservableCollection<InputParameter> _parameters = new();
         private ObservableCollection<ReturnValue> _returnValues = new();
+        private ConditionExecution _conditionExecution = new();
 
         #endregion
 
@@ -76,6 +37,7 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
         {
             AttachParameters(_parameters);
             AttachReturnValues(_returnValues);
+            _conditionExecution.PropertyChanged += ConditionExecution_PropertyChanged;
         }
 
         #endregion
@@ -212,6 +174,27 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
                 OnPropertyChanged();
             }
         }
+
+        /// <summary>
+        /// 条件执行配置。该实体跟随步骤一起克隆和保存，未启用时执行器可直接忽略其余字段。
+        /// </summary>
+        public ConditionExecution ConditionExecution
+        {
+            get => _conditionExecution;
+            set
+            {
+                ConditionExecution normalized = value ?? new ConditionExecution();
+                if (ReferenceEquals(_conditionExecution, normalized))
+                {
+                    return;
+                }
+
+                _conditionExecution.PropertyChanged -= ConditionExecution_PropertyChanged;
+                _conditionExecution = normalized;
+                _conditionExecution.PropertyChanged += ConditionExecution_PropertyChanged;
+                OnPropertyChanged();
+            }
+        }
         #endregion
 
         #region 集合通知
@@ -309,6 +292,14 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
             }
         }
 
+        /// <summary>
+        /// 将条件子实体的字段变化提升为步骤实体变化，保证工步页面能够识别未保存修改。
+        /// </summary>
+        private void ConditionExecution_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(ConditionExecution));
+        }
+
         #endregion
 
         #region 克隆
@@ -328,12 +319,71 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
                 IsEditParameter = IsEditParameter,
                 IsChecked = false,
                 Parameters = new ObservableCollection<InputParameter>(Parameters.Select(parameter => parameter.Clone())),
-                ReturnValues = new ObservableCollection<ReturnValue>(ReturnValues.Select(returnValue => returnValue.Clone()))
+                ReturnValues = new ObservableCollection<ReturnValue>(ReturnValues.Select(returnValue => returnValue.Clone())),
+                ConditionExecution = ConditionExecution.Clone()
             };
         }
 
         #endregion
 
+    }
+
+    /// <summary>
+    /// 步骤条件执行视图实体，保存条件两侧参数、关系符及判断失败后的跳转配置。
+    /// </summary>
+    public sealed class ConditionExecution : ViewModelProperties
+    {
+        #region 私有字段
+
+        private bool _isEnabled;
+        private string _leftParameterType = "设置值";
+        private string _leftValue = string.Empty;
+        private string _relationOperator = "NA";
+        private string _rightParameterType = "设置值";
+        private string _rightValue = string.Empty;
+        private bool _isNgJumpEnabled;
+        private string _ngJumpStepId = string.Empty;
+
+        #endregion
+
+        #region 属性
+
+        public bool IsEnabled { get => _isEnabled; set => SetField(ref _isEnabled, value); }
+
+        public string LeftParameterType { get => _leftParameterType; set => SetField(ref _leftParameterType, value ?? string.Empty, true); }
+
+        public string LeftValue { get => _leftValue; set => SetField(ref _leftValue, value ?? string.Empty); }
+
+        public string RelationOperator { get => _relationOperator; set => SetField(ref _relationOperator, value ?? string.Empty, true); }
+
+        public string RightParameterType { get => _rightParameterType; set => SetField(ref _rightParameterType, value ?? string.Empty, true); }
+
+        public string RightValue { get => _rightValue; set => SetField(ref _rightValue, value ?? string.Empty); }
+
+        public bool IsNgJumpEnabled { get => _isNgJumpEnabled; set => SetField(ref _isNgJumpEnabled, value); }
+
+        public string NgJumpStepId { get => _ngJumpStepId; set => SetField(ref _ngJumpStepId, value ?? string.Empty, true); }
+
+        #endregion
+
+        #region 克隆
+
+        public ConditionExecution Clone()
+        {
+            return new ConditionExecution
+            {
+                IsEnabled = IsEnabled,
+                LeftParameterType = LeftParameterType,
+                LeftValue = LeftValue,
+                RelationOperator = RelationOperator,
+                RightParameterType = RightParameterType,
+                RightValue = RightValue,
+                IsNgJumpEnabled = IsNgJumpEnabled,
+                NgJumpStepId = NgJumpStepId
+            };
+        }
+
+        #endregion
     }
 
     /// <summary>
@@ -428,8 +478,7 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
     }
 
     /// <summary>
-    /// 输入参数编辑行，将持久化业务参数与仅供弹框使用的参数值候选集合组合在一起。
-    /// ValueOptions 不进入 InputParameter，也不会被方案序列化和执行服务依赖。
+    /// 输入参数编辑行，仅包装持久化业务参数供 DataGrid 绑定。
     /// </summary>
     public sealed class InputParameterEditorItem
     {
@@ -446,10 +495,6 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
         public InputParameter Parameter { get; }
 
         /// <summary>
-        /// 参数值下拉候选，仅在操作编辑器生命周期内使用。
-        /// </summary>
-        public ObservableCollection<string> ValueOptions { get; } = new();
-
         #endregion
     }
 
