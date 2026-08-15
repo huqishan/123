@@ -6,6 +6,7 @@ using Module.Business.Features.OperationEditing.Models;
 using Module.Business.Features.OperationEditing.Services;
 using Module.Business.Features.Scheme.ViewModels.PresentationModels;
 using Module.Business.Features.WorkStep.Services;
+using Module.Business.Features.WorkStep.ViewModels.PresentationModels;
 using Module.Business.Services;
 using Module.Business.Services.BusinessOperations;
 using System;
@@ -41,9 +42,12 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     private DateTime _lastCreateOrCopyCommandAt = DateTime.MinValue;
     private readonly List<WorkStepOperation> _copiedOperations = new();
     private bool _isWorkStepParameterDrawerOpen;
+    private bool _isBatchWorkStepDrawerOpen;
+    private string _batchWorkStepSearchText = string.Empty;
     private SchemeWorkStepItem? _editingSchemeWorkStep;
     private SchemeWorkStepItem? _originalSchemeWorkStep;
     private bool _isNewSchemeWorkStep;
+    private readonly ObservableCollection<WorkStepProfile> _workStepProfiles = WorkStepConfigurationStore.Load();
 
     #endregion
 
@@ -71,7 +75,80 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name));
 
+    /// <summary>当前内置工步中类型为“工步值”的输入参数。</summary>
+    public ObservableCollection<SchemeWorkStepParameterItem> WorkStepInputParameters { get; } = new();
+
+    /// <summary>当前内置工步中勾选显示到界面的返回参数。</summary>
+    public ObservableCollection<SchemeWorkStepParameterItem> WorkStepReturnParameters { get; } = new();
+
+    /// <summary>返回参数判断符号固定集合。</summary>
+    public ObservableCollection<string> JudgeOperators { get; } = new()
+    {
+        "NA",
+        "=",
+        "≠",
+        ">",
+        "≥",
+        "<",
+        "≤",
+        "＜{0}＜",
+        "≤{0}≤",
+        "()",
+        "!()",
+        "黑名单",
+        "白名单",
+    };
+    /// <summary>
+    /// 根据内置工步名称刷新抽屉中的输入参数和返回参数展示。
+    /// </summary>
+    public void SelectBuiltInWorkStep(string workStepName)
+    {
+        WorkStepInputParameters.Clear();
+        WorkStepReturnParameters.Clear();
+        WorkStepProfile? workStep = _workStepProfiles.FirstOrDefault(item =>
+            string.Equals(item.Name, workStepName, StringComparison.OrdinalIgnoreCase));
+        if (workStep is null)
+        {
+            return;
+        }
+
+        foreach (InputParameter parameter in workStep.Operations
+                     .SelectMany(operation => operation.Parameters)
+                     .Where(parameter => string.Equals(parameter.ParameterType?.Trim(), "工步值", StringComparison.Ordinal))
+                     // 同一内置工步的多个步骤可能引用同名工步值，界面只保留首次出现项。
+                     .DistinctBy(
+                         parameter => parameter.Value?.Trim() ?? string.Empty,
+                         StringComparer.OrdinalIgnoreCase))
+        {
+            WorkStepInputParameters.Add(new SchemeWorkStepParameterItem
+            {
+                Name = parameter.Value,
+                Value = parameter.ParameterName
+            });
+        }
+
+        foreach ((WorkStepOperation operation, ReturnValue returnValue) in workStep.Operations
+                     .SelectMany(operation => operation.ReturnValues
+                         .Where(returnValue => returnValue.IsShowView)
+                         .Select(returnValue => (operation, returnValue))))
+        {
+            string returnValueName = string.IsNullOrWhiteSpace(operation.ReturnValue)
+                ? returnValue.ReturnParameterName
+                : $"{operation.ReturnValue}_{returnValue.ReturnParameterName}";
+            WorkStepReturnParameters.Add(new SchemeWorkStepParameterItem
+            {
+                Name = returnValueName,
+                Value = returnValueName
+            });
+        }
+    }
+
     public ICollectionView SchemesView { get; private set; } = null!;
+
+    /// <summary>
+    /// 批量工步抽屉中经过名称筛选的内置工步视图。
+    /// </summary>
+    public ICollectionView BatchWorkStepsView { get; private set; } = null!;
 
 
     /// 复用步骤编辑器能力。
@@ -140,6 +217,30 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     {
         get => _isWorkStepParameterDrawerOpen;
         private set => SetField(ref _isWorkStepParameterDrawerOpen, value);
+    }
+
+    /// <summary>
+    /// 是否显示批量工步浏览抽屉。
+    /// </summary>
+    public bool IsBatchWorkStepDrawerOpen
+    {
+        get => _isBatchWorkStepDrawerOpen;
+        private set => SetField(ref _isBatchWorkStepDrawerOpen, value);
+    }
+
+    /// <summary>
+    /// 批量工步抽屉中的名称筛选文本。
+    /// </summary>
+    public string BatchWorkStepSearchText
+    {
+        get => _batchWorkStepSearchText;
+        set
+        {
+            if (SetField(ref _batchWorkStepSearchText, value ?? string.Empty))
+            {
+                BatchWorkStepsView.Refresh();
+            }
+        }
     }
 
     /// <summary>
@@ -243,6 +344,34 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             if (_selectedSchemeStep is not null)
             {
                 _selectedSchemeStep.PropertyChanged += SelectedSchemeStep_PropertyChanged;
+            }
+
+            // 表格选中工步切换时，先按内置工步生成默认参数，再用方案工步已保存的实例参数覆盖。
+            WorkStepInputParameters.Clear();
+            WorkStepReturnParameters.Clear();
+            if (_selectedSchemeStep is not null)
+            {
+                SelectBuiltInWorkStep(_selectedSchemeStep.StepType);
+                if (_selectedSchemeStep.InputParameters.Count > 0)
+                {
+                    WorkStepInputParameters.Clear();
+                    foreach (SchemeWorkStepParameterItem item in _selectedSchemeStep.InputParameters
+                                 .DistinctBy(
+                                     parameter => parameter.Name?.Trim() ?? string.Empty,
+                                     StringComparer.OrdinalIgnoreCase))
+                    {
+                        WorkStepInputParameters.Add(item.Clone());
+                    }
+                }
+
+                if (_selectedSchemeStep.ReturnParameters.Count > 0)
+                {
+                    WorkStepReturnParameters.Clear();
+                    foreach (SchemeWorkStepParameterItem item in _selectedSchemeStep.ReturnParameters)
+                    {
+                        WorkStepReturnParameters.Add(item.Clone());
+                    }
+                }
             }
 
             SynchronizeSelectedWorkStep();
@@ -370,6 +499,16 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
     /// 向当前方案新增一个工步。
     /// </summary>
     public ICommand AddWorkStepToSchemeCommand { get; private set; } = null!;
+
+    /// <summary>
+    /// 打开批量工步浏览抽屉。
+    /// </summary>
+    public ICommand OpenBatchWorkStepDrawerCommand { get; private set; } = null!;
+
+    /// <summary>
+    /// 关闭批量工步浏览抽屉。
+    /// </summary>
+    public ICommand CloseBatchWorkStepDrawerCommand { get; private set; } = null!;
 
     /// <summary>
     /// 从当前方案移除选中的工步。
@@ -501,6 +640,11 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         Schemes.CollectionChanged += Schemes_CollectionChanged;
         SchemesView = CollectionViewSource.GetDefaultView(Schemes);
         SchemesView.Filter = FilterSchemes;
+        // 使用独立视图，避免抽屉筛选影响工步类型下拉框中的完整名称集合。
+        BatchWorkStepsView = new CollectionViewSource { Source = WorkStepTypes }.View;
+        BatchWorkStepsView.Filter = item => item is string workStepName &&
+            (string.IsNullOrWhiteSpace(BatchWorkStepSearchText) ||
+             workStepName.Contains(BatchWorkStepSearchText.Trim(), StringComparison.OrdinalIgnoreCase));
         InitializeCommands();
         SelectedScheme = Schemes.FirstOrDefault();
         SetPageStatus(
@@ -526,6 +670,13 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
                 }
             });
         AddWorkStepToSchemeCommand = new RelayCommand(_ => AddWorkStepToScheme(), _ => SelectedScheme is not null);
+        OpenBatchWorkStepDrawerCommand = new RelayCommand(
+            _ =>
+            {
+                BatchWorkStepSearchText = string.Empty;
+                IsBatchWorkStepDrawerOpen = true;
+            });
+        CloseBatchWorkStepDrawerCommand = new RelayCommand(_ => IsBatchWorkStepDrawerOpen = false);
         RemoveWorkStepFromSchemeCommand = new RelayCommand(
             _ => RemoveSelectedSchemeStep(),
             _ => SelectedScheme is not null && (SelectedSchemeStep is not null || SelectedScheme.Steps.Any(step => step.IsChecked)));
@@ -534,6 +685,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             {
                 if (parameter is SchemeWorkStepItem workStep)
                 {
+                    RefreshBuiltInWorkSteps();
                     SelectedSchemeStep = workStep;
                     _originalSchemeWorkStep = workStep;
                     _isNewSchemeWorkStep = false;
@@ -678,6 +830,7 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
+        RefreshBuiltInWorkSteps();
         EditingSchemeWorkStep = new SchemeWorkStepItem
         {
             StepName = GenerateUniqueSchemeStepName("工步"),
@@ -685,7 +838,32 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
         };
         _originalSchemeWorkStep = null;
         _isNewSchemeWorkStep = true;
+        WorkStepInputParameters.Clear();
+        WorkStepReturnParameters.Clear();
         IsWorkStepParameterDrawerOpen = true;
+    }
+
+    /// <summary>
+    /// 从工步配置重新加载内置工步及名称集合，确保方案新增、编辑时使用最新配置。
+    /// </summary>
+    private void RefreshBuiltInWorkSteps()
+    {
+        ObservableCollection<WorkStepProfile> latestWorkSteps = WorkStepConfigurationStore.Load();
+        _workStepProfiles.Clear();
+        foreach (WorkStepProfile workStep in latestWorkSteps)
+        {
+            _workStepProfiles.Add(workStep);
+        }
+
+        WorkStepTypes.Clear();
+        foreach (string workStepName in latestWorkSteps
+                     .Select(workStep => workStep.Name)
+                     .Where(name => !string.IsNullOrWhiteSpace(name))
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(name => name))
+        {
+            WorkStepTypes.Add(workStepName);
+        }
     }
 
     /// <summary>当前方案中的工步是否全部被勾选。</summary>
@@ -713,8 +891,22 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             return;
         }
 
+        // 新增方案工步必须关联一个实际存在的内置工步，禁止仅填写名称后直接保存。
+        if (_isNewSchemeWorkStep &&
+            (string.IsNullOrWhiteSpace(EditingSchemeWorkStep.StepType) ||
+             !_workStepProfiles.Any(workStep => string.Equals(
+                 workStep.Name,
+                 EditingSchemeWorkStep.StepType,
+                 StringComparison.OrdinalIgnoreCase))))
+        {
+            SetPageStatus("请选择内置工步后再保存。", WarningBrush);
+            return;
+        }
+
         if (_isNewSchemeWorkStep)
         {
+            EditingSchemeWorkStep.InputParameters = new ObservableCollection<SchemeWorkStepParameterItem>(WorkStepInputParameters.Select(item => item.Clone()));
+            EditingSchemeWorkStep.ReturnParameters = new ObservableCollection<SchemeWorkStepParameterItem>(WorkStepReturnParameters.Select(item => item.Clone()));
             SchemeWorkStepItem newWorkStep = EditingSchemeWorkStep.Clone();
             SelectedScheme.Steps.Add(newWorkStep);
             RefreshSchemeStepNumbers();
@@ -731,6 +923,8 @@ public sealed class SchemeConfigurationViewModel : ViewModelProperties
             _originalSchemeWorkStep.IsConfirmReTest = EditingSchemeWorkStep.IsConfirmReTest;
             _originalSchemeWorkStep.Operations = new ObservableCollection<WorkStepOperation>(
                 EditingSchemeWorkStep.Operations.Select(operation => operation.Clone()));
+            _originalSchemeWorkStep.InputParameters = new ObservableCollection<SchemeWorkStepParameterItem>(WorkStepInputParameters.Select(item => item.Clone()));
+            _originalSchemeWorkStep.ReturnParameters = new ObservableCollection<SchemeWorkStepParameterItem>(WorkStepReturnParameters.Select(item => item.Clone()));
             MoveSchemeStepToNumber(_originalSchemeWorkStep, targetNumber);
         }
 

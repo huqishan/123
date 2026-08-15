@@ -27,7 +27,7 @@
                                 CornerRadius="4" />
 
                         <Border x:Name="SelectionBoxHost"
-                                Margin="1,1,34,1"
+                                Margin="1,1,0,1"
                                 Padding="{TemplateBinding Padding}"
                                 IsHitTestVisible="False">
                             <ContentPresenter x:Name="ContentSite"
@@ -42,7 +42,7 @@
                         </Border>
 
                         <TextBox x:Name="PART_EditableTextBox"
-                                 Margin="1,1,34,1"
+                                 Margin="1,1,0,1"
                                  Padding="{TemplateBinding Padding}"
                                  VerticalContentAlignment="Center"
                                  Background="{TemplateBinding Background}"

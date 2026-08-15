@@ -223,6 +223,18 @@ public sealed class WorkStepConfigurationViewModel : ViewModelProperties
 
     private void SaveWorkSteps()
     {
+        // 工步名称作为方案配置引用内置工步的标识，保存前按去除首尾空格且忽略大小写的规则判重。
+        string? duplicateName = WorkSteps
+            .Where(workStep => !string.IsNullOrWhiteSpace(workStep.Name))
+            .GroupBy(workStep => workStep.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)
+            ?.Key;
+        if (!string.IsNullOrWhiteSpace(duplicateName))
+        {
+            SetStatus($"工步名称“{duplicateName}”重复，请修改后再保存。", WarningBrush);
+            return;
+        }
+
         DateTime savedAt = DateTime.Now;
         List<(WorkStepProfile WorkStep, DateTime PreviousTime)> modified = WorkSteps
             .Where(workStep => workStep.IsModified)

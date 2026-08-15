@@ -13,6 +13,38 @@ using System.Threading.Tasks;
 namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
 {
     /// <summary>
+    /// 方案工步抽屉中的内置工步参数展示行。
+    /// </summary>
+    public sealed class SchemeWorkStepParameterItem : ViewModelProperties
+    {
+        private string _name = string.Empty;
+        private string _value = string.Empty;
+        private string _operator = "NA";
+        private string _judgeValue = string.Empty;
+
+        /// <summary>参数或界面显示名称。</summary>
+        public string Name { get => _name; set => SetField(ref _name, value ?? string.Empty, true); }
+
+        /// <summary>参数对应的值或来源字段。</summary>
+        public string Value { get => _value; set => SetField(ref _value, value ?? string.Empty, true); }
+
+        /// <summary>返回参数判断符号。</summary>
+        public string Operator { get => _operator; set => SetField(ref _operator, value ?? "=", true); }
+
+        /// <summary>返回参数判断值。</summary>
+        public string JudgeValue { get => _judgeValue; set => SetField(ref _judgeValue, value ?? string.Empty, true); }
+
+        /// <summary>创建参数配置副本。</summary>
+        public SchemeWorkStepParameterItem Clone() => new()
+        {
+            Name = Name,
+            Value = Value,
+            Operator = Operator,
+            JudgeValue = JudgeValue
+        };
+    }
+
+    /// <summary>
     /// 方案条件编辑行，组合返回值来源信息与可编辑的界面显示配置。
     /// 编辑过程使用副本，只有点击保存后才回写原返回值实体。
     /// </summary>
@@ -321,6 +353,8 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         private int _reTestCount = 1;
         private bool _isConfirmReTest;
         private ObservableCollection<WorkStepOperation> _operations = new();
+        private ObservableCollection<SchemeWorkStepParameterItem> _inputParameters = new();
+        private ObservableCollection<SchemeWorkStepParameterItem> _returnParameters = new();
         private readonly HashSet<WorkStepOperation> _trackedOperations = new();
 
         #endregion
@@ -442,6 +476,20 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         [JsonIgnore]
         public int OperationCount => Operations.Count;
 
+        /// <summary>方案工步实例的可编辑输入参数。</summary>
+        public ObservableCollection<SchemeWorkStepParameterItem> InputParameters
+        {
+            get => _inputParameters;
+            set => SetField(ref _inputParameters, value ?? new ObservableCollection<SchemeWorkStepParameterItem>());
+        }
+
+        /// <summary>方案工步实例的可编辑显示返回参数。</summary>
+        public ObservableCollection<SchemeWorkStepParameterItem> ReturnParameters
+        {
+            get => _returnParameters;
+            set => SetField(ref _returnParameters, value ?? new ObservableCollection<SchemeWorkStepParameterItem>());
+        }
+
         #endregion
 
         #region 集合通知
@@ -560,6 +608,8 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
                 ReTestCount = ReTestCount,
                 IsConfirmReTest = IsConfirmReTest,
                 Operations = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone()))
+                ,InputParameters = new ObservableCollection<SchemeWorkStepParameterItem>(InputParameters.Select(item => item.Clone()))
+                ,ReturnParameters = new ObservableCollection<SchemeWorkStepParameterItem>(ReturnParameters.Select(item => item.Clone()))
             };
         }
 

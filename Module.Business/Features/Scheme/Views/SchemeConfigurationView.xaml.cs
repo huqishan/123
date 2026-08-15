@@ -53,12 +53,16 @@ namespace Module.Business.Features.Scheme.Views
         private SchemeConfigurationViewModel? ViewModel => DataContext as SchemeConfigurationViewModel;
 
         /// <summary>
-        /// 初始化工步参数抽屉的视图模型监听与初始位置。
+        /// 初始化页面抽屉的视图模型监听与初始位置。
         /// </summary>
         private void InitializeWorkStepParameterDrawer()
         {
             DataContextChanged += SchemeConfigurationView_DataContextChanged;
-            Loaded += (_, _) => UpdateWorkStepParameterDrawerVisual(false);
+            Loaded += (_, _) =>
+            {
+                UpdateWorkStepParameterDrawerVisual(false);
+                UpdateBatchWorkStepDrawerVisual(false);
+            };
             if (ViewModel is not null)
             {
                 ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -81,6 +85,7 @@ namespace Module.Business.Features.Scheme.Views
             }
 
             UpdateWorkStepParameterDrawerVisual(false);
+            UpdateBatchWorkStepDrawerVisual(false);
         }
 
         /// <summary>
@@ -91,6 +96,11 @@ namespace Module.Business.Features.Scheme.Views
             if (e.PropertyName == nameof(SchemeConfigurationViewModel.IsWorkStepParameterDrawerOpen))
             {
                 UpdateWorkStepParameterDrawerVisual(true);
+            }
+
+            if (e.PropertyName == nameof(SchemeConfigurationViewModel.IsBatchWorkStepDrawerOpen))
+            {
+                UpdateBatchWorkStepDrawerVisual(true);
             }
         }
 
@@ -103,13 +113,21 @@ namespace Module.Business.Features.Scheme.Views
         }
 
         /// <summary>
-        /// 用户改变内置工步时，将所选工步名称同步到当前编辑副本一次。
-        /// 初始化绑定产生的选择变化不处理，避免打开已有工步时覆盖原名称。
+        /// 点击遮罩时关闭批量工步浏览抽屉。
+        /// </summary>
+        private void BatchWorkStepDrawerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            ViewModel?.CloseBatchWorkStepDrawerCommand.Execute(null);
+        }
+
+        /// <summary>
+        /// 用户改变内置工步下拉选项时，仅将所选名称同步到工步名称一次。
+        /// 输入参数和返回参数仍由方案工步表格的选中项切换，不在此处刷新。
         /// </summary>
         private void WorkStepTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is not ComboBox comboBox ||
-                !comboBox.IsKeyboardFocusWithin ||
+                (!comboBox.IsKeyboardFocusWithin && !comboBox.IsDropDownOpen) ||
                 comboBox.SelectedItem is not string workStepName ||
                 ViewModel?.EditingSchemeWorkStep is null)
             {
@@ -154,6 +172,44 @@ namespace Module.Business.Features.Scheme.Views
             WorkStepParameterDrawerHost.BeginAnimation(OpacityProperty, opacityAnimation);
             WorkStepParameterDrawerTranslateTransform.BeginAnimation(
                 TranslateTransform.YProperty,
+                new DoubleAnimation(targetOffset, WorkStepDrawerAnimationDuration));
+        }
+
+        /// <summary>
+        /// 根据视图模型状态更新批量工步抽屉的透明度、横向偏移和鼠标命中状态。
+        /// </summary>
+        private void UpdateBatchWorkStepDrawerVisual(bool animate)
+        {
+            if (BatchWorkStepDrawerHost is null || BatchWorkStepDrawerTranslateTransform is null)
+            {
+                return;
+            }
+
+            bool isOpen = ViewModel?.IsBatchWorkStepDrawerOpen == true;
+            double targetOpacity = isOpen ? 1d : 0d;
+            double targetOffset = isOpen ? 0d : -56d;
+            if (isOpen)
+            {
+                BatchWorkStepDrawerHost.IsHitTestVisible = true;
+            }
+
+            if (!animate)
+            {
+                BatchWorkStepDrawerHost.Opacity = targetOpacity;
+                BatchWorkStepDrawerTranslateTransform.X = targetOffset;
+                BatchWorkStepDrawerHost.IsHitTestVisible = isOpen;
+                return;
+            }
+
+            DoubleAnimation opacityAnimation = new(targetOpacity, WorkStepDrawerAnimationDuration);
+            if (!isOpen)
+            {
+                opacityAnimation.Completed += (_, _) => BatchWorkStepDrawerHost.IsHitTestVisible = false;
+            }
+
+            BatchWorkStepDrawerHost.BeginAnimation(OpacityProperty, opacityAnimation);
+            BatchWorkStepDrawerTranslateTransform.BeginAnimation(
+                TranslateTransform.XProperty,
                 new DoubleAnimation(targetOffset, WorkStepDrawerAnimationDuration));
         }
 

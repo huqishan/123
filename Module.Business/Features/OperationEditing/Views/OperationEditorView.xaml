@@ -266,12 +266,12 @@ Style="{StaticResource ColumnsDataGridStyle}">
           SelectedValue="{Binding SelectedEditingInvokeParameter, Mode=TwoWay}"
           Style="{StaticResource ColumnsDataGridStyle}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Width="54" IsReadOnly="True"
+                            <!--<DataGridTextColumn Width="54" IsReadOnly="True"
                             Header="{DynamicResource 序号}"
                             ElementStyle="{StaticResource CellTextBlockStyle}"
                             EditingElementStyle="{StaticResource CellTextBoxStyle}"
-                            Binding="{Binding Parameter.Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <DataGridTemplateColumn Width="1.2*"
+                            Binding="{Binding Parameter.Num, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />-->
+                            <DataGridTemplateColumn Width="0.8*"
                                 Header="{DynamicResource 参数类型}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
