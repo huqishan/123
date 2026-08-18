@@ -2,14 +2,13 @@
              x:Name="Root"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid x:Name="DrawerHost"
-          Opacity="0"
-          IsHitTestVisible="False">
-        <Border Background="#3A000000"
-                MouseLeftButtonDown="DrawerBackdrop_MouseLeftButtonDown" />
+    <Grid x:Name="DrawerHost" Opacity="0" IsHitTestVisible="False">
+        <Border Background="#3A000000" MouseLeftButtonDown="DrawerBackdrop_MouseLeftButtonDown" />
 
+        <!-- 判断条件采用宽抽屉连续显示全部工步，结构与 TestDataTable 的合并工步列保持一致。 -->
         <Border x:Name="DrawerSheet"
-                Width="980"
+                Width="1280"
+                MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                 HorizontalAlignment="Right"
                 Style="{StaticResource DrawerBorderStyle}">
             <Border.RenderTransform>
@@ -20,19 +19,18 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <!-- 标题与统一保存操作。 -->
                 <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Right"
-                                Margin="16,0,0,0"
-                                HorizontalAlignment="Right"
-                                Orientation="Horizontal">
-                        <Button Content="关闭"
+                    <StackPanel DockPanel.Dock="Right" Margin="16,0,0,0" Orientation="Horizontal">
+                        <Button Content="取消"
                                 Command="{Binding Editor.CloseCommand, ElementName=Root}"
                                 Style="{StaticResource ActionButtonStyle}" />
-                        <Button Content="保存条件"
+                        <Button Content="保存"
                                 Command="{Binding Editor.SaveCommand, ElementName=Root}"
                                 Style="{StaticResource PrimaryActionButtonStyle}" />
                     </StackPanel>
@@ -41,83 +39,233 @@
                                    Text="{Binding Editor.Title, ElementName=Root}" />
                         <TextBlock Margin="0,8,0,0"
                                    Foreground="{DynamicResource AppMutedTextBrush}"
-                                   Text="集中维护方案中需要显示到界面的返回值；默认优先展示已勾选项。"
+                                   Text="集中维护方案内全部工步参数与返回判断条件"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </DockPanel>
 
-                <Border Grid.Row="1"
-                        Margin="0,16,0,12"
-                        Padding="12,8"
-                        Background="{DynamicResource TabItemBackgroundBrush}"
+                <!-- 搜索、类型筛选和数据统计。 -->
+                <Grid Grid.Row="1" Margin="0,16,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="260" />
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Margin="0,0,12,0"
+                             Style="{StaticResource InputTextBoxStyle}"
+                             Text="{Binding Editor.SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="搜索工步或参数" />
+                    <ComboBox Grid.Column="1"
+                              Margin="0,0,12,0"
+                              ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+                              ItemsSource="{Binding Editor.ParameterFilters, ElementName=Root}"
+                              SelectedItem="{Binding Editor.SelectedParameterFilter, ElementName=Root, Mode=TwoWay}"
+                              Style="{StaticResource InputComboBoxStyle}" />
+                    <TextBlock Grid.Column="2"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource AppMutedTextBrush}">
+                        <Run Text="{Binding Editor.WorkStepCount, ElementName=Root, Mode=OneWay}" />
+                        <Run Text=" 个工步 · 输入 " />
+                        <Run Text="{Binding Editor.InputParameterCount, ElementName=Root, Mode=OneWay}" />
+                        <Run Text=" · 返回 " />
+                        <Run Text="{Binding Editor.ReturnParameterCount, ElementName=Root, Mode=OneWay}" />
+                    </TextBlock>
+                </Grid>
+
+                <!-- 固定表头；列宽与下方工步分组完全一致。 -->
+                <Grid Grid.Row="2" Height="36" Background="{DynamicResource TabItemSelectedBrush}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="160" />
+                        <ColumnDefinition Width="90" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource CellTextBlockStyle}" Text="工步" TextAlignment="Center" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource CellTextBlockStyle}" Text="参数类型" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Style="{StaticResource CellTextBlockStyle}" Text="参数名称" TextAlignment="Center" />
+                    <TextBlock Grid.Column="3" Style="{StaticResource CellTextBlockStyle}" Text="参数值 / 显示名称" TextAlignment="Center" />
+                    <TextBlock Grid.Column="4" Style="{StaticResource CellTextBlockStyle}" Text="判断符号" TextAlignment="Center" />
+                    <TextBlock Grid.Column="5" Style="{StaticResource CellTextBlockStyle}" Text="判断值" TextAlignment="Center" />
+                    <TextBlock Grid.Column="6" Style="{StaticResource CellTextBlockStyle}" Text="单位" TextAlignment="Center" />
+                </Grid>
+
+                <!-- 工步分组左侧单元格纵向合并，右侧参数行连续排列。 -->
+                <Border Grid.Row="3"
                         BorderBrush="{DynamicResource TabItemBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                    <DockPanel LastChildFill="False">
-                        <CheckBox DockPanel.Dock="Left"
-                                  VerticalAlignment="Center"
-                                  Content="显示全部返回值"
-                                  IsChecked="{Binding Editor.ShowAllReturns, ElementName=Root, Mode=TwoWay}" />
-                        <TextBlock DockPanel.Dock="Right"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource AppMutedTextBrush}">
-                            <Run Text="已选 " />
-                            <Run FontWeight="SemiBold" Text="{Binding Editor.SelectedConditionCount, ElementName=Root, Mode=OneWay}" />
-                            <Run Text=" / 共 " />
-                            <Run Text="{Binding Editor.TotalConditionCount, ElementName=Root, Mode=OneWay}" />
-                            <Run Text=" 项" />
-                        </TextBlock>
-                    </DockPanel>
+                        BorderThickness="1,0,1,1"
+                        ClipToBounds="True">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Editor.Groups, ElementName=Root}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="#0D1689D8"
+                                                BorderBrush="{DynamicResource TabItemBorderBrush}"
+                                                BorderThickness="0,0,1,1">
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding WorkStepName}" TextAlignment="Center" />
+                                                <TextBlock Margin="0,5,0,0"
+                                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                                           Text="{Binding ParameterSummary}"
+                                                           TextAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <ItemsControl Grid.Column="1" ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border MinHeight="44"
+                                                            BorderBrush="{DynamicResource TabItemBorderBrush}"
+                                                            BorderThickness="0,0,0,1">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="{DynamicResource TabCardBackgroundBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                        <Setter Property="Background" Value="#0F36A875" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="130" />
+                                                                <ColumnDefinition Width="220" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="160" />
+                                                                <ColumnDefinition Width="90" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Border Grid.Column="0" Margin="12,7" Padding="8,3" CornerRadius="4" HorizontalAlignment="Center">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="#121689D8" />
+                                                                        <Setter Property="BorderBrush" Value="#501689D8" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Background" Value="#1236A875" />
+                                                                                <Setter Property="BorderBrush" Value="#5036A875" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="{Binding ParameterType}" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{Binding ParameterName}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBox Grid.Column="2" Margin="8,5"
+                                                             Style="{StaticResource InputTextBoxStyle}"
+                                                                     Text="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                            <ComboBox Grid.Column="3" Margin="8,5"
+                                                                      ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+                                                                      ItemsSource="{Binding Editor.JudgeOperators, ElementName=Root}"
+                                                                      SelectedItem="{Binding Operator, Mode=TwoWay}">
+                                                                <ComboBox.Style>
+                                                                    <Style TargetType="ComboBox" BasedOn="{StaticResource InputComboBoxStyle}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </ComboBox.Style>
+                                                            </ComboBox>
+                                                            <TextBlock Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center" Text="-">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBox Grid.Column="4" Margin="8,5"
+                                                                     Text="{Binding JudgeValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox" BasedOn="{StaticResource InputTextBoxStyle}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                            <TextBlock Grid.Column="4" HorizontalAlignment="Center" VerticalAlignment="Center" Text="-">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBox Grid.Column="5"
+                                                                     Margin="8,5"
+                                                                     Text="{Binding Unit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox" BasedOn="{StaticResource InputTextBoxStyle}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                            <TextBlock Grid.Column="5"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       Text="-">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReturnParameter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </Border>
 
-                <DataGrid Grid.Row="2"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          HorizontalScrollBarVisibility="Auto"
-                          IsReadOnly="False"
-                          ItemsSource="{Binding Editor.ConditionsView, ElementName=Root}"
-                          Style="{StaticResource ColumnsDataGridStyle}">
-                    <DataGrid.Columns>
-                        <DataGridCheckBoxColumn Width="64"
-                                                Header="显示"
-                                                Binding="{Binding IsShowView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <DataGridTemplateColumn Width="1.2*" Header="界面显示名称">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBox Style="{StaticResource CellTextBoxStyle}"
-                                             Text="{Binding ViewDataName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="{Binding ViewDataName}" />
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Width="1.05*"
-                                            Header="来源工步"
-                                            IsReadOnly="True"
-                                            ElementStyle="{StaticResource CellTextBlockStyle}"
-                                            Binding="{Binding WorkStepName, Mode=OneWay}" />
-                        <DataGridTextColumn Width="1.35*"
-                                            Header="步骤"
-                                            IsReadOnly="True"
-                                            ElementStyle="{StaticResource CellTextBlockStyle}"
-                                            Binding="{Binding OperationSummary, Mode=OneWay}" />
-                        <DataGridTextColumn Width="1.1*"
-                                            Header="返回值集合"
-                                            IsReadOnly="True"
-                                            ElementStyle="{StaticResource CellTextBlockStyle}"
-                                            Binding="{Binding ReturnValueCollectionName, Mode=OneWay}" />
-                        <DataGridTextColumn Width="1.1*"
-                                            Header="返回值键"
-                                            IsReadOnly="True"
-                                            ElementStyle="{StaticResource CellTextBlockStyle}"
-                                            Binding="{Binding ReturnValueKey, Mode=OneWay}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                <TextBlock Grid.Row="3"
-                           Margin="0,12,0,0"
-                           Foreground="{DynamicResource AppMutedTextBrush}"
-                           Text="未显示的返回值可通过“显示全部返回值”展开后勾选。关闭抽屉不会保存本次修改。"
-                           TextWrapping="Wrap" />
+                <!-- 保存提示和参数类型图例。 -->
+                <DockPanel Grid.Row="4" Margin="0,12,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <TextBlock Margin="0,0,18,0" Foreground="#1689D8" Text="● 输入参数" />
+                        <TextBlock Foreground="#36A875" Text="● 返回参数" />
+                    </StackPanel>
+                    <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" Text="修改仅在点击保存后写入方案" />
+                </DockPanel>
             </Grid>
         </Border>
     </Grid>

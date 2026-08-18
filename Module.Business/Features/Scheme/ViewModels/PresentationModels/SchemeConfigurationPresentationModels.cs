@@ -19,8 +19,10 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
     {
         private string _name = string.Empty;
         private string _value = string.Empty;
+        private string _unit = string.Empty;
         private string _operator = "NA";
         private string _judgeValue = string.Empty;
+        private bool _isUsed = true;
 
         /// <summary>参数或界面显示名称。</summary>
         public string Name { get => _name; set => SetField(ref _name, value ?? string.Empty, true); }
@@ -28,79 +30,114 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         /// <summary>参数对应的值或来源字段。</summary>
         public string Value { get => _value; set => SetField(ref _value, value ?? string.Empty, true); }
 
+        /// <summary>参数单位。</summary>
+        public string Unit { get => _unit; set => SetField(ref _unit, value ?? string.Empty, true); }
+
         /// <summary>返回参数判断符号。</summary>
         public string Operator { get => _operator; set => SetField(ref _operator, value ?? "=", true); }
 
         /// <summary>返回参数判断值。</summary>
         public string JudgeValue { get => _judgeValue; set => SetField(ref _judgeValue, value ?? string.Empty, true); }
 
+        /// <summary>方案执行时是否继续使用该参数；切换内置工步后遗留参数默认为不使用。</summary>
+        public bool IsUsed { get => _isUsed; set => SetField(ref _isUsed, value, true); }
+
         /// <summary>创建参数配置副本。</summary>
         public SchemeWorkStepParameterItem Clone() => new()
         {
             Name = Name,
             Value = Value,
+            Unit = Unit,
             Operator = Operator,
-            JudgeValue = JudgeValue
+            JudgeValue = JudgeValue,
+            IsUsed = IsUsed
         };
     }
 
     /// <summary>
-    /// 方案条件编辑行，组合返回值来源信息与可编辑的界面显示配置。
-    /// 编辑过程使用副本，只有点击保存后才回写原返回值实体。
+    /// 判断条件表格参数行，统一承载输入参数和返回参数。
+    /// 编辑过程使用独立字段，只有点击保存后才回写方案工步。
     /// </summary>
     public sealed class SchemeConditionEditorItem : ViewModelProperties
     {
         #region 私有字段
 
-        private bool _isShowView;
-        private string _viewDataName;
+        private string _editableValue = string.Empty;
+        private string _unit = string.Empty;
+        private string _operator = "NA";
+        private string _judgeValue = string.Empty;
 
         #endregion
 
         #region 构造与属性
 
         public SchemeConditionEditorItem(
-            ReturnValue source,
-            string workStepName,
-            string operationSummary,
-            string returnValueCollectionName)
+            SchemeWorkStepParameterItem parameter,
+            bool isInputParameter)
         {
-            Source = source ?? throw new ArgumentNullException(nameof(source));
-            WorkStepName = workStepName ?? string.Empty;
-            OperationSummary = operationSummary ?? string.Empty;
-            ReturnValueCollectionName = returnValueCollectionName ?? string.Empty;
-            ReturnValueKey = source.ReturnParameterName;
-            _isShowView = source.IsShowView;
-            _viewDataName = source.ViewDataName;
+            ArgumentNullException.ThrowIfNull(parameter);
+            IsInputParameter = isInputParameter;
+            ParameterName = isInputParameter ? parameter.Name : parameter.Value;
+            _unit = isInputParameter ? string.Empty : parameter.Unit;
+            _editableValue = isInputParameter ? parameter.Value : parameter.Name;
+            _operator = parameter.Operator;
+            _judgeValue = parameter.JudgeValue;
         }
 
-        internal ReturnValue Source { get; }
+        public bool IsInputParameter { get; }
 
-        public string WorkStepName { get; }
+        public bool IsReturnParameter => !IsInputParameter;
 
-        public string OperationSummary { get; }
+        public string ParameterType => IsInputParameter ? "输入参数" : "返回参数";
 
-        public string ReturnValueCollectionName { get; }
+        public string ParameterName { get; }
 
-        public string ReturnValueKey { get; }
-
-        public string FullReturnValueName => string.IsNullOrWhiteSpace(ReturnValueCollectionName)
-            ? ReturnValueKey
-            : $"{ReturnValueCollectionName}_{ReturnValueKey}";
-
-        public bool IsShowView
+        public string Unit
         {
-            get => _isShowView;
-            set => SetField(ref _isShowView, value);
+            get => _unit;
+            set => SetField(ref _unit, value ?? string.Empty, true);
         }
 
-        public string ViewDataName
+        public string EditableValue
         {
-            get => _viewDataName;
-            set => SetField(ref _viewDataName, value ?? string.Empty, true);
+            get => _editableValue;
+            set => SetField(ref _editableValue, value ?? string.Empty, true);
+        }
+
+        public string Operator
+        {
+            get => _operator;
+            set => SetField(ref _operator, value ?? "NA", true);
+        }
+
+        public string JudgeValue
+        {
+            get => _judgeValue;
+            set => SetField(ref _judgeValue, value ?? string.Empty, true);
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 判断条件表格中的工步分组，工步信息作为纵向合并单元格显示。
+    /// </summary>
+    public sealed class SchemeConditionWorkStepGroup
+    {
+        public SchemeConditionWorkStepGroup(SchemeWorkStepItem source, IEnumerable<SchemeConditionEditorItem> items)
+        {
+            Source = source ?? throw new ArgumentNullException(nameof(source));
+            Items = new ObservableCollection<SchemeConditionEditorItem>(items ?? Enumerable.Empty<SchemeConditionEditorItem>());
+        }
+
+        internal SchemeWorkStepItem Source { get; }
+
+        public string WorkStepName => $"{Source.Num:00} {Source.StepName}";
+
+        public string ParameterSummary =>
+            $"输入 {Items.Count(item => item.IsInputParameter)} · 返回 {Items.Count(item => item.IsReturnParameter)}";
+
+        public ObservableCollection<SchemeConditionEditorItem> Items { get; }
     }
 
     /// <summary>
@@ -262,8 +299,7 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
                 or nameof(SchemeWorkStepItem.IsStartupEnabled)
                 or nameof(SchemeWorkStepItem.IsReTestEnabled)
                 or nameof(SchemeWorkStepItem.ReTestCount)
-                or nameof(SchemeWorkStepItem.IsConfirmReTest)
-                or nameof(SchemeWorkStepItem.Operations))
+                or nameof(SchemeWorkStepItem.IsConfirmReTest))
             {
                 OnPropertyChanged(nameof(Steps));
                 MarkModified();
@@ -352,19 +388,8 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         private bool _isReTestEnabled;
         private int _reTestCount = 1;
         private bool _isConfirmReTest;
-        private ObservableCollection<WorkStepOperation> _operations = new();
         private ObservableCollection<SchemeWorkStepParameterItem> _inputParameters = new();
         private ObservableCollection<SchemeWorkStepParameterItem> _returnParameters = new();
-        private readonly HashSet<WorkStepOperation> _trackedOperations = new();
-
-        #endregion
-
-        #region 构造函数
-
-        public SchemeWorkStepItem()
-        {
-            AttachOperations(_operations);
-        }
 
         #endregion
 
@@ -452,30 +477,6 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
             set => SetField(ref _isConfirmReTest, value);
         }
 
-        /// <summary>
-        /// 步骤集合
-        /// </summary>
-        public ObservableCollection<WorkStepOperation> Operations
-        {
-            get => _operations;
-            set
-            {
-                if (ReferenceEquals(_operations, value))
-                {
-                    return;
-                }
-
-                DetachOperations(_operations);
-                _operations = value ?? new ObservableCollection<WorkStepOperation>();
-                AttachOperations(_operations);
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(OperationCount));
-            }
-        }
-
-        [JsonIgnore]
-        public int OperationCount => Operations.Count;
-
         /// <summary>方案工步实例的可编辑输入参数。</summary>
         public ObservableCollection<SchemeWorkStepParameterItem> InputParameters
         {
@@ -488,107 +489,6 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
         {
             get => _returnParameters;
             set => SetField(ref _returnParameters, value ?? new ObservableCollection<SchemeWorkStepParameterItem>());
-        }
-
-        #endregion
-
-        #region 集合通知
-
-        private void AttachOperations(ObservableCollection<WorkStepOperation> operations)
-        {
-            operations.CollectionChanged += Operations_CollectionChanged;
-            foreach (WorkStepOperation operation in operations)
-            {
-                if (_trackedOperations.Add(operation))
-                {
-                    operation.PropertyChanged += Operation_PropertyChanged;
-                }
-            }
-
-            RefreshOperationNums(operations);
-        }
-
-        private void DetachOperations(ObservableCollection<WorkStepOperation> operations)
-        {
-            operations.CollectionChanged -= Operations_CollectionChanged;
-            foreach (WorkStepOperation operation in _trackedOperations)
-            {
-                operation.PropertyChanged -= Operation_PropertyChanged;
-            }
-
-            _trackedOperations.Clear();
-        }
-
-        private void Operations_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            if (e.Action == NotifyCollectionChangedAction.Reset)
-            {
-                foreach (WorkStepOperation operation in _trackedOperations)
-                {
-                    operation.PropertyChanged -= Operation_PropertyChanged;
-                }
-
-                _trackedOperations.Clear();
-            }
-
-            if (e.NewItems is not null)
-            {
-                foreach (WorkStepOperation operation in e.NewItems.OfType<WorkStepOperation>())
-                {
-                    if (_trackedOperations.Add(operation))
-                    {
-                        operation.PropertyChanged += Operation_PropertyChanged;
-                    }
-                }
-            }
-
-            if (e.OldItems is not null)
-            {
-                foreach (WorkStepOperation operation in e.OldItems.OfType<WorkStepOperation>())
-                {
-                    if (_trackedOperations.Remove(operation))
-                    {
-                        operation.PropertyChanged -= Operation_PropertyChanged;
-                    }
-                }
-            }
-
-            if (e.Action == NotifyCollectionChangedAction.Move)
-            {
-                if (sender is ObservableCollection<WorkStepOperation> movedOperations)
-                {
-                    RefreshOperationNums(movedOperations);
-                }
-
-                // Operations 引用没有变化，但顺序属于方案内容变化，必须向上层方案发送修改通知。
-                OnPropertyChanged(nameof(Operations));
-                return;
-            }
-
-            if (sender is ObservableCollection<WorkStepOperation> changedOperations)
-            {
-                RefreshOperationNums(changedOperations);
-            }
-
-            OnPropertyChanged(nameof(OperationCount));
-            OnPropertyChanged(nameof(Operations));
-        }
-
-        /// <summary>
-        /// 操作实体内部字段发生变化时向方案层转发 Operations 通知，
-        /// 确保操作对象、方法、参数、返回值或描述更新后都能刷新方案最后修改时间。
-        /// </summary>
-        private void Operation_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            OnPropertyChanged(nameof(Operations));
-        }
-
-        private static void RefreshOperationNums(ObservableCollection<WorkStepOperation> operations)
-        {
-            for (int index = 0; index < operations.Count; index++)
-            {
-                operations[index].Num = index + 1;
-            }
         }
 
         #endregion
@@ -607,9 +507,8 @@ namespace Module.Business.Features.Scheme.ViewModels.PresentationModels
                 IsReTestEnabled = IsReTestEnabled,
                 ReTestCount = ReTestCount,
                 IsConfirmReTest = IsConfirmReTest,
-                Operations = new ObservableCollection<WorkStepOperation>(Operations.Select(operation => operation.Clone()))
-                ,InputParameters = new ObservableCollection<SchemeWorkStepParameterItem>(InputParameters.Select(item => item.Clone()))
-                ,ReturnParameters = new ObservableCollection<SchemeWorkStepParameterItem>(ReturnParameters.Select(item => item.Clone()))
+                InputParameters = new ObservableCollection<SchemeWorkStepParameterItem>(InputParameters.Select(item => item.Clone())),
+                ReturnParameters = new ObservableCollection<SchemeWorkStepParameterItem>(ReturnParameters.Select(item => item.Clone()))
             };
         }
 

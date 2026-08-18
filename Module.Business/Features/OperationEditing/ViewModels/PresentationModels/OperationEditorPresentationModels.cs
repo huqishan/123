@@ -287,7 +287,8 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
         {
             if (e.PropertyName is nameof(global::Module.Business.Features.OperationEditing.ViewModels.PresentationModels.ReturnValue.ReturnParameterName)
                 or nameof(global::Module.Business.Features.OperationEditing.ViewModels.PresentationModels.ReturnValue.IsShowView)
-                or nameof(global::Module.Business.Features.OperationEditing.ViewModels.PresentationModels.ReturnValue.ViewDataName))
+                or nameof(global::Module.Business.Features.OperationEditing.ViewModels.PresentationModels.ReturnValue.ViewDataName)
+                or nameof(global::Module.Business.Features.OperationEditing.ViewModels.PresentationModels.ReturnValue.Unit))
             {
             }
         }
@@ -510,6 +511,7 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
         private string _returnParameterName = string.Empty;
         private bool _isShowView;
         private string _viewDataName = string.Empty;
+        private string _unit = string.Empty;
 
         #endregion
 
@@ -566,6 +568,15 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
             set => SetField(ref _viewDataName, value ?? string.Empty, true);
         }
 
+        /// <summary>
+        /// 返回值单位。
+        /// </summary>
+        public string Unit
+        {
+            get => _unit;
+            set => SetField(ref _unit, value ?? string.Empty, true);
+        }
+
         #endregion
 
         #region 克隆
@@ -578,7 +589,8 @@ namespace Module.Business.Features.OperationEditing.ViewModels.PresentationModel
                 Num = Num,
                 ReturnParameterName = ReturnParameterName,
                 IsShowView = IsShowView,
-                ViewDataName = ViewDataName
+                ViewDataName = ViewDataName,
+                Unit = Unit
             };
         }
 

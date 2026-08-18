@@ -32,6 +32,19 @@
         </Style.Triggers>
     </Style>
 
+    <!-- 方案参数状态行：遗留参数保留配置，但通过警示色标识当前内置工步已不再使用。 -->
+    <Style x:Key="ParameterUsageDataGridRowStyle"
+           TargetType="{x:Type DataGridRow}"
+           BasedOn="{StaticResource DataGridRowStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsUsed}" Value="False">
+                <Setter Property="Background" Value="#FFFFE4C7" />
+                <Setter Property="Foreground" Value="#C2410C" />
+                <Setter Property="ToolTip" Value="当前内置工步已不再包含此参数，方案仅保留历史配置。" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{DynamicResource TabItemBorderBrush}" />

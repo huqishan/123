@@ -63,7 +63,7 @@ Text="{Binding EditingOperation.DelayMilliseconds, Mode=TwoWay, UpdateSourceTrig
                 <TextBlock Style="{StaticResource FieldLabelStyle}"
  Text="{DynamicResource 操作对象}" />
                 <ComboBox Style="{StaticResource EditableInputComboBoxStyle}" x:Name="OperationObject"
-ItemContainerStyle="{StaticResource InputComboBoxItemStyle}"
+ItemContainerStyle="{StaticResource InputComboBoxItemStyle}" Height="35"
 ItemsSource="{Binding OperationObjectOptions}"
 Text="{Binding EditingOperation.OperationObjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <StackPanel Visibility="{Binding ElementName=luaEdit, Path=Visibility, Converter={StaticResource in2v}}">

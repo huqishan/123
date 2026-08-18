@@ -1,6 +1,8 @@
 using ControlLibrary.Models.MediatorModels.Business;
 using Module.Business.Features.StationConfiguration;
 using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.WorkStep.Services;
+using Module.Business.Features.WorkStep.ViewModels.PresentationModels;
 using Shared.Infrastructure.Mediator;
 using System;
 using System.Linq;
@@ -30,6 +32,7 @@ public sealed class GetBusinessSchemesRequestHandler
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
+        var workSteps = WorkStepConfigurationStore.Load();
         var schemes = SchemeConfigurationStore.LoadCatalog()
             .Schemes
             .OrderBy(scheme => scheme.SchemeName, StringComparer.OrdinalIgnoreCase)
@@ -42,7 +45,10 @@ public sealed class GetBusinessSchemesRequestHandler
                         index + 1,
                         ResolveWorkStepName(step),
                         step.StepName,
-                        step.Operations.Count))
+                        workSteps.FirstOrDefault(workStep => string.Equals(
+                            workStep.Name,
+                            step.StepType,
+                            StringComparison.OrdinalIgnoreCase))?.OperationCount ?? 0))
                     .ToList()))
             .ToList();
 

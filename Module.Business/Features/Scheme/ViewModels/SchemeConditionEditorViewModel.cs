@@ -1,23 +1,26 @@
 using ControlLibrary;
 using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
 using Module.Business.Features.Scheme.ViewModels.PresentationModels;
+using Module.Business.Features.WorkStep.Services;
+using Module.Business.Features.WorkStep.ViewModels.PresentationModels;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Windows.Data;
 using System.Windows.Input;
 
 namespace Module.Business.Features.Scheme.ViewModels;
 
 /// <summary>
-/// 方案界面显示条件编辑器，集中维护方案内所有返回值的显示状态和显示名称。
+/// 方案判断条件编辑器，按工步连续展示并统一编辑方案工步的输入参数和返回参数。
+/// 本编辑器只回写内存中的方案工步参数，不负责方案持久化。
 /// </summary>
 public sealed class SchemeConditionEditorViewModel : ViewModelProperties
 {
     #region 私有字段
 
+    private readonly List<SchemeConditionWorkStepGroup> _allGroups = new();
     private SchemeProfile? _editingScheme;
     private bool _isOpen;
-    private bool _showAllReturns;
+    private string _searchText = string.Empty;
+    private string _selectedParameterFilter = "全部参数";
 
     #endregion
 
@@ -25,131 +28,183 @@ public sealed class SchemeConditionEditorViewModel : ViewModelProperties
 
     public SchemeConditionEditorViewModel()
     {
-        ConditionsView = CollectionViewSource.GetDefaultView(Conditions);
-        ConditionsView.Filter = FilterCondition;
-        ConditionsView.SortDescriptions.Add(
-            new SortDescription(nameof(SchemeConditionEditorItem.IsShowView), ListSortDirection.Descending));
-        ConditionsView.SortDescriptions.Add(
-            new SortDescription(nameof(SchemeConditionEditorItem.WorkStepName), ListSortDirection.Ascending));
-
+        ParameterFilters = new ObservableCollection<string> { "全部参数", "输入参数", "返回参数" };
+        JudgeOperators = new ObservableCollection<string>
+        {
+            "NA", "=", "≠", ">", "≥", "<", "≤", "＜{0}＜", "≤{0}≤", "()", "!()", "黑名单", "白名单"
+        };
         SaveCommand = new RelayCommand(_ => Save());
         CloseCommand = new RelayCommand(_ => Close());
     }
 
-    public ObservableCollection<SchemeConditionEditorItem> Conditions { get; } = new();
+    /// <summary>当前筛选后显示的工步分组。</summary>
+    public ObservableCollection<SchemeConditionWorkStepGroup> Groups { get; } = new();
 
-    public ICollectionView ConditionsView { get; }
+    /// <summary>参数类型固定筛选集合。</summary>
+    public ObservableCollection<string> ParameterFilters { get; }
+
+    /// <summary>返回参数判断符号固定集合。</summary>
+    public ObservableCollection<string> JudgeOperators { get; }
 
     #endregion
 
     #region 展示状态与命令
 
-    public bool IsOpen
-    {
-        get => _isOpen;
-        private set => SetField(ref _isOpen, value);
-    }
+    public bool IsOpen { get => _isOpen; private set => SetField(ref _isOpen, value); }
 
-    /// <summary>
-    /// 默认仅显示已选中的返回值；开启后显示全部返回值，便于勾选新的界面显示项。
-    /// </summary>
-    public bool ShowAllReturns
+    public string SearchText
     {
-        get => _showAllReturns;
+        get => _searchText;
         set
         {
-            if (!SetField(ref _showAllReturns, value))
-            {
-                return;
-            }
-
-            ConditionsView.Refresh();
-            OnPropertyChanged(nameof(VisibleConditionCount));
+            if (SetField(ref _searchText, value ?? string.Empty)) RefreshGroups();
         }
     }
 
-    public string Title => _editingScheme is null
-        ? "判断条件"
-        : $"{_editingScheme.SchemeName} · 判断条件";
+    public string SelectedParameterFilter
+    {
+        get => _selectedParameterFilter;
+        set
+        {
+            if (SetField(ref _selectedParameterFilter, value ?? "全部参数")) RefreshGroups();
+        }
+    }
 
-    public int TotalConditionCount => Conditions.Count;
+    public string Title => _editingScheme is null ? "判断条件配置" : $"判断条件配置 · {_editingScheme.SchemeName}";
 
-    public int SelectedConditionCount => Conditions.Count(item => item.IsShowView);
+    public int WorkStepCount => _allGroups.Count;
 
-    public int VisibleConditionCount => ConditionsView.Cast<object>().Count();
+    public int InputParameterCount => _allGroups.Sum(group => group.Items.Count(item => item.IsInputParameter));
+
+    public int ReturnParameterCount => _allGroups.Sum(group => group.Items.Count(item => item.IsReturnParameter));
 
     public ICommand SaveCommand { get; }
 
     public ICommand CloseCommand { get; }
 
+    /// <summary>
+    /// 判断条件编辑结果已经回写方案工步参数时触发，供方案配置页面刷新当前参数副本。
+    /// </summary>
+    public event Action<SchemeProfile>? ParametersSaved;
+
     #endregion
 
     #region 打开、保存与关闭
 
+    /// <summary>
+    /// 打开编辑器并从方案工步实例生成连续分组参数行。
+    /// </summary>
     public void Open(SchemeProfile scheme)
     {
         ArgumentNullException.ThrowIfNull(scheme);
-
-        foreach (SchemeConditionEditorItem item in Conditions)
-        {
-            item.PropertyChanged -= Condition_PropertyChanged;
-        }
-
-        Conditions.Clear();
         _editingScheme = scheme;
+        _allGroups.Clear();
+        ObservableCollection<WorkStepProfile> configuredWorkSteps = WorkStepConfigurationStore.Load();
+
         foreach (SchemeWorkStepItem workStep in scheme.Steps.OrderBy(item => item.Num))
         {
-            foreach (WorkStepOperation operation in workStep.Operations.OrderBy(item => item.Num))
+            WorkStepProfile? configuredWorkStep = configuredWorkSteps.FirstOrDefault(item => string.Equals(
+                item.Name,
+                workStep.StepType,
+                StringComparison.OrdinalIgnoreCase));
+            IReadOnlyList<WorkStepOperation> operations = configuredWorkStep is null
+                ? Array.Empty<WorkStepOperation>()
+                : configuredWorkStep.Operations;
+            List<InputParameter> configuredInputs = operations
+                .OrderBy(operation => operation.Num)
+                .SelectMany(operation => operation.Parameters.OrderBy(parameter => parameter.Num))
+                .Where(parameter => string.Equals(parameter.ParameterType?.Trim(), "工步值", StringComparison.Ordinal))
+                .DistinctBy(parameter => parameter.Value?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            List<SchemeConditionEditorItem> rows = new();
+            foreach (InputParameter configuredInput in configuredInputs)
             {
-                foreach (ReturnValue returnValue in operation.ReturnValues.OrderBy(item => item.Num))
+                string parameterName = configuredInput.Value?.Trim() ?? string.Empty;
+                SchemeWorkStepParameterItem? savedParameter = workStep.InputParameters.FirstOrDefault(parameter =>
+                    string.Equals(parameter.Name?.Trim(), parameterName, StringComparison.OrdinalIgnoreCase));
+                if (savedParameter?.IsUsed == true)
                 {
-                    SchemeConditionEditorItem item = new(
-                        returnValue,
-                        workStep.StepName,
-                        string.IsNullOrWhiteSpace(operation.Summary) ? operation.PCommandName : operation.Summary,
-                        operation.ReturnValue);
-                    item.PropertyChanged += Condition_PropertyChanged;
-                    Conditions.Add(item);
+                    rows.Add(new SchemeConditionEditorItem(savedParameter.Clone(), true));
                 }
             }
+
+            List<string> configuredReturns = operations
+                .OrderBy(operation => operation.Num)
+                .SelectMany(operation => operation.ReturnValues
+                    .OrderBy(returnValue => returnValue.Num)
+                    .Select(returnValue =>
+                        string.IsNullOrWhiteSpace(operation.ReturnValue)
+                            ? returnValue.ReturnParameterName
+                            : $"{operation.ReturnValue}_{returnValue.ReturnParameterName}"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (string fullName in configuredReturns)
+            {
+                SchemeWorkStepParameterItem? savedParameter = workStep.ReturnParameters.FirstOrDefault(parameter =>
+                    string.Equals(parameter.Value?.Trim(), fullName.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (savedParameter?.IsUsed == true)
+                {
+                    rows.Add(new SchemeConditionEditorItem(savedParameter.Clone(), false));
+                }
+            }
+
+            _allGroups.Add(new SchemeConditionWorkStepGroup(workStep, rows));
         }
 
-        ShowAllReturns = false;
-        ConditionsView.Refresh();
+        _searchText = string.Empty;
+        _selectedParameterFilter = "全部参数";
+        OnPropertyChanged(nameof(SearchText));
+        OnPropertyChanged(nameof(SelectedParameterFilter));
+        RefreshGroups();
         OnPropertyChanged(nameof(Title));
-        OnPropertyChanged(nameof(TotalConditionCount));
-        OnPropertyChanged(nameof(SelectedConditionCount));
-        OnPropertyChanged(nameof(VisibleConditionCount));
+        OnPropertyChanged(nameof(WorkStepCount));
+        OnPropertyChanged(nameof(InputParameterCount));
+        OnPropertyChanged(nameof(ReturnParameterCount));
         IsOpen = true;
     }
 
+    /// <summary>
+    /// 将编辑行统一回写到对应方案工步参数集合，不执行方案持久化。
+    /// </summary>
     private void Save()
     {
-        if (_editingScheme is null)
-        {
-            return;
-        }
+        if (_editingScheme is null) return;
 
-        bool hasChanges = false;
-        foreach (SchemeConditionEditorItem item in Conditions)
+        foreach (SchemeConditionWorkStepGroup group in _allGroups)
         {
-            string normalizedViewDataName = item.ViewDataName.Trim();
-            if (item.Source.IsShowView == item.IsShowView &&
-                string.Equals(item.Source.ViewDataName, normalizedViewDataName, StringComparison.Ordinal))
+            foreach (SchemeConditionEditorItem item in group.Items)
             {
-                continue;
+                SchemeWorkStepParameterItem? target = item.IsInputParameter
+                    ? group.Source.InputParameters.FirstOrDefault(parameter => string.Equals(
+                        parameter.Name?.Trim(),
+                        item.ParameterName.Trim(),
+                        StringComparison.OrdinalIgnoreCase))
+                    : group.Source.ReturnParameters.FirstOrDefault(parameter => string.Equals(
+                        parameter.Value?.Trim(),
+                        item.ParameterName.Trim(),
+                        StringComparison.OrdinalIgnoreCase));
+                if (target is null)
+                {
+                    continue;
+                }
+
+                if (item.IsInputParameter)
+                {
+                    target.Value = item.EditableValue.Trim();
+                }
+                else
+                {
+                    target.Unit = item.Unit.Trim();
+                    target.Name = item.EditableValue.Trim();
+                    target.Operator = item.Operator;
+                    target.JudgeValue = item.JudgeValue.Trim();
+                }
             }
 
-            item.Source.IsShowView = item.IsShowView;
-            item.Source.ViewDataName = normalizedViewDataName;
-            hasChanges = true;
         }
 
-        if (hasChanges)
-        {
-            _editingScheme.MarkModified();
-        }
-
+        ParametersSaved?.Invoke(_editingScheme);
         Close();
     }
 
@@ -162,25 +217,26 @@ public sealed class SchemeConditionEditorViewModel : ViewModelProperties
 
     #endregion
 
-    #region 筛选与行通知
+    #region 筛选与显示状态
 
-    private bool FilterCondition(object item)
+    /// <summary>
+    /// 按搜索文字、参数类型和判断条件筛选重建显示分组。
+    /// </summary>
+    private void RefreshGroups()
     {
-        return item is SchemeConditionEditorItem condition &&
-               (ShowAllReturns || condition.IsShowView);
-    }
-
-    private void Condition_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(SchemeConditionEditorItem.IsShowView))
+        Groups.Clear();
+        string keyword = SearchText.Trim();
+        foreach (SchemeConditionWorkStepGroup group in _allGroups)
         {
-            return;
+            List<SchemeConditionEditorItem> visibleRows = group.Items.Where(item =>
+                    (SelectedParameterFilter == "全部参数" || item.ParameterType == SelectedParameterFilter) &&
+                    (string.IsNullOrWhiteSpace(keyword) ||
+                     group.WorkStepName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                     item.ParameterName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                     item.EditableValue.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (visibleRows.Count > 0) Groups.Add(new SchemeConditionWorkStepGroup(group.Source, visibleRows));
         }
-
-        OnPropertyChanged(nameof(SelectedConditionCount));
-        // 刷新后已勾选项始终排在前面；默认筛选状态下，取消勾选的行会立即移出当前列表。
-        ConditionsView.Refresh();
-        OnPropertyChanged(nameof(VisibleConditionCount));
     }
 
     #endregion

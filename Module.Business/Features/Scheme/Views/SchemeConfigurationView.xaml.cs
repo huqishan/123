@@ -22,8 +22,11 @@ namespace Module.Business.Features.Scheme.Views
     {
         #region 拖拽数据格式
         private const string SchemeStepDragDataFormat = "Module.Business.SchemeWorkStepItem";
+        private const string BuiltInWorkStepDragDataFormat = "Module.Business.BuiltInWorkStepName";
         private Point _schemeStepDragStartPoint;
         private SchemeWorkStepItem? _pendingDraggedSchemeStep;
+        private Point _batchWorkStepDragStartPoint;
+        private string? _pendingDraggedBuiltInWorkStepName;
         private static readonly Duration WorkStepDrawerAnimationDuration = new(TimeSpan.FromMilliseconds(220));
 
         #endregion
@@ -121,8 +124,7 @@ namespace Module.Business.Features.Scheme.Views
         }
 
         /// <summary>
-        /// 用户改变内置工步下拉选项时，仅将所选名称同步到工步名称一次。
-        /// 输入参数和返回参数仍由方案工步表格的选中项切换，不在此处刷新。
+        /// 用户改变内置工步下拉选项时仅同步工步名称；输入、返回参数在保存后刷新。
         /// </summary>
         private void WorkStepTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -245,12 +247,46 @@ namespace Module.Business.Features.Scheme.Views
         }
 
         /// <summary>
+        /// 提交输入参数和返回参数表格的当前编辑，再保存方案工步参数。
+        /// </summary>
+        private void SaveWorkStepParameterDrawerButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 显式刷新编辑控件的绑定源，避免模板内控件仍持有界面值而参数对象还是默认值。
+            foreach (TextBox textBox in FindVisualChildren<TextBox>(InvokeParameterDataGrid)
+                         .Concat(FindVisualChildren<TextBox>(ReturnParameterDataGrid)))
+            {
+                textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            }
+
+            foreach (ComboBox comboBox in FindVisualChildren<ComboBox>(ReturnParameterDataGrid))
+            {
+                comboBox.GetBindingExpression(ComboBox.SelectedItemProperty)?.UpdateSource();
+                comboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource();
+            }
+
+            // 再结束 DataGrid 当前单元格和行的编辑事务，确保行级数据同步完成。
+            InvokeParameterDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
+            InvokeParameterDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
+            ReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
+            ReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
+
+            if (ViewModel?.SaveWorkStepParameterDrawerCommand.CanExecute(null) == true)
+            {
+                ViewModel.SaveWorkStepParameterDrawerCommand.Execute(null);
+            }
+        }
+
+        /// <summary>
         /// 提交页面内所有可编辑表格的当前编辑。
         /// </summary>
         private void CommitEditableDataGrids()
         {
             SchemeStepsDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
             SchemeStepsDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
+            InvokeParameterDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
+            InvokeParameterDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
+            ReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Cell, true);
+            ReturnParameterDataGrid?.CommitEdit(DataGridEditingUnit.Row, true);
         }
 
         /// <summary>
@@ -333,6 +369,26 @@ namespace Module.Business.Features.Scheme.Views
         /// </summary>
         private void SchemeStepsDataGrid_DragOver(object sender, DragEventArgs e)
         {
+            if (e.Data.GetDataPresent(BuiltInWorkStepDragDataFormat) &&
+                e.Data.GetData(BuiltInWorkStepDragDataFormat) is string builtInWorkStepName &&
+                !string.IsNullOrWhiteSpace(builtInWorkStepName))
+            {
+                DataGridRow? targetRow = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
+                bool builtInInsertAfter = targetRow is not null && e.GetPosition(targetRow).Y > targetRow.ActualHeight / 2d;
+                if (targetRow is null)
+                {
+                    HideSchemeStepDropIndicator();
+                }
+                else
+                {
+                    ShowSchemeStepDropIndicator(targetRow, builtInInsertAfter);
+                }
+
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+                return;
+            }
+
             if (!TryGetSchemeStepDropInfo(e, out _, out _, out bool insertAfter))
             {
                 HideSchemeStepDropIndicator();
@@ -359,6 +415,20 @@ namespace Module.Business.Features.Scheme.Views
         /// </summary>
         private void SchemeStepsDataGrid_Drop(object sender, DragEventArgs e)
         {
+            if (e.Data.GetDataPresent(BuiltInWorkStepDragDataFormat) &&
+                e.Data.GetData(BuiltInWorkStepDragDataFormat) is string builtInWorkStepName &&
+                !string.IsNullOrWhiteSpace(builtInWorkStepName))
+            {
+                DataGridRow? targetRow = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
+                SchemeWorkStepItem? builtInTargetSchemeStep = targetRow?.Item as SchemeWorkStepItem;
+                bool builtInInsertAfter = targetRow is not null && e.GetPosition(targetRow).Y > targetRow.ActualHeight / 2d;
+                ViewModel?.AddBuiltInWorkStepToScheme(builtInWorkStepName, builtInTargetSchemeStep, builtInInsertAfter);
+                _pendingDraggedBuiltInWorkStepName = null;
+                HideSchemeStepDropIndicator();
+                e.Handled = true;
+                return;
+            }
+
             if (TryGetSchemeStepDropInfo(e, out SchemeWorkStepItem? draggedSchemeStep, out SchemeWorkStepItem? targetSchemeStep, out bool insertAfter) &&
                 draggedSchemeStep is not null &&
                 targetSchemeStep is not null)
@@ -452,6 +522,39 @@ namespace Module.Business.Features.Scheme.Views
             SchemeStepsDataGrid.SelectedItem = workStep;
             ViewModel?.OpenWorkStepParameterDrawerCommand.Execute(workStep);
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// 记录批量工步列表中的拖拽起点和待添加的内置工步名称。
+        /// </summary>
+        private void BatchWorkStepsListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _batchWorkStepDragStartPoint = e.GetPosition(BatchWorkStepsListBox);
+            _pendingDraggedBuiltInWorkStepName = FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as string;
+        }
+
+        /// <summary>
+        /// 鼠标移动超过系统拖拽阈值后启动内置工步复制拖拽。
+        /// </summary>
+        private void BatchWorkStepsListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || string.IsNullOrWhiteSpace(_pendingDraggedBuiltInWorkStepName))
+            {
+                return;
+            }
+
+            Point currentPoint = e.GetPosition(BatchWorkStepsListBox);
+            if (Math.Abs(currentPoint.X - _batchWorkStepDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(currentPoint.Y - _batchWorkStepDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            string workStepName = _pendingDraggedBuiltInWorkStepName;
+            _pendingDraggedBuiltInWorkStepName = null;
+            DataObject dataObject = new();
+            dataObject.SetData(BuiltInWorkStepDragDataFormat, workStepName);
+            DragDrop.DoDragDrop(BatchWorkStepsListBox, dataObject, DragDropEffects.Copy);
         }
 
         /// <summary>

@@ -4,6 +4,8 @@ using Module.Business.Models;
 using Module.Business.Services.BusinessOperations;
 using Module.Business.Features.Scheme.ViewModels.PresentationModels;
 using Module.Business.Features.OperationEditing.ViewModels.PresentationModels;
+using Module.Business.Features.WorkStep.Services;
+using Module.Business.Features.WorkStep.ViewModels.PresentationModels;
 using Shared.Infrastructure.Communication;
 using Shared.Infrastructure.Events;
 using Shared.Infrastructure.Extensions;
@@ -177,7 +179,7 @@ public static class SchemeExecutionService
                     endTime: DateTime.Now);
             }
 
-            return await ExecuteSchemeAsync(context, scheme.Clone())
+            return await ExecuteSchemeAsync(context, scheme.Clone(), WorkStepConfigurationStore.Load())
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -303,7 +305,8 @@ public static class SchemeExecutionService
 
     private static async Task<SchemeExecutionResult> ExecuteSchemeAsync(
         SchemeExecutionContext context,
-        SchemeProfile scheme)
+        SchemeProfile scheme,
+        IReadOnlyCollection<WorkStepProfile> configuredWorkSteps)
     {
         DateTime startTime = DateTime.Now;
         SchemeExecutionEventArgs beforeSchemeArgs = SchemeExecutionEventArgs.CreateScheme(
@@ -342,7 +345,11 @@ public static class SchemeExecutionService
                 continue;
             }
 
-            if (schemeStep.Operations.Count == 0)
+            WorkStepProfile? configuredWorkStep = configuredWorkSteps.FirstOrDefault(item => string.Equals(
+                item.Name,
+                schemeStep.StepType,
+                StringComparison.OrdinalIgnoreCase));
+            if (configuredWorkStep is null || configuredWorkStep.Operations.Count == 0)
             {
                 string failureMessage = $"Work step '{schemeStep.StepName}' has no operations.";
                 DateTime failedAt = DateTime.Now;
@@ -361,6 +368,7 @@ public static class SchemeExecutionService
                     context,
                     scheme,
                     schemeStep,
+                    configuredWorkStep.Operations,
                     workStepIndex + 1)
                 .ConfigureAwait(false);
             if (!workStepResult.IsSuccess)
@@ -396,6 +404,7 @@ public static class SchemeExecutionService
         SchemeExecutionContext context,
         SchemeProfile scheme,
         SchemeWorkStepItem schemeStep,
+        IReadOnlyList<WorkStepOperation> operations,
         int workStepIndex)
     {
         DateTime startTime = DateTime.Now;
@@ -432,12 +441,12 @@ public static class SchemeExecutionService
             $"����ִ�й��� {workStepIndex}��{schemeStep.StepName}");
 
         Dictionary<string, string> returnValues = new(StringComparer.OrdinalIgnoreCase);
-        for (int stepIndex = 0; stepIndex < schemeStep.Operations.Count; stepIndex++)
+        for (int stepIndex = 0; stepIndex < operations.Count; stepIndex++)
         {
             await context.WaitIfPausedAsync().ConfigureAwait(false);
             context.ThrowIfCancellationRequested();
 
-            WorkStepOperation operation = schemeStep.Operations[stepIndex];
+            WorkStepOperation operation = operations[stepIndex];
             SchemeExecutionResult stepResult = await ExecuteStepAsync(
                     context,
                     scheme,
@@ -602,7 +611,7 @@ public static class SchemeExecutionService
         WorkStepOperation operation,
         Dictionary<string, string> returnValues)
     {
-        SchemeWorkStepItem standaloneStep = CreateStandaloneSchemeStep(operation);
+        SchemeWorkStepItem standaloneStep = CreateStandaloneSchemeStep();
         SchemeStepExecutionOutput output = await ExecuteOperationAsync(context, operation, standaloneStep, returnValues)
             .ConfigureAwait(false);
 
@@ -992,7 +1001,7 @@ public static class SchemeExecutionService
 
         return type switch
         {
-            "设置值" => ResolveSchemeStepParameterValue(parameter, schemeStep),
+            "设置值" or "工步值" => ResolveSchemeStepParameterValue(parameter, schemeStep),
             "返回值" => returnValues.TryGetValue(value, out string? returnValue) ? returnValue : string.Empty,
             "系统值" or "全局值" => GlobalValues.TryGetValue(value, out string? globalValue) ? globalValue : string.Empty,
             _ => value
@@ -1003,7 +1012,13 @@ public static class SchemeExecutionService
         InputParameter parameter,
         SchemeWorkStepItem schemeStep)
     {
-        return parameter.Value?.Trim() ?? string.Empty;
+        string parameterName = parameter.Value?.Trim() ?? string.Empty;
+        return schemeStep.InputParameters.FirstOrDefault(item => string.Equals(
+                   item.Name?.Trim(),
+                   parameterName,
+                   StringComparison.OrdinalIgnoreCase))?.Value?.Trim()
+               ?? parameter.ParameterName?.Trim()
+               ?? string.Empty;
     }
 
     #endregion
@@ -1024,12 +1039,11 @@ public static class SchemeExecutionService
         }
     }
 
-    private static SchemeWorkStepItem CreateStandaloneSchemeStep(WorkStepOperation operation)
+    private static SchemeWorkStepItem CreateStandaloneSchemeStep()
     {
         return new SchemeWorkStepItem
         {
-            StepName = "临时步骤",
-            Operations = new ObservableCollection<WorkStepOperation> { operation }
+            StepName = "临时步骤"
         };
     }
 

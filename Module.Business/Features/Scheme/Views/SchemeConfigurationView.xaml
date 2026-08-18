@@ -112,7 +112,7 @@ Text="{Binding SchemeName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
             </Border>
-            <!-- 批量工步抽屉当前仅浏览和筛选内置工步，不提供选择及添加操作。 -->
+            <!-- 批量工步抽屉支持筛选并将内置工步拖入右侧方案工步表格。 -->
             <Grid x:Name="BatchWorkStepDrawerHost"
 Panel.ZIndex="33"
 IsHitTestVisible="False"
@@ -145,11 +145,14 @@ Opacity="0">
                            Margin="0,16,0,16"
                            PlaceholderText="搜索内置工步..."
                            Text="{Binding BatchWorkStepSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <ListBox Grid.Row="2"
+                        <ListBox x:Name="BatchWorkStepsListBox"
+               Grid.Row="2"
                BorderThickness="0"
                Background="Transparent"
                ItemContainerStyle="{StaticResource ListBoxItemStyle}"
-               ItemsSource="{Binding BatchWorkStepsView}">
+               ItemsSource="{Binding BatchWorkStepsView}"
+               PreviewMouseLeftButtonDown="BatchWorkStepsListBox_PreviewMouseLeftButtonDown"
+               PreviewMouseMove="BatchWorkStepsListBox_PreviewMouseMove">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <TextBlock Padding="4,8"
@@ -368,9 +371,10 @@ IsChecked="{Binding IsStartupEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyC
                                                                     Content="{DynamicResource 关闭}"
                                                                     Command="{Binding CloseWorkStepParameterDrawerCommand}"
                                                                     Style="{StaticResource ActionButtonStyle}" />
-                                                            <Button Margin="12,0,0,0" Content="{DynamicResource 保存}"
-        Command="{Binding SaveWorkStepParameterDrawerCommand}"
-        Style="{StaticResource PrimaryActionButtonStyle}" />
+                                                            <Button Margin="12,0,0,0"
+                                                                    Content="{DynamicResource 保存}"
+                                                                    Click="SaveWorkStepParameterDrawerButton_Click"
+                                                                    Style="{StaticResource PrimaryActionButtonStyle}" />
                                                         </StackPanel>
                                                     </DockPanel>
                                                     <Grid Grid.Row="1" Margin="0,16,0,0">
@@ -445,14 +449,22 @@ IsChecked="{Binding EditingSchemeWorkStep.IsConfirmReTest, Mode=TwoWay}" />
                                         </Grid.RowDefinitions>
                                         <TextBlock Style="{StaticResource FieldLabelStyle}"
  Text="{DynamicResource 输入参数}" />
+                                        <Button HorizontalAlignment="Right"
+                                                Margin="0,0,0,6"
+                                                Padding="10,5"
+                                                Command="{Binding CleanupUnusedParametersCommand}"
+                                                Content="清理参数"
+                                                Style="{StaticResource ActionButtonStyle}"
+                                                ToolTip="清理当前工步中已标记为不使用的输入参数和返回参数" />
                                         <DataGrid x:Name="InvokeParameterDataGrid" Grid.Row="1"
 AutoGenerateColumns="False"
 HorizontalScrollBarVisibility="Disabled"
  IsReadOnly="False"
  ItemsSource="{Binding WorkStepInputParameters}"
+ RowStyle="{StaticResource ParameterUsageDataGridRowStyle}"
  Style="{StaticResource ColumnsDataGridStyle}">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Width="0.5*"
+                                                <DataGridTextColumn Width="0.5*" IsReadOnly="True"
                                                                     Header="工步值名称"
                                                                     ElementStyle="{StaticResource CellTextBlockStyle}"
                                                                     Binding="{Binding Name}" />
@@ -476,11 +488,13 @@ HorizontalScrollBarVisibility="Disabled"
                                         <TextBlock
            HorizontalAlignment="Right" Style="{StaticResource FieldLabelStyle}"
            Text="区间：~，例如 1~100" />
-                                        <DataGrid Grid.Row="1"
+                                        <DataGrid x:Name="ReturnParameterDataGrid"
+ Grid.Row="1"
 AutoGenerateColumns="False"
 HorizontalScrollBarVisibility="Disabled"
  IsReadOnly="False"
  ItemsSource="{Binding WorkStepReturnParameters}"
+ RowStyle="{StaticResource ParameterUsageDataGridRowStyle}"
  Style="{StaticResource ColumnsDataGridStyle}">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Width="0.5*" IsReadOnly="True"
